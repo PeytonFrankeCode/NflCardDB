@@ -1,0 +1,130 @@
+-- NflCardDB storage schema.
+-- Safe to re-run: every statement is CREATE ... IF NOT EXISTS.
+
+CREATE TABLE IF NOT EXISTS sales (
+    item_id        TEXT PRIMARY KEY,
+    title          TEXT NOT NULL,
+    price_cents    INTEGER,
+    currency       TEXT NOT NULL DEFAULT 'USD',
+    shipping_cents INTEGER,
+    total_cents    INTEGER GENERATED ALWAYS AS
+                       (COALESCE(price_cents, 0) + COALESCE(shipping_cents, 0)) VIRTUAL,
+    sold_date      TEXT,                       -- ISO YYYY-MM-DD
+    listing_format TEXT NOT NULL DEFAULT 'unknown',  -- auction | fixed | unknown
+    bids           INTEGER,
+    best_offer     INTEGER NOT NULL DEFAULT 0, -- 1 = price is the ASK, not the accepted offer
+    condition      TEXT,
+    seller         TEXT,
+    url            TEXT,
+    image_url      TEXT,
+    query_id       TEXT,
+    run_id         TEXT,
+    first_seen_at  TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_sold_date ON sales (sold_date);
+CREATE INDEX IF NOT EXISTS idx_sales_query      ON sales (query_id, sold_date);
+CREATE INDEX IF NOT EXISTS idx_sales_run        ON sales (run_id);
+
+-- Structured attributes parsed out of sales.title.
+CREATE TABLE IF NOT EXISTS cards (
+    item_id       TEXT PRIMARY KEY REFERENCES sales (item_id) ON DELETE CASCADE,
+    player        TEXT,
+    team          TEXT,
+    year          INTEGER,
+    brand         TEXT,
+    set_name      TEXT,
+    parallel      TEXT,
+    card_number   TEXT,
+    serial_number INTEGER,
+    print_run     INTEGER,
+    grader        TEXT,
+    grade         REAL,
+    is_graded     INTEGER NOT NULL DEFAULT 0,
+    is_rookie     INTEGER NOT NULL DEFAULT 0,
+    is_auto       INTEGER NOT NULL DEFAULT 0,
+    is_relic      INTEGER NOT NULL DEFAULT 0,
+    confidence    REAL NOT NULL DEFAULT 0,
+    parser_version TEXT,
+    parsed_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cards_player ON cards (player);
+CREATE INDEX IF NOT EXISTS idx_cards_lookup ON cards (player, year, set_name, parallel);
+CREATE INDEX IF NOT EXISTS idx_cards_grade  ON cards (grader, grade);
+
+-- One row per scrape invocation, for observability and resume.
+CREATE TABLE IF NOT EXISTS scrape_runs (
+    run_id       TEXT PRIMARY KEY,
+    target_date  TEXT,
+    started_at   TEXT NOT NULL,
+    finished_at  TEXT,
+    status       TEXT NOT NULL DEFAULT 'running',  -- running | ok | partial | failed
+    pages_fetched INTEGER NOT NULL DEFAULT 0,
+    items_seen   INTEGER NOT NULL DEFAULT 0,
+    items_new    INTEGER NOT NULL DEFAULT 0,
+    error        TEXT
+);
+
+-- Per-(run, query, price band) progress so an interrupted run can resume
+-- instead of re-walking pages it already paid for.
+CREATE TABLE IF NOT EXISTS scrape_segments (
+    run_id      TEXT NOT NULL,
+    segment_id  TEXT NOT NULL,
+    query_id    TEXT NOT NULL,
+    price_lo    REAL,
+    price_hi    REAL,
+    status      TEXT NOT NULL DEFAULT 'pending',  -- pending | done | capped | failed
+    pages       INTEGER NOT NULL DEFAULT 0,
+    items       INTEGER NOT NULL DEFAULT 0,
+    note        TEXT,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (run_id, segment_id)
+);
+
+-- Full-text search over titles, kept in sync by triggers.
+CREATE VIRTUAL TABLE IF NOT EXISTS sales_fts USING fts5 (
+    title,
+    content = 'sales',
+    content_rowid = 'rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS sales_fts_ai AFTER INSERT ON sales BEGIN
+    INSERT INTO sales_fts (rowid, title) VALUES (new.rowid, new.title);
+END;
+
+CREATE TRIGGER IF NOT EXISTS sales_fts_ad AFTER DELETE ON sales BEGIN
+    INSERT INTO sales_fts (sales_fts, rowid, title) VALUES ('delete', old.rowid, old.title);
+END;
+
+CREATE TRIGGER IF NOT EXISTS sales_fts_au AFTER UPDATE OF title ON sales BEGIN
+    INSERT INTO sales_fts (sales_fts, rowid, title) VALUES ('delete', old.rowid, old.title);
+    INSERT INTO sales_fts (rowid, title) VALUES (new.rowid, new.title);
+END;
+
+-- Convenience view: sales joined to parsed attributes, best-offer rows flagged.
+CREATE VIEW IF NOT EXISTS v_sales AS
+SELECT s.item_id,
+       s.sold_date,
+       c.player,
+       c.team,
+       c.year,
+       c.set_name,
+       c.parallel,
+       c.card_number,
+       c.grader,
+       c.grade,
+       c.is_rookie,
+       c.is_auto,
+       s.price_cents / 100.0 AS price,
+       s.shipping_cents / 100.0 AS shipping,
+       s.total_cents / 100.0 AS total,
+       s.currency,
+       s.listing_format,
+       s.bids,
+       s.best_offer,
+       s.title,
+       s.url
+FROM sales s
+LEFT JOIN cards c USING (item_id);

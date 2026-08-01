@@ -1,0 +1,86 @@
+"""Configuration loading with sane defaults."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
+
+DEFAULT_CONFIG_PATH = Path("config/queries.yml")
+
+DEFAULT_BANDS: list[list[Optional[float]]] = [
+    [None, 10], [10, 25], [25, 50], [50, 100],
+    [100, 250], [250, 1000], [1000, None],
+]
+
+
+@dataclass
+class QuerySpec:
+    id: str
+    keywords: str = ""
+    category: Optional[str] = None
+    extra: dict = field(default_factory=dict)
+    bands: Optional[list[list[Optional[float]]]] = None
+
+
+@dataclass
+class FetchConfig:
+    delay: float = 2.5
+    jitter: float = 1.0
+    max_retries: int = 4
+    timeout: float = 30.0
+    page_budget: Optional[int] = 600
+    items_per_page: int = 240
+    max_pages_per_segment: int = 42
+    max_subdivide_depth: int = 3
+    user_agent: Optional[str] = None
+
+
+@dataclass
+class Config:
+    database: str = "data/nflcarddb.sqlite"
+    roster: Optional[str] = None
+    fetch: FetchConfig = field(default_factory=FetchConfig)
+    price_bands: list[list[Optional[float]]] = field(default_factory=lambda: list(DEFAULT_BANDS))
+    queries: list[QuerySpec] = field(default_factory=list)
+
+    def bands_for(self, query: QuerySpec) -> list[list[Optional[float]]]:
+        return query.bands or self.price_bands
+
+
+def load_config(path: str | Path | None = None) -> Config:
+    path = Path(path) if path else DEFAULT_CONFIG_PATH
+    if not path.exists():
+        raise FileNotFoundError(
+            f"config not found at {path}; copy config/queries.yml from the repo "
+            f"or pass --config"
+        )
+
+    raw: dict[str, Any] = yaml.safe_load(path.read_text()) or {}
+
+    fetch_raw = raw.get("fetch") or {}
+    known = FetchConfig.__dataclass_fields__.keys()
+    fetch = FetchConfig(**{k: v for k, v in fetch_raw.items() if k in known})
+
+    queries = []
+    for q in raw.get("queries") or []:
+        queries.append(QuerySpec(
+            id=str(q["id"]),
+            keywords=q.get("keywords", "") or "",
+            category=str(q["category"]) if q.get("category") else None,
+            extra=q.get("extra") or {},
+            bands=q.get("price_bands"),
+        ))
+
+    if not queries:
+        raise ValueError(f"no queries defined in {path}")
+
+    return Config(
+        database=raw.get("database", "data/nflcarddb.sqlite"),
+        roster=raw.get("roster"),
+        fetch=fetch,
+        price_bands=raw.get("price_bands") or list(DEFAULT_BANDS),
+        queries=queries,
+    )
