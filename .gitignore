@@ -23,3 +23,8 @@ data/html/
 data/browser-profile/
 doctor-report.txt
 install-log.txt
+
+# Working database -- rewritten by every run, not a project file
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

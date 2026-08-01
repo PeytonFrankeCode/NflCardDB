@@ -18,15 +18,19 @@ echo.
 pause
 echo.
 
-nflcarddb probe --query football_singles --chrome-profile --save-html data\html
+nflcarddb probe --query football_singles --chrome-profile --save-html debug
 echo.
 echo ==========================================================
 echo.
-echo The page eBay sent was saved into the  data\html  folder.
+echo The page eBay sent was saved into the  debug  folder.
 echo.
-echo SEND CLAUDE the newest file in that folder. That is the
-echo real page, and it is what is needed to make the reader
-echo understand eBay's current layout.
+echo TO SEND IT:
+echo   1. Open GitHub Desktop.
+echo   2. The new file appears on the left, under  debug
+echo   3. Type anything in the Summary box, click Commit, then Push.
+echo.
+echo That file is the real page, and it is what is needed to make
+echo the reader understand eBay's current layout.
 echo.
 
 :END
