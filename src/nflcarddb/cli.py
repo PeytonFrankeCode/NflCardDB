@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import db as store
 from .config import load_config
-from .fetch import Fetcher
+from .fetch import BlockedError, Fetcher, FetchError
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .pipeline import reparse_titles, run_scrape, yesterday
@@ -110,7 +110,9 @@ def cmd_probe(args) -> int:
     url = build_url(query.keywords, query.category, page=1, items_per_page=60)
     print(f"GET {url}\n")
 
-    fetcher = Fetcher(delay=0, jitter=0, save_dir=args.save_html)
+    # One retry only: probe is a diagnostic, so it should report a dead network
+    # in seconds rather than working through the full backoff ladder.
+    fetcher = Fetcher(delay=0, jitter=0, max_retries=1, save_dir=args.save_html)
     html = fetcher.get(url, label=f"probe_{query.id}")
     result = parse_search_page(html, query_id=query.id)
 
@@ -266,6 +268,26 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except BlockedError as exc:
+        # Expected failure mode, not a crash: eBay served an interstitial.
+        print(f"blocked: {exc}", file=sys.stderr)
+        print(
+            "\nWhat to do: wait a while, then retry with a longer --delay (try 5)\n"
+            "and a smaller --page-budget. Do not add concurrency -- that is what\n"
+            "triggered this. Already-collected rows were saved; re-running the\n"
+            "same --date resumes safely.",
+            file=sys.stderr,
+        )
+        return 4
+    except FetchError as exc:
+        print(f"network error: {exc}", file=sys.stderr)
+        print(
+            "\nCould not reach eBay after retrying. Check your connection, any\n"
+            "proxy or firewall in front of it, and that ebay.com resolves. Run\n"
+            "`nflcarddb url` to see the exact URL being requested.",
+            file=sys.stderr,
+        )
+        return 5
     except KeyboardInterrupt:
         return 130
 
