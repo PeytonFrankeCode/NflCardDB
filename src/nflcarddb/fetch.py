@@ -38,6 +38,10 @@ class BlockedError(RuntimeError):
     """eBay served a challenge/interstitial instead of results."""
 
 
+class EngineUnavailable(RuntimeError):
+    """An engine's dependency is missing, so the ladder should move past it."""
+
+
 class FetchError(RuntimeError):
     """Request failed after exhausting retries."""
 
@@ -172,61 +176,117 @@ class Fetcher:
         self.session.close()
 
 
-class AutoFetcher:
-    """Start with the light HTTP client; switch to a browser if eBay refuses.
+# Each engine accepts a different set of options -- headless means nothing to an
+# HTTP client, user_agent means nothing to a browser that sets its own. Callers
+# pass the union, and these filter it.
+HTTP_KWARGS = frozenset({
+    "delay", "jitter", "max_retries", "timeout", "user_agent", "page_budget", "save_dir",
+})
+BROWSER_KWARGS = frozenset({
+    "delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir",
+    "headless", "executable_path",
+})
 
-    eBay's answer differs by machine and by day, so hard-coding one engine means
-    somebody always gets the wrong one. This tries the cheap path first and
-    upgrades permanently on the first refusal, carrying the page budget across so
-    the switch cannot buy extra requests.
+
+# What "auto" walks, cheapest first. Plain requests is deliberately absent: eBay
+# refuses it at the TLS layer before HTTP is even spoken, so spending a request
+# to rediscover that only costs time.
+DEFAULT_LADDER = ("impersonate", "browser")
+
+ENGINE_ALIASES = {
+    "http": "requests", "plain": "requests",
+    "chromium": "browser", "playwright": "browser",
+    "curl": "impersonate", "curl_cffi": "impersonate", "tls": "impersonate",
+}
+
+
+def build_engine(name: str, **kwargs):
+    """Construct one engine by name, passing only the options it understands."""
+    name = ENGINE_ALIASES.get(name, name)
+    if name == "requests":
+        return Fetcher(**{k: v for k, v in kwargs.items() if k in HTTP_KWARGS})
+    if name == "impersonate":
+        from .impersonate import IMPERSONATE_KWARGS, ImpersonateFetcher
+
+        return ImpersonateFetcher(
+            **{k: v for k, v in kwargs.items() if k in IMPERSONATE_KWARGS}
+        )
+    if name == "browser":
+        from .browser import BrowserFetcher
+
+        return BrowserFetcher(**{k: v for k, v in kwargs.items() if k in BROWSER_KWARGS})
+    raise ValueError(
+        f"unknown engine {name!r}; use auto, impersonate, browser, or requests"
+    )
+
+
+class AutoFetcher:
+    """Walk a ladder of engines, moving up whenever eBay refuses the current one.
+
+    eBay's answer varies by machine, connection and day, so pinning one engine
+    leaves somebody on the wrong one. Each rung is tried until one gets through;
+    the choice then sticks. The spent page budget carries across every switch, so
+    changing engine can never buy extra requests.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, ladder: Optional[tuple] = None, **kwargs) -> None:
         self._kwargs = kwargs
-        self._impl: object = Fetcher(**kwargs)
+        self._ladder = [ENGINE_ALIASES.get(n, n) for n in (ladder or DEFAULT_LADDER)]
+        self._pos = 0
+        self.engine = self._ladder[0]
+        self._impl = build_engine(self.engine, **kwargs)
         self.switched = False
+        # The first refusal is the one that explains *why* nothing worked. A
+        # later rung may fail merely because its dependency is missing, and that
+        # must not become the headline.
+        self._first_block: Optional[Exception] = None
 
     @property
     def stats(self) -> FetchStats:
-        return self._impl.stats  # type: ignore[attr-defined]
+        return self._impl.stats
 
     def budget_exhausted(self) -> bool:
-        return self._impl.budget_exhausted()  # type: ignore[attr-defined]
+        return self._impl.budget_exhausted()
 
     def get(self, url: str, label: Optional[str] = None) -> str:
-        try:
-            return self._impl.get(url, label)  # type: ignore[attr-defined]
-        except BlockedError as blocked:
-            if self.switched:
-                raise
-            log.warning("eBay refused the plain HTTP client; switching to a browser")
-            spent = self._impl.stats  # type: ignore[attr-defined]
-            from .browser import INSTALL_HINT, BrowserUnavailable
-
+        while True:
             try:
-                # Chromium only launches on the first navigation, so the
-                # "no browser here" failure surfaces from get(), not the
-                # constructor -- both have to be inside this guard.
-                self._upgrade()
-                self._impl.stats.requests = spent.requests  # type: ignore[attr-defined]
-                self._impl.stats.blocked = spent.blocked  # type: ignore[attr-defined]
-                return self._impl.get(url, label)  # type: ignore[attr-defined]
-            except BrowserUnavailable as exc:
-                # Report the block that actually happened, with the fix appended
-                # -- not a confusing "browser missing" error for an engine the
-                # user never asked for.
-                raise BlockedError(
-                    f"{blocked}\n\nA real browser would likely get through, but the "
-                    f"browser engine is not available here.\n{INSTALL_HINT}"
-                ) from exc
+                return self._impl.get(url, label)
+            except (BlockedError, EngineUnavailable) as exc:
+                if self._first_block is None and isinstance(exc, BlockedError):
+                    self._first_block = exc
+                if self._pos + 1 >= len(self._ladder):
+                    raise self._exhausted(exc) from exc
+                self._advance(exc)
 
-    def _upgrade(self) -> None:
-        from .browser import BrowserFetcher
-
+    def _advance(self, exc: Exception) -> None:
+        # Engines construct lazily, so a missing dependency surfaces from get()
+        # rather than the constructor -- both paths land here.
+        spent = self._impl.stats
         self.close()
-        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
-        self._impl = BrowserFetcher(**{k: v for k, v in self._kwargs.items() if k in allowed})
+        previous = self._ladder[self._pos]
+        self._pos += 1
+        self.engine = self._ladder[self._pos]
+        log.warning("%s did not get through (%s); trying %s",
+                    previous, type(exc).__name__, self.engine)
+        self._impl = build_engine(self.engine, **self._kwargs)
+        # Carry the budget so switching engines cannot reset the allowance.
+        self._impl.stats.requests = spent.requests
+        self._impl.stats.blocked = spent.blocked
         self.switched = True
+
+    def _exhausted(self, last: Exception) -> BlockedError:
+        parts = [f"Every method was refused (tried: {', '.join(self._ladder)})."]
+        if self._first_block is not None and self._first_block is not last:
+            parts.append(f"\nWhat eBay said first: {self._first_block}")
+        parts.append(f"\nLast error: {last}")
+        if isinstance(last, EngineUnavailable):
+            # A missing dependency is fixable, unlike a refusal -- say so.
+            parts.append(
+                "\nThat last method was never actually tried, because it is not "
+                "installed. Installing it may well be the fix."
+            )
+        return BlockedError("".join(parts))
 
     def close(self) -> None:
         closer = getattr(self._impl, "close", None)
@@ -235,15 +295,8 @@ class AutoFetcher:
 
 
 def make_fetcher(engine: str = "auto", **kwargs):
-    """Build the fetcher for an engine name: auto | requests | browser."""
-    engine = (engine or "auto").lower()
-    if engine in ("browser", "chromium", "playwright"):
-        from .browser import BrowserFetcher
-
-        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
-        return BrowserFetcher(**{k: v for k, v in kwargs.items() if k in allowed})
-    if engine in ("requests", "http", "plain"):
-        return Fetcher(**kwargs)
-    if engine == "auto":
+    """Build a fetcher: auto | impersonate | browser | requests."""
+    name = ENGINE_ALIASES.get((engine or "auto").lower(), (engine or "auto").lower())
+    if name == "auto":
         return AutoFetcher(**kwargs)
-    raise ValueError(f"unknown engine {engine!r}; use auto, requests, or browser")
+    return build_engine(name, **kwargs)

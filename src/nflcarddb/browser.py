@@ -23,7 +23,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from .fetch import CHALLENGE_MARKERS, BlockedError, FetchError, FetchStats
+from .fetch import (
+    CHALLENGE_MARKERS,
+    BlockedError,
+    EngineUnavailable,
+    FetchError,
+    FetchStats,
+)
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +39,57 @@ INSTALL_HINT = (
     "    playwright install chromium"
 )
 
+# Playwright leaves automation markers that bot detection reads directly --
+# navigator.webdriver is set to true, window.chrome is missing, the plugin and
+# language arrays come back empty. A stock headless launch is identifiable from
+# JavaScript in about three lines, which is why the first browser attempt was
+# challenged. This runs before any page script and restores what a normal Chrome
+# reports.
+STEALTH_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
 
-class BrowserUnavailable(RuntimeError):
+window.chrome = window.chrome || {};
+window.chrome.runtime = window.chrome.runtime || {};
+
+Object.defineProperty(navigator, 'plugins', {
+  get: () => [
+    {name: 'PDF Viewer', filename: 'internal-pdf-viewer'},
+    {name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer'},
+    {name: 'Chromium PDF Viewer', filename: 'internal-pdf-viewer'},
+  ],
+});
+Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+
+const originalQuery = window.navigator.permissions &&
+                      window.navigator.permissions.query;
+if (originalQuery) {
+  window.navigator.permissions.query = (parameters) =>
+    parameters && parameters.name === 'notifications'
+      ? Promise.resolve({state: Notification.permission})
+      : originalQuery(parameters);
+}
+
+// Headless reports 0 for these; a real window never does.
+if (!window.outerWidth) {
+  Object.defineProperty(window, 'outerWidth', {get: () => window.innerWidth});
+  Object.defineProperty(window, 'outerHeight', {get: () => window.innerHeight + 74});
+}
+"""
+
+LAUNCH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--disable-features=IsolateOrigins,site-per-process",
+    "--no-first-run",
+    "--no-default-browser-check",
+]
+
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+)
+
+
+class BrowserUnavailable(EngineUnavailable):
     """Playwright or its Chromium build is missing."""
 
 
@@ -80,22 +135,38 @@ class BrowserFetcher:
             raise BrowserUnavailable(f"Playwright is not installed.\n{INSTALL_HINT}") from exc
 
         self._pw = sync_playwright().start()
-        launch_kwargs = {"headless": self._headless}
+        launch_kwargs = {"headless": self._headless, "args": list(LAUNCH_ARGS)}
         if self._executable_path:
             launch_kwargs["executable_path"] = self._executable_path
-        try:
-            self._browser = self._pw.chromium.launch(**launch_kwargs)
-        except Exception as exc:  # pragma: no cover - depends on environment
+
+        # Real Chrome beats bundled Chromium when it is installed: same binary
+        # everyone else browses with, rather than the build automation ships.
+        attempts = [] if self._executable_path else [{"channel": "chrome"}]
+        attempts.append({})
+
+        last_exc: Optional[Exception] = None
+        for extra in attempts:
+            try:
+                self._browser = self._pw.chromium.launch(**launch_kwargs, **extra)
+                if extra:
+                    log.debug("launched real Chrome")
+                break
+            except Exception as exc:  # pragma: no cover - depends on environment
+                last_exc = exc
+        if self._browser is None:
             self.close()
             raise BrowserUnavailable(
-                f"Could not start Chromium: {exc}\n{INSTALL_HINT}"
-            ) from exc
+                f"Could not start a browser: {last_exc}\n{INSTALL_HINT}"
+            ) from last_exc
 
         context = self._browser.new_context(
             viewport={"width": 1440, "height": 900},
             locale="en-US",
             timezone_id="America/New_York",
+            user_agent=BROWSER_UA,
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
         )
+        context.add_init_script(STEALTH_SCRIPT)
         self._page = context.new_page()
 
     def close(self) -> None:

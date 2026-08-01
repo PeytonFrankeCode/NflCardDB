@@ -42,7 +42,7 @@ def project(tmp_path):
     cfg_path.write_text(yaml.safe_dump({
         "database": str(db_path),
         "fetch": {
-            "delay": 0, "jitter": 0, "items_per_page": 4,
+            "engine": "requests", "delay": 0, "jitter": 0, "items_per_page": 4,
             "max_pages_per_segment": 5, "page_budget": 50,
         },
         "price_bands": [[None, 50], [50, None]],

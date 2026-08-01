@@ -15,6 +15,7 @@ from .config import load_config
 from .fetch import BlockedError, FetchError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
+from .ingest import import_files
 from .pipeline import reparse_titles, run_scrape, yesterday
 from .publish import publish
 from .search import PriceBand, build_url
@@ -125,6 +126,7 @@ def cmd_probe(args) -> int:
     fetcher = make_fetcher(
         engine=args.engine or config.fetch.engine,
         delay=0, jitter=0, max_retries=1, save_dir=args.save_html,
+        headless=not args.headed,
     )
     try:
         html = fetcher.get(url, label=f"probe_{query.id}")
@@ -217,6 +219,37 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_import(args) -> int:
+    """Load eBay pages you saved yourself, instead of fetching them."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+    roster = args.roster or (config.roster if config else None)
+
+    report = import_files(args.paths, db_path, roster)
+    if not report.files:
+        print("No .html files found in what you gave me.", file=sys.stderr)
+        print(
+            "Save an eBay sold-listings page in your browser (Ctrl+S), then pass "
+            "the file or its folder to this command.",
+            file=sys.stderr,
+        )
+        return 2
+
+    print(json.dumps(report.as_dict(), indent=2))
+    for name, reason in report.skipped[:10]:
+        print(f"  skipped {name}: {reason}", file=sys.stderr)
+
+    if not report.parsed:
+        print(
+            "\nNothing could be read from those files. Make sure you saved a "
+            "SOLD listings search page -- the one with 'Sold' next to each "
+            "price -- as 'Webpage, Complete' or 'Webpage, Single File'.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def cmd_publish(args) -> int:
     """Flatten the database into the static JSON the Pages dashboard reads."""
     meta = publish(args.db, args.out)
@@ -279,6 +312,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--save-html")
     p.add_argument("--engine", choices=["auto", "requests", "browser"],
                    help="how to fetch pages (default: from config, normally auto)")
+    p.add_argument("--headed", action="store_true",
+                   help="show the browser window, so you can see what eBay serves")
     p.set_defaults(func=cmd_probe)
 
     p = sub.add_parser("stats", help="summarise what is in the database")
@@ -291,6 +326,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date")
     p.add_argument("--out")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("import", help="load eBay pages you saved yourself")
+    p.add_argument("paths", nargs="+", help="HTML files, folders, or a glob")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--roster")
+    p.set_defaults(func=cmd_import)
 
     p = sub.add_parser("publish", help="export static JSON for the Pages dashboard")
     p.add_argument("--db", default="data/nflcarddb.sqlite")

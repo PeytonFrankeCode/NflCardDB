@@ -73,6 +73,25 @@ Windows may warn you about running a downloaded file. Click **More info** →
 
 ---
 
+## If eBay turns the collector away
+
+It may. eBay refused both the simple method and a real browser on at least one
+home connection. When automatic collecting doesn't work, there is a way that
+**cannot** be blocked, because nothing on your PC talks to eBay — you do.
+
+1. In your normal browser, search eBay for the cards you want, and turn on the
+   **Sold items** filter in the left sidebar.
+2. Press **Ctrl+S** and save the page. Choose **Webpage, Complete**. Put the
+   files anywhere you like — a folder on your Desktop is fine.
+3. **Drag the saved file (or the whole folder) onto `import.bat`.**
+
+That reads the prices off the pages and files them away exactly as if the
+collector had fetched them, then updates your dashboard. Then commit and push in
+GitHub Desktop as usual.
+
+Set eBay to show **240 items per page** (a dropdown at the bottom of the
+results) and each saved page is worth 240 sales instead of 60.
+
 ## Every time you want data
 
 1. **Double-click `collect.bat`.**

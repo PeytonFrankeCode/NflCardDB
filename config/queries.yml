@@ -16,13 +16,16 @@ database: data/nflcarddb.sqlite
 # roster: config/nfl_players.txt
 
 fetch:
-  # auto | requests | browser
-  #   auto    - try the light HTTP client, switch to a real browser if refused
-  #   requests- HTTP client only (fast, but eBay 403s it on many connections)
-  #   browser - drive Chromium directly (slower, gets through far more often)
-  # eBay answers a plain HTTP client with 403 on the very first request from
-  # some connections. That is fingerprinting, not rate limiting, so waiting does
-  # not help -- only being a browser does.
+  # auto | impersonate | browser | requests
+  #   auto        - walk the ladder below, sticking with whatever gets through
+  #   impersonate - HTTP client with a real Chrome TLS fingerprint (fast)
+  #   browser     - drive Chrome directly, automation markers removed (slower)
+  #   requests    - plain Python HTTP; eBay 403s this on most connections
+  #
+  # eBay fingerprints the TLS handshake, so a plain client is refused before it
+  # has sent a single HTTP header. That is why waiting never helped: the refusal
+  # is not about rate. "impersonate" sends Chrome's actual handshake; "browser"
+  # is Chrome.
   engine: auto
   delay: 2.5              # seconds between requests (floor; jitter is added)
   jitter: 1.0
