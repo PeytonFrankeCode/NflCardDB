@@ -54,6 +54,49 @@ SELECT * FROM v_sales WHERE best_offer = 0;
 This is the single biggest quality caveat in the dataset and there is no fix
 available from search-page scraping alone.
 
+## The dashboard (GitHub Pages)
+
+`site/` is a static dashboard — KPI tiles, daily volume and median-price charts,
+top players / grades / sets, and a searchable table of the underlying sales. It
+has no build step and no dependencies; open `site/index.html` through any local
+server and it works.
+
+**Pages cannot run the scraper.** It is static hosting, so there is no Python,
+and a browser cannot query eBay directly either — eBay sends no CORS headers, so
+a client-side `fetch` to it is blocked. The split is therefore:
+
+```
+scrape (wherever you can reach eBay)  ->  nflcarddb publish  ->  site/data/*.json  ->  Pages
+```
+
+To put it online:
+
+1. Settings → Pages → Source: **GitHub Actions**.
+2. Scrape and publish, then push:
+
+   ```bash
+   nflcarddb scrape --date "$(date -d yesterday +%F)"
+   nflcarddb publish                 # writes site/data/*.json
+   git add site/data && git commit -m "data update" && git push
+   ```
+
+`.github/workflows/pages.yml` redeploys on any push touching `site/`. Until you
+publish once, the page renders an empty state that tells you these commands —
+that is expected, not a failure.
+
+`publish` writes six small JSON files. Price statistics deliberately exclude
+best-offer rows and non-USD listings, while volume counts include everything, so
+"sales per day" and "median price" are computed over different row sets by
+design — the dashboard labels which is which. Those excluded rows still appear
+in the table, flagged, rather than being hidden.
+
+To preview locally:
+
+```bash
+nflcarddb publish
+python3 -m http.server -d site 8000    # then open http://localhost:8000
+```
+
 ## Where to run this
 
 A daily GitHub Actions workflow is included (`.github/workflows/daily-scrape.yml`),
@@ -176,6 +219,7 @@ selectors.
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
+| `publish` | write `site/data/*.json` for the Pages dashboard |
 | `url` | print the URLs a config would hit, fetch nothing |
 
 ## Known limitations

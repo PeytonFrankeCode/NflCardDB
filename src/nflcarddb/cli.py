@@ -15,6 +15,7 @@ from .fetch import BlockedError, Fetcher, FetchError
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .pipeline import reparse_titles, run_scrape, yesterday
+from .publish import publish
 from .search import PriceBand, build_url
 
 
@@ -194,6 +195,19 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_publish(args) -> int:
+    """Flatten the database into the static JSON the Pages dashboard reads."""
+    meta = publish(args.db, args.out)
+    print(json.dumps(meta, indent=2))
+    if not meta["total_sales"]:
+        print(
+            "\nNote: the database is empty, so the dashboard will render its "
+            "empty state. Run a scrape first.",
+            file=sys.stderr,
+        )
+    return 0
+
+
 def cmd_url(args) -> int:
     """Print the URL a query/band would hit, without fetching it."""
     config = load_config(args.config)
@@ -251,6 +265,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date")
     p.add_argument("--out")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("publish", help="export static JSON for the Pages dashboard")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--out", default="site/data", help="output directory for the JSON")
+    p.set_defaults(func=cmd_publish)
 
     p = sub.add_parser("url", help="print the search URLs a config would hit")
     p.add_argument("--config", default="config/queries.yml")

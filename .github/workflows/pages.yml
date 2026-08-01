@@ -1,0 +1,54 @@
+name: Deploy dashboard to Pages
+
+# Publishes site/ to GitHub Pages. The site is static: it reads the JSON in
+# site/data/ that `nflcarddb publish` generates. It does not scrape anything --
+# GitHub Pages cannot run Python, and a browser cannot query eBay directly
+# (eBay sends no CORS headers).
+#
+# Typical flow: scrape wherever you can reach eBay, run `nflcarddb publish`,
+# commit site/data/, push. This workflow then redeploys the page.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report what is being published
+        run: |
+          if [ -f site/data/meta.json ]; then
+            echo "Publishing with data:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat site/data/meta.json >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No site/data/meta.json -- the page will render its empty state." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
