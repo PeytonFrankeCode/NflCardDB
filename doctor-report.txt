@@ -1,0 +1,25 @@
+NflCardDB doctor
+==========================================================
+Python    3.14.6 (C:\Users\peyto\OneDrive\Documents\GitHub\NflCardDB\venv\Scripts\python.exe)
+System    Windows-11-10.0.26200-SP0
+
+Packages
+  requests     2.34.2
+  curl_cffi    0.16.0
+  playwright   installed
+  bs4          4.15.0
+  lxml         6.1.1
+
+Testing each method (one request each)
+URL: https://www.ebay.com/sch/i.html?_nkw=football&LH_Sold=1&LH_Complete=1&_sop=13&_ipg=60&_pgn=1&_sacat=261328
+----------------------------------------------------------
+  requests      HTTP 403   REFUSED        HTTP 403 - refused before any page was sent
+                saved: data\html\doctor_requests.html
+  impersonate   HTTP 403   REFUSED        HTTP 403 - refused before any page was sent [as chrome136]
+                saved: data\html\doctor_impersonate.html
+  browser       HTTP 403   REFUSED        HTTP 403 - refused before any page was sent
+                saved: data\html\doctor_browser.html
+
+----------------------------------------------------------
+  Nothing got through. Send the saved HTML files to Claude --
+  they show exactly what eBay returned to each method.

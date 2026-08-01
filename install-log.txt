@@ -12,34 +12,26 @@ Requirement already satisfied: beautifulsoup4>=4.12 in .\venv\Lib\site-packages 
 Requirement already satisfied: lxml>=5.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.1.1)
 Requirement already satisfied: PyYAML>=6.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.0.3)
 Requirement already satisfied: playwright>=1.40 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (1.62.0)
-Collecting curl_cffi>=0.7 (from nflcarddb==0.1.0)
-  Downloading curl_cffi-0.16.0-cp310-abi3-win_amd64.whl.metadata (17 kB)
+Requirement already satisfied: curl_cffi>=0.7 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (0.16.0)
 Requirement already satisfied: soupsieve>=1.6.1 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (2.9.1)
 Requirement already satisfied: typing-extensions>=4.0.0 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (4.16.0)
-Collecting cffi>=2.0.0 (from curl_cffi>=0.7->nflcarddb==0.1.0)
-  Downloading cffi-2.1.0-cp314-cp314-win_amd64.whl.metadata (2.6 kB)
+Requirement already satisfied: cffi>=2.0.0 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2.1.0)
 Requirement already satisfied: certifi>=2024.2.2 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2026.7.22)
-Collecting pycparser (from cffi>=2.0.0->curl_cffi>=0.7->nflcarddb==0.1.0)
-  Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Requirement already satisfied: pycparser in .\venv\Lib\site-packages (from cffi>=2.0.0->curl_cffi>=0.7->nflcarddb==0.1.0) (3.0)
 Requirement already satisfied: pyee<14,>=13 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (13.0.1)
 Requirement already satisfied: greenlet<4.0.0,>=3.1.1 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (3.5.4)
 Requirement already satisfied: charset_normalizer<4,>=2 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.4.9)
 Requirement already satisfied: idna<4,>=2.5 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.18)
 Requirement already satisfied: urllib3<3,>=1.26 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (2.7.0)
-Downloading curl_cffi-0.16.0-cp310-abi3-win_amd64.whl (2.0 MB)
-   ---------------------------------------- 2.0/2.0 MB 16.9 MB/s  0:00:00
-Downloading cffi-2.1.0-cp314-cp314-win_amd64.whl (187 kB)
-Downloading pycparser-3.0-py3-none-any.whl (48 kB)
 Building wheels for collected packages: nflcarddb
   Building editable for nflcarddb (pyproject.toml): started
   Building editable for nflcarddb (pyproject.toml): finished with status 'done'
-  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1700 sha256=6f96f41d1fad0557a5b709a15807450b80aa838a258c3e6fd730d6da58c15cc3
-  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-mfj009ib\wheels\ef\13\c0\13fd32622ec535717474479b24e1a00ff164cfaa43df71110e
+  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1700 sha256=03c588fba5ddff75b6bbb01e586e586d9de26ccbd8c6da69f3444928b0f00eac
+  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-fcmr9b3i\wheels\ef\13\c0\13fd32622ec535717474479b24e1a00ff164cfaa43df71110e
 Successfully built nflcarddb
-Installing collected packages: pycparser, nflcarddb, cffi, curl_cffi
+Installing collected packages: nflcarddb
   Attempting uninstall: nflcarddb
     Found existing installation: nflcarddb 0.1.0
     Uninstalling nflcarddb-0.1.0:
       Successfully uninstalled nflcarddb-0.1.0
-
-Successfully installed cffi-2.1.0 curl_cffi-0.16.0 nflcarddb-0.1.0 pycparser-3.0
+Successfully installed nflcarddb-0.1.0
