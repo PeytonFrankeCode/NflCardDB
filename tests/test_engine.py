@@ -238,3 +238,49 @@ def test_browser_stealth_script_covers_the_known_tells():
     assert "plugins" in STEALTH_SCRIPT
     assert "languages" in STEALTH_SCRIPT
     assert any("AutomationControlled" in a for a in LAUNCH_ARGS)
+
+
+def test_doctor_classifies_each_kind_of_response():
+    """A 200 that is really a bot check must never read as success."""
+    from nflcarddb.diagnose import CHALLENGED, REFUSED, UNREADABLE, WORKING, _classify
+
+    listings = open("tests/fixtures/sold_s_item.html", encoding="utf-8").read()
+    assert _classify(listings, 200)[0] == WORKING
+    assert _classify(listings, 200)[1] == 3
+
+    assert _classify("<html>Pardon Our Interruption</html>", 200)[0] == CHALLENGED
+    assert _classify("", 403)[0] == REFUSED
+    assert _classify("<html><body>hello</body></html>", 200)[0] == UNREADABLE
+
+
+def test_doctor_report_separates_untried_from_refused():
+    from nflcarddb.diagnose import (
+        ERROR, UNAVAILABLE, Diagnosis, EngineCheck, format_report,
+    )
+
+    nothing_installed = Diagnosis(checks=[
+        EngineCheck("requests", UNAVAILABLE), EngineCheck("impersonate", UNAVAILABLE),
+        EngineCheck("browser", UNAVAILABLE),
+    ])
+    assert "nothing was installed" in format_report(nothing_installed)
+
+    cannot_connect = Diagnosis(checks=[
+        EngineCheck("requests", ERROR), EngineCheck("impersonate", ERROR),
+        EngineCheck("browser", UNAVAILABLE),
+    ])
+    report = format_report(cannot_connect)
+    assert "not refusals" in report
+    assert "nothing was installed" not in report
+
+
+def test_doctor_names_the_winning_engine():
+    from nflcarddb.diagnose import WORKING, Diagnosis, EngineCheck, format_report
+
+    diag = Diagnosis(checks=[
+        EngineCheck("requests", "REFUSED", 403),
+        EngineCheck("impersonate", WORKING, 200, 5000, 240, "parsed 240 listing(s)"),
+    ])
+    assert diag.any_working
+    report = format_report(diag)
+    assert "engine: impersonate" in report
+    assert "240 listings" in report

@@ -12,6 +12,7 @@ from pathlib import Path
 from . import db as store
 from .browser import BrowserUnavailable
 from .config import load_config
+from .diagnose import format_report, run_diagnosis
 from .fetch import BlockedError, FetchError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
@@ -219,6 +220,21 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """Try every fetch method once and report exactly what eBay returns to each."""
+    config = load_config(args.config)
+    query = next((q for q in config.queries if q.id == args.query), None)
+    if query is None:
+        print(f"no query {args.query!r}; have: {[q.id for q in config.queries]}",
+              file=sys.stderr)
+        return 2
+
+    url = build_url(query.keywords, query.category, page=1, items_per_page=60)
+    diag = run_diagnosis(url, save_dir=args.save_html, headed=args.headed)
+    print(format_report(diag))
+    return 0 if diag.any_working else 1
+
+
 def cmd_import(args) -> int:
     """Load eBay pages you saved yourself, instead of fetching them."""
     config = load_config(args.config) if Path(args.config or "").exists() else None
@@ -326,6 +342,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date")
     p.add_argument("--out")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("doctor", help="test every fetch method and report what eBay returns")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--query", default="football_singles")
+    p.add_argument("--save-html", default="data/html")
+    p.add_argument("--headed", action="store_true", help="show the browser window")
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("import", help="load eBay pages you saved yourself")
     p.add_argument("paths", nargs="+", help="HTML files, folders, or a glob")
