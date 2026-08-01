@@ -354,3 +354,50 @@ def test_browser_kwargs_include_the_profile_options():
     assert {"profile_dir", "warm_up"} <= BROWSER_KWARGS
     f = build_engine("browser", delay=0, profile_dir=None, warm_up=False, user_agent="ignored")
     assert f._warm_up is False
+
+
+def test_doctor_stage_report_names_the_sold_listing_gate():
+    """Homepage fine + sold search refused is an access rule, not bot detection."""
+    from nflcarddb.diagnose import (
+        REFUSED, WORKING, Diagnosis, EngineCheck, StageCheck, format_report,
+    )
+
+    diag = Diagnosis(
+        checks=[EngineCheck("browser", REFUSED, 403)],
+        stages=[
+            StageCheck("homepage", "u", 200, WORKING, "ok"),
+            StageCheck("plain search", "u", 200, WORKING, "parsed 60"),
+            StageCheck("sold search", "u", 403, REFUSED, "HTTP 403"),
+        ],
+        signed_in=False,
+    )
+    report = format_report(diag)
+    assert "refuses the SOLD search" in report
+    assert "login.bat" in report
+    assert "signed in to eBay: no" in report
+
+
+def test_doctor_stage_report_flags_a_network_level_block():
+    from nflcarddb.diagnose import REFUSED, Diagnosis, EngineCheck, StageCheck, format_report
+
+    diag = Diagnosis(
+        checks=[EngineCheck("browser", REFUSED, 403)],
+        stages=[
+            StageCheck("homepage", "u", 403, REFUSED, "HTTP 403"),
+            StageCheck("plain search", "u", 403, REFUSED, "HTTP 403"),
+            StageCheck("sold search", "u", 403, REFUSED, "HTTP 403"),
+        ],
+    )
+    report = format_report(diag)
+    assert "not about this project" in report
+    assert "VPN" in report
+    assert "login.bat" not in report  # signing in would not help here
+
+
+def test_stages_are_skipped_when_something_already_works():
+    """No point escalating URLs if a method got through."""
+    from nflcarddb.diagnose import WORKING, Diagnosis, EngineCheck
+
+    diag = Diagnosis(checks=[EngineCheck("impersonate", WORKING, 200, 500, 60)])
+    assert diag.any_working
+    assert diag.stages == []

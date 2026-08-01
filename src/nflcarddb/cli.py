@@ -220,6 +220,59 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_login(args) -> int:
+    """Open a real browser window so you can sign in to eBay once.
+
+    eBay gates sold-listing search behind an account. The browser engine keeps a
+    persistent profile, so a session established here is reused by every later
+    run -- this is your own account and your own session, not a shared one.
+    """
+    from .browser import BrowserFetcher, BrowserUnavailable
+
+    f = BrowserFetcher(delay=0, jitter=0, headless=False, warm_up=False,
+                       profile_dir=args.profile)
+    try:
+        f._ensure_browser()
+    except BrowserUnavailable as exc:
+        print(f"browser engine unavailable: {exc}", file=sys.stderr)
+        return 6
+
+    try:
+        f._page.goto("https://www.ebay.com/signin/", timeout=60000,
+                     wait_until="domcontentloaded")
+        print("=" * 58)
+        print("  A browser window has opened.")
+        print("=" * 58)
+        print()
+        print("  1. Sign in to eBay in that window, as you normally would.")
+        print("  2. Once you are signed in and can see the eBay homepage,")
+        print("     come back here and press Enter.")
+        print()
+        print("  Your sign-in goes to eBay directly. It is not seen or")
+        print("  stored by this project -- only the browser profile in")
+        print(f"  {args.profile} keeps the session, on this PC.")
+        print()
+        try:
+            input("  Press Enter when you are signed in... ")
+        except EOFError:
+            pass
+
+        f._page.goto("https://www.ebay.com/", timeout=60000,
+                     wait_until="domcontentloaded")
+        html = f._page.content().lower()
+        signed_in = ("my ebay" in html) and ("sign in" not in html[:200000])
+        print()
+        if signed_in:
+            print("  Signed in. The collector will reuse this session.")
+            return 0
+        print("  Could not confirm you are signed in.")
+        print("  If you did sign in, try `nflcarddb doctor` anyway -- this check")
+        print("  is only reading the page, and it can be wrong.")
+        return 1
+    finally:
+        f.close()
+
+
 def cmd_doctor(args) -> int:
     """Try every fetch method once and report exactly what eBay returns to each."""
     config = load_config(args.config)
@@ -342,6 +395,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date")
     p.add_argument("--out")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("login", help="sign in to eBay once, in a real browser window")
+    p.add_argument("--profile", default="data/browser-profile")
+    p.set_defaults(func=cmd_login)
 
     p = sub.add_parser("doctor", help="test every fetch method and report what eBay returns")
     p.add_argument("--config", default="config/queries.yml")

@@ -42,12 +42,25 @@ class EngineCheck:
 
 
 @dataclass
+class StageCheck:
+    """One URL in the escalation from 'any eBay page' to 'the sold search'."""
+
+    name: str
+    url: str
+    status: Optional[int] = None
+    outcome: str = ""
+    detail: str = ""
+
+
+@dataclass
 class Diagnosis:
     python: str = ""
     platform_name: str = ""
     packages: dict = field(default_factory=dict)
     checks: list = field(default_factory=list)
+    stages: list = field(default_factory=list)
     url: str = ""
+    signed_in: Optional[bool] = None
 
     @property
     def any_working(self) -> bool:
@@ -164,6 +177,62 @@ def check_browser(url: str, save_dir: Optional[Path], timeout: float,
         f.close()
 
 
+def check_stages(save_dir: Optional[Path], timeout: float,
+                 headless: bool = True) -> tuple[list, Optional[bool]]:
+    """Escalate from the homepage to the sold search, using one browser session.
+
+    Which *request* is refused matters more than which method sends it. If the
+    homepage loads and only the sold-listings search is refused, the problem is
+    access to sold data -- eBay increasingly gates that behind a signed-in
+    account -- and no amount of fingerprint work will change it. If everything
+    is refused, the block is at the connection level instead.
+    """
+    stages = [
+        ("homepage", "https://www.ebay.com/"),
+        ("plain search", "https://www.ebay.com/sch/i.html?_nkw=football+cards"),
+        ("sold search",
+         "https://www.ebay.com/sch/i.html?_nkw=football+cards&LH_Sold=1&LH_Complete=1"),
+    ]
+
+    try:
+        importlib.import_module("playwright.sync_api")
+    except ImportError:
+        return ([], None)
+
+    from .browser import BrowserFetcher, BrowserUnavailable
+
+    f = BrowserFetcher(delay=1.0, jitter=0.5, max_retries=0, timeout=timeout,
+                       headless=headless, warm_up=False)
+    results: list[StageCheck] = []
+    signed_in: Optional[bool] = None
+    try:
+        f._ensure_browser()
+    except (BrowserUnavailable, Exception):
+        return ([], None)
+
+    try:
+        for name, url in stages:
+            try:
+                response = f._page.goto(url, timeout=timeout * 1000,
+                                        wait_until="domcontentloaded")
+                status = response.status if response else None
+                html = f._page.content()
+                outcome, n, detail = _classify(html, status)
+                results.append(StageCheck(name, url, status, outcome, detail))
+                _save(html, save_dir, f"stage_{name.replace(' ', '_')}")
+                if name == "homepage" and outcome != REFUSED:
+                    # "Sign in" in the header means this session is anonymous.
+                    low = html[:200000].lower()
+                    signed_in = ("sign in" not in low) and ("my ebay" in low)
+                f._page.wait_for_timeout(800)
+            except Exception as exc:
+                results.append(StageCheck(name, url, None, ERROR,
+                                          f"{type(exc).__name__}: {exc}"))
+    finally:
+        f.close()
+    return (results, signed_in)
+
+
 def run_diagnosis(
     url: str,
     save_dir: Optional[str] = "data/html",
@@ -182,6 +251,10 @@ def run_diagnosis(
         check_impersonate(url, save, timeout),
         check_browser(url, save, timeout, headless=not headed),
     ]
+    # Only worth escalating URLs when every method was refused -- if one worked,
+    # the answer is already known.
+    if not diag.any_working:
+        diag.stages, diag.signed_in = check_stages(save, timeout, headless=not headed)
     return diag
 
 
@@ -203,6 +276,32 @@ def format_report(diag: Diagnosis) -> str:
         lines.append(f"  {c.engine:<13} {status:<10} {c.outcome:<14} {c.detail}")
         if c.saved_to:
             lines.append(f"  {'':<13} saved: {c.saved_to}")
+
+    if diag.stages:
+        lines += ["", "Which request gets refused (one browser session)", "-" * 58]
+        for s in diag.stages:
+            status = f"HTTP {s.status}" if s.status else "-"
+            lines.append(f"  {s.name:<13} {status:<10} {s.outcome:<14} {s.detail}")
+        if diag.signed_in is not None:
+            lines.append(f"  signed in to eBay: {'yes' if diag.signed_in else 'no'}")
+
+        by_name = {s.name: s for s in diag.stages}
+        home, sold = by_name.get("homepage"), by_name.get("sold search")
+        if home and sold and home.outcome != REFUSED and sold.outcome == REFUSED:
+            lines += [
+                "",
+                "  >> eBay serves ordinary pages but refuses the SOLD search.",
+                "     That is an access rule, not bot detection -- eBay gates sold",
+                "     listings behind a signed-in account. Run  login.bat  to sign",
+                "     in once; the collector then reuses that session.",
+            ]
+        elif home and home.outcome == REFUSED:
+            lines += [
+                "",
+                "  >> Even the eBay homepage is refused, which means the block is",
+                "     not about this project at all. Check VPN, DNS filtering, or",
+                "     network-level security software on this PC.",
+            ]
 
     lines += ["", "-" * 58]
     if diag.any_working:
