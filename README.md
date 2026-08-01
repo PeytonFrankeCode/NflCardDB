@@ -237,6 +237,7 @@ selectors.
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
+| `import` | load eBay pages you saved by hand — no network, cannot be blocked |
 | `publish` | write `site/data/*.json` for the Pages dashboard |
 | `url` | print the URLs a config would hit, fetch nothing |
 

@@ -172,6 +172,18 @@ class Fetcher:
         self.session.close()
 
 
+# Each engine accepts a different set of options -- headless means nothing to an
+# HTTP client, user_agent means nothing to a browser that sets its own. Callers
+# pass the union, and these filter it.
+HTTP_KWARGS = frozenset({
+    "delay", "jitter", "max_retries", "timeout", "user_agent", "page_budget", "save_dir",
+})
+BROWSER_KWARGS = frozenset({
+    "delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir",
+    "headless", "executable_path",
+})
+
+
 class AutoFetcher:
     """Start with the light HTTP client; switch to a browser if eBay refuses.
 
@@ -183,7 +195,7 @@ class AutoFetcher:
 
     def __init__(self, **kwargs) -> None:
         self._kwargs = kwargs
-        self._impl: object = Fetcher(**kwargs)
+        self._impl: object = Fetcher(**{k: v for k, v in kwargs.items() if k in HTTP_KWARGS})
         self.switched = False
 
     @property
@@ -224,8 +236,9 @@ class AutoFetcher:
         from .browser import BrowserFetcher
 
         self.close()
-        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
-        self._impl = BrowserFetcher(**{k: v for k, v in self._kwargs.items() if k in allowed})
+        self._impl = BrowserFetcher(
+            **{k: v for k, v in self._kwargs.items() if k in BROWSER_KWARGS}
+        )
         self.switched = True
 
     def close(self) -> None:
@@ -240,10 +253,9 @@ def make_fetcher(engine: str = "auto", **kwargs):
     if engine in ("browser", "chromium", "playwright"):
         from .browser import BrowserFetcher
 
-        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
-        return BrowserFetcher(**{k: v for k, v in kwargs.items() if k in allowed})
+        return BrowserFetcher(**{k: v for k, v in kwargs.items() if k in BROWSER_KWARGS})
     if engine in ("requests", "http", "plain"):
-        return Fetcher(**kwargs)
+        return Fetcher(**{k: v for k, v in kwargs.items() if k in HTTP_KWARGS})
     if engine == "auto":
         return AutoFetcher(**kwargs)
     raise ValueError(f"unknown engine {engine!r}; use auto, requests, or browser")
