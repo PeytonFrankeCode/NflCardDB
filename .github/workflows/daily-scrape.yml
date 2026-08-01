@@ -1,0 +1,91 @@
+name: Daily scrape
+
+# Runs yesterday's sales once a day.
+#
+# IMPORTANT: GitHub-hosted runners use datacenter IP ranges, which eBay
+# throttles and bot-checks far more aggressively than residential ones. Expect
+# this to work intermittently at best. For a scrape you can rely on, register a
+# self-hosted runner on a machine at home and swap `runs-on` below to
+# `self-hosted`. See README "Where to run this".
+
+on:
+  schedule:
+    # 09:15 UTC daily. Late enough that the previous US day is fully closed out.
+    - cron: "15 9 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "ISO date to scrape (default: yesterday)"
+        required: false
+      page_budget:
+        description: "Max requests for this run"
+        required: false
+        default: "400"
+
+concurrency:
+  group: daily-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Restore previous database
+        uses: actions/cache/restore@v4
+        with:
+          path: data/nflcarddb.sqlite
+          key: nflcarddb-${{ github.run_id }}
+          restore-keys: nflcarddb-
+
+      - name: Scrape
+        id: scrape
+        run: |
+          nflcarddb -v scrape \
+            --date "${{ inputs.date }}" \
+            --page-budget "${{ inputs.page_budget || 400 }}" \
+            | tee report.json
+        continue-on-error: true
+
+      - name: Summarise
+        if: always()
+        run: |
+          nflcarddb stats --date "${{ inputs.date }}" >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat report.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '{}' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save database
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/nflcarddb.sqlite
+          key: nflcarddb-${{ github.run_id }}
+
+      - name: Upload database + daily CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nflcarddb-${{ github.run_id }}
+          path: |
+            data/nflcarddb.sqlite
+            report.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail if the scrape did not complete
+        if: steps.scrape.outcome != 'success'
+        run: |
+          echo "Scrape ended with status != ok -- check the log for a bot-check block."
+          exit 1

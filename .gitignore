@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Local data + scraper output
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/html/
+*.db
+*.db-wal
+*.db-shm
+
+.pytest_cache/
+.coverage
+.DS_Store

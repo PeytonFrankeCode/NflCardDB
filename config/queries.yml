@@ -1,0 +1,52 @@
+# NflCardDB scrape configuration.
+#
+# VERIFY THE CATEGORY IDS BEFORE YOUR FIRST REAL RUN.
+# eBay reshuffles its taxonomy. To confirm one: browse to the category on
+# ebay.com, filter to Sold, and read the `_sacat=` value out of the URL.
+# `nflcarddb probe --query <id>` fetches a single page and prints the result
+# count plus sample titles so you can sanity-check a category in one request.
+#
+# 261328 = Sports Trading Card Singles (the broad singles bucket).
+# Narrowing to the football-only child category cuts your page count a lot.
+
+database: data/nflcarddb.sqlite
+
+# Optional: newline- or CSV-delimited player names. When present, the title
+# parser matches against it and reports higher confidence on exact hits.
+# roster: config/nfl_players.txt
+
+fetch:
+  delay: 2.5              # seconds between requests (floor; jitter is added)
+  jitter: 1.0
+  max_retries: 4
+  timeout: 30
+  page_budget: 600        # hard ceiling on requests per run -- the safety valve
+  items_per_page: 240     # 60 | 120 | 240
+  max_pages_per_segment: 42
+  max_subdivide_depth: 3
+
+# Price bands exist to beat eBay's ~10k-results-per-search cap. Any band that
+# comes back capped is split automatically at its geometric midpoint.
+price_bands:
+  - [null, 10]
+  - [10, 25]
+  - [25, 50]
+  - [50, 100]
+  - [100, 250]
+  - [250, 1000]
+  - [1000, null]
+
+queries:
+  - id: football_singles
+    keywords: football
+    category: "261328"
+
+  # Graded cards are the highest-signal slice; run this alone with
+  # `--query football_graded` for a much cheaper daily scrape.
+  - id: football_graded
+    keywords: football psa
+    category: "261328"
+    price_bands:
+      - [null, 50]
+      - [50, 250]
+      - [250, null]
