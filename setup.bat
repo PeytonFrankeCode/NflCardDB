@@ -9,18 +9,54 @@ echo    NflCardDB - one-time setup
 echo ==========================================================
 echo.
 
-REM ---- 1. Is Python installed and on PATH? -----------------------------
-where python >nul 2>&1
-if errorlevel 1 goto NOPYTHON
+REM ---- 1. Find Python, whether or not it is on PATH --------------------
+REM The "Add python.exe to PATH" checkbox is easy to miss, and on some PCs it
+REM is not shown at all. So look in the places Python actually installs to,
+REM instead of insisting the box was ticked.
+REM Every branch resolves to one full path in PYEXE, quoted only at the call
+REM site -- a variable that carries its own quotes gets mangled by batch.
+set "PYEXE="
 
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do set PYVER=%%v
+REM The py launcher ships with Python and stays on PATH even when python.exe
+REM does not, so try it first. It also sidesteps the Microsoft Store stub, which
+REM hijacks the name "python" and opens the Store instead of running anything.
+REM Asking Python for sys.executable means a failed launch simply leaves PYEXE
+REM unset -- the for-loop body never runs.
+for /f "delims=" %%p in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "PYEXE=%%p"
+if defined PYEXE goto GOTPYTHON
+
+for /f "delims=" %%p in ('python -c "import sys;print(sys.executable)" 2^>nul') do set "PYEXE=%%p"
+if defined PYEXE goto GOTPYTHON
+
+for /d %%d in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
+  if exist "%%d\python.exe" set "PYEXE=%%d\python.exe"
+)
+if defined PYEXE goto GOTPYTHON
+
+for /d %%d in ("%ProgramFiles%\Python3*") do (
+  if exist "%%d\python.exe" set "PYEXE=%%d\python.exe"
+)
+if defined PYEXE goto GOTPYTHON
+
+for /d %%d in ("C:\Python3*") do (
+  if exist "%%d\python.exe" set "PYEXE=%%d\python.exe"
+)
+if not defined PYEXE goto NOPYTHON
+
+:GOTPYTHON
+for /f "tokens=2" %%v in ('"!PYEXE!" --version 2^>^&1') do set "PYVER=%%v"
 echo Found Python !PYVER!
+echo   at !PYEXE!
+
+REM Needs 3.10 or newer.
+"!PYEXE!" -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
+if errorlevel 1 goto OLDPYTHON
 echo.
 
 REM ---- 2. Private workspace so nothing else on your PC is touched ------
 echo Building a private workspace. This takes a minute or two...
 if exist venv goto HAVEVENV
-python -m venv venv
+"!PYEXE!" -m venv venv
 if errorlevel 1 goto VENVFAIL
 :HAVEVENV
 
@@ -96,18 +132,38 @@ echo Copy the messages above and send them to Claude.
 goto END
 
 :NOPYTHON
-echo Python is not installed on this PC - or it was installed
-echo without ticking the PATH box.
+echo ==========================================================
+echo    Python is not on this PC yet
+echo ==========================================================
+echo.
+echo I looked everywhere Python normally installs and did not
+echo find it, so it has not been installed yet.
 echo.
 echo TO FIX:
 echo   1. Go to  https://www.python.org/downloads/
 echo   2. Click the big yellow "Download Python" button.
-echo   3. Run the installer.
-echo   4. IMPORTANT: on the very first screen, tick the box at the
-echo      bottom that says "Add python.exe to PATH" BEFORE you
-echo      click Install Now. This is the step everyone misses.
-echo   5. When it finishes, close this window and double-click
-echo      setup.bat again.
+echo   3. Run the file that downloads.
+echo   4. Click "Install Now" and wait.
+echo   5. Close this window and double-click setup.bat again.
+echo.
+echo You do NOT need to hunt for the "Add python.exe to PATH"
+echo checkbox. Tick it if you happen to see it, but this script
+echo finds Python either way.
+echo.
+pause
+exit /b 1
+
+:OLDPYTHON
+echo.
+echo ==========================================================
+echo    Python !PYVER! is too old
+echo ==========================================================
+echo.
+echo This project needs Python 3.10 or newer.
+echo.
+echo Install the current version from
+echo   https://www.python.org/downloads/
+echo then double-click setup.bat again.
 echo.
 pause
 exit /b 1

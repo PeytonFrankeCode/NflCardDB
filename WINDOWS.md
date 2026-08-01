@@ -17,13 +17,22 @@ browsing, which is exactly what it is.
 1. Go to **https://www.python.org/downloads/**
 2. Click the big yellow **Download Python** button.
 3. Open the file that downloads.
-4. **On the very first screen, tick the box at the bottom that says
-   "Add python.exe to PATH".** It is small and easy to miss, and nothing works
-   without it.
-5. Click **Install Now** and wait for it to finish.
+4. Click **Install Now** and wait for it to finish.
 
-> Ticked nothing and already clicked Install? Just run the installer again and
-> choose **Modify** — you can turn the option on without uninstalling.
+That's it. If you see a checkbox saying **"Add python.exe to PATH"**, tick it —
+but don't go looking for it. `setup.bat` searches the places Python installs to
+and uses whichever it finds, so the checkbox doesn't decide whether this works.
+
+**Not seeing that checkbox?** Two ordinary reasons, neither a problem:
+
+- **Python is already installed**, so the installer shows *Modify / Repair /
+  Uninstall* instead of the first-time screen. Close it and go straight to
+  step 2 — `setup.bat` will find the copy you already have.
+- **You got the Microsoft Store version**, which has no installer screen at all.
+  It works fine and sets itself up automatically.
+
+Either way: skip ahead. If Python genuinely isn't there, `setup.bat` says so in
+plain English and tells you what to do.
 
 ### 2. Install GitHub Desktop
 
@@ -53,7 +62,8 @@ and it ends with one of these:
 | **eBay showed a robot check** | Wait an hour or two and double-click `setup.bat` again. Not your fault. |
 | **Reached eBay, but read zero listings** | The category number needs updating. It saves the page in `data\html` — send that file to Claude. |
 | **Could not reach eBay** | Check the PC is online. |
-| **Python is not installed** | Step 1 didn't take. Re-run the Python installer and tick the PATH box. |
+| **Python is not on this PC yet** | Step 1 didn't take. Run the python.org installer again. |
+| **Python … is too old** | You have an old Python. Install the current one from python.org. |
 
 Windows may warn you about running a downloaded file. Click **More info** →
 **Run anyway**.
