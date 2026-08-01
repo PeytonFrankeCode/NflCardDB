@@ -4,6 +4,7 @@ A network outage or a bot check is a normal thing to hit when scraping; it must
 read as a clear message and a distinct exit code, not a Python traceback.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,51 @@ def test_unknown_query_id_is_rejected(cfg, capsys):
     code = main(["probe", "--config", cfg, "--query", "not_a_query"])
     assert code == 2
     assert "football_singles" in capsys.readouterr().err  # shows valid ids
+
+
+def test_scrape_exit_code_matches_the_cause(cfg, monkeypatch, capsys):
+    """setup.bat / collect.bat branch on these codes, so they must be stable.
+
+    run_scrape deliberately swallows BlockedError to keep the rows already
+    collected, which means the exit code cannot come from an exception -- it has
+    to be carried back on the report.
+    """
+    def blocked(self, url, label=None):
+        raise fetch_mod.BlockedError("eBay served a bot-check page.")
+
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", blocked)
+    code = main(["scrape", "--config", cfg, "--date", "2025-07-30"])
+    assert code == 4
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "partial"
+    assert report["reason"] == "blocked"
+
+
+def test_scrape_exit_code_for_network_failure(cfg, monkeypatch, capsys):
+    def dead(self, url, label=None):
+        raise fetch_mod.FetchError("giving up: proxy 403")
+
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", dead)
+    assert main(["scrape", "--config", cfg, "--date", "2025-07-30"]) == 5
+    assert json.loads(capsys.readouterr().out)["reason"] == "network"
+
+
+def test_successful_scrape_exits_zero(cfg, monkeypatch, capsys):
+    page = (
+        '<h1 class="srp-controls__count-heading">5 results</h1><ul class="srp-results">'
+        '<li class="s-item"><a class="s-item__link" href="https://www.ebay.com/itm/990000000001">'
+        '<div class="s-item__title"><span role="heading">2023 Prizm CJ Stroud RC #339</span></div></a>'
+        '<span class="s-item__price">$10.00</span>'
+        '<div class="s-item__caption"><span>Sold  Jul 30, 2025</span></div></li></ul>'
+    )
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", lambda self, url, label=None: page)
+    assert main(["scrape", "--config", cfg, "--date", "2025-07-30"]) == 0
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "ok"
+    assert report["reason"] is None
+    assert report["items_new"] == 1
 
 
 def test_calibrate_works_offline(capsys):

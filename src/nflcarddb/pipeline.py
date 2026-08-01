@@ -33,6 +33,9 @@ class ScrapeReport:
         self.pages = 0
         self.status = "ok"
         self.error: Optional[str] = None
+        # Why the run stopped early, so callers (and exit codes) can distinguish
+        # "eBay blocked us" from "the network is down".
+        self.reason: Optional[str] = None
 
     def as_dict(self) -> dict:
         return {
@@ -42,6 +45,7 @@ class ScrapeReport:
             "items_new": self.new,
             "pages_fetched": self.pages,
             "status": self.status,
+            "reason": self.reason,
             "error": self.error,
         }
 
@@ -130,14 +134,17 @@ def run_scrape(
 
     except BlockedError as exc:
         report.status = "partial"
+        report.reason = "blocked"
         report.error = str(exc)
         log.error("stopping early: %s", exc)
     except FetchError as exc:
         report.status = "partial"
+        report.reason = "network"
         report.error = str(exc)
         log.error("stopping early: %s", exc)
     except KeyboardInterrupt:
         report.status = "partial"
+        report.reason = "interrupted"
         report.error = "interrupted"
         log.warning("interrupted; flushing what we have")
     finally:

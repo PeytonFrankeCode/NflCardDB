@@ -40,7 +40,12 @@ def cmd_scrape(args) -> int:
         dry_run=args.dry_run,
     )
     print(json.dumps(report.as_dict(), indent=2))
-    return 0 if report.status == "ok" else 1
+    if report.status == "ok":
+        return 0
+    # Same codes `probe` uses, so scripts can branch on the cause rather than
+    # on a generic failure. run_scrape swallows these errors to keep the rows it
+    # already collected, so the reason has to travel back on the report.
+    return {"blocked": 4, "network": 5, "interrupted": 130}.get(report.reason, 1)
 
 
 def cmd_parse(args) -> int:
