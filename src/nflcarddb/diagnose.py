@@ -146,7 +146,8 @@ def check_impersonate(url: str, save_dir: Optional[Path], timeout: float) -> Eng
 
 
 def check_browser(url: str, save_dir: Optional[Path], timeout: float,
-                  headless: bool = True) -> EngineCheck:
+                  headless: bool = True,
+                  profile_dir: Optional[str] = None) -> EngineCheck:
     try:
         importlib.import_module("playwright.sync_api")
     except ImportError:
@@ -156,7 +157,7 @@ def check_browser(url: str, save_dir: Optional[Path], timeout: float,
     from .browser import BrowserFetcher, BrowserUnavailable
 
     f = BrowserFetcher(delay=0, jitter=0, max_retries=0, timeout=timeout,
-                       headless=headless)
+                       headless=headless, profile_dir=profile_dir)
     try:
         f._ensure_browser()
     except BrowserUnavailable as exc:
@@ -178,7 +179,8 @@ def check_browser(url: str, save_dir: Optional[Path], timeout: float,
 
 
 def check_stages(save_dir: Optional[Path], timeout: float,
-                 headless: bool = True) -> tuple[list, Optional[bool]]:
+                 headless: bool = True,
+                 profile_dir: Optional[str] = None) -> tuple[list, Optional[bool]]:
     """Escalate from the homepage to the sold search, using one browser session.
 
     Which *request* is refused matters more than which method sends it. If the
@@ -202,7 +204,7 @@ def check_stages(save_dir: Optional[Path], timeout: float,
     from .browser import BrowserFetcher, BrowserUnavailable
 
     f = BrowserFetcher(delay=1.0, jitter=0.5, max_retries=0, timeout=timeout,
-                       headless=headless, warm_up=False)
+                       headless=headless, warm_up=False, profile_dir=profile_dir)
     results: list[StageCheck] = []
     signed_in: Optional[bool] = None
     try:
@@ -238,6 +240,7 @@ def run_diagnosis(
     save_dir: Optional[str] = "data/html",
     timeout: float = 30.0,
     headed: bool = False,
+    profile_dir: Optional[str] = None,
 ) -> Diagnosis:
     save = Path(save_dir) if save_dir else None
     diag = Diagnosis(
@@ -249,12 +252,13 @@ def run_diagnosis(
     diag.checks = [
         check_requests(url, save, timeout),
         check_impersonate(url, save, timeout),
-        check_browser(url, save, timeout, headless=not headed),
+        check_browser(url, save, timeout, headless=not headed, profile_dir=profile_dir),
     ]
     # Only worth escalating URLs when every method was refused -- if one worked,
     # the answer is already known.
     if not diag.any_working:
-        diag.stages, diag.signed_in = check_stages(save, timeout, headless=not headed)
+        diag.stages, diag.signed_in = check_stages(
+            save, timeout, headless=not headed, profile_dir=profile_dir)
     return diag
 
 

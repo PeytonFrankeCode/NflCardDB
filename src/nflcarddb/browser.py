@@ -18,7 +18,9 @@ command to fix them rather than a traceback.
 from __future__ import annotations
 
 import logging
+import os
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -91,6 +93,29 @@ BROWSER_UA = (
 
 class BrowserUnavailable(EngineUnavailable):
     """Playwright or its Chromium build is missing."""
+
+
+class ProfileLocked(RuntimeError):
+    """Chrome is running and holding its profile open."""
+
+
+def default_chrome_profile() -> Optional[Path]:
+    """Where this machine keeps its everyday Chrome profile, if it has one."""
+    candidates = []
+    if os.name == "nt":
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidates.append(Path(local) / "Google" / "Chrome" / "User Data")
+    elif sys.platform == "darwin":
+        candidates.append(
+            Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
+        )
+    else:
+        candidates += [
+            Path.home() / ".config" / "google-chrome",
+            Path.home() / ".config" / "chromium",
+        ]
+    return next((p for p in candidates if p.exists()), None)
 
 
 class BrowserFetcher:
@@ -179,6 +204,18 @@ class BrowserFetcher:
                     return
                 except Exception as exc:  # pragma: no cover - environment dependent
                     last_exc = exc
+                    # Chrome holds a lock on its own profile while running, and
+                    # the failure text is opaque -- name it plainly instead.
+                    text = str(exc)
+                    if any(s in text for s in
+                           ("ProcessSingleton", "profile appears to be in use",
+                            "SingletonLock", "Failed to create a ProcessSingleton")):
+                        self.close()
+                        raise ProfileLocked(
+                            "Google Chrome is running and is holding this profile "
+                            "open.\nClose Chrome completely -- including anything "
+                            "left in the system tray -- and try again."
+                        ) from exc
 
         for extra in attempts:
             try:

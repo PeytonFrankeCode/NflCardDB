@@ -21,9 +21,22 @@ echo.
 echo Your password goes straight to eBay. This project never
 echo sees it - only the signed-in session is kept, on this PC.
 echo.
-pause
+echo If eBay shows a "verify you are human" puzzle here that you
+echo cannot complete, close the window and press N below instead.
+echo.
+set "EXTRA="
+set /p USECHROME=Use your everyday Chrome instead? (y/N):
+if /i "%USECHROME%"=="y" (
+  set "EXTRA=--chrome-profile"
+  echo.
+  echo IMPORTANT: close Google Chrome completely first - including
+  echo anything still running in the system tray - or this cannot
+  echo open your profile.
+  echo.
+  pause
+)
 
-nflcarddb login
+nflcarddb login %EXTRA%
 set CODE=%errorlevel%
 echo.
 
@@ -42,6 +55,10 @@ if "%CODE%"=="0" (
   echo Run  doctor.bat  anyway - the check above is only reading
   echo the page and can be wrong. If doctor still says REFUSED,
   echo send its report to Claude.
+  echo.
+  echo If eBay would not let you past its human-verification
+  echo puzzle, use  import.bat  instead: browse eBay normally in
+  echo your own Chrome, save the page with Ctrl+S, and drag it on.
 )
 goto END
 

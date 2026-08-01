@@ -8,6 +8,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from . import db as store
 from .browser import BrowserUnavailable
@@ -122,8 +123,6 @@ def cmd_probe(args) -> int:
 
     # One retry only: probe is a diagnostic, so it should report a dead network
     # in seconds rather than working through the full backoff ladder.
-    # One retry only: probe is a diagnostic, so it should report a dead network
-    # in seconds rather than working through the full backoff ladder.
     fetcher = make_fetcher(
         engine=args.engine or config.fetch.engine,
         delay=0, jitter=0, max_retries=1, save_dir=args.save_html,
@@ -220,6 +219,24 @@ def cmd_export(args) -> int:
     return 0
 
 
+def _resolve_profile(args) -> Optional[str]:
+    """Pick the browser profile: this project's own, or the real Chrome one."""
+    if not getattr(args, "chrome_profile", False):
+        return getattr(args, "profile", None) or "data/browser-profile"
+
+    from .browser import default_chrome_profile
+
+    found = default_chrome_profile()
+    if not found:
+        print("Could not find a Chrome profile on this machine. Pass --profile "
+              "with its path, or drop --chrome-profile to use this project's own.",
+              file=sys.stderr)
+        return None
+    print(f"Using your everyday Chrome profile: {found}")
+    print("Chrome must be fully closed while this runs.\n")
+    return str(found)
+
+
 def cmd_login(args) -> int:
     """Open a real browser window so you can sign in to eBay once.
 
@@ -229,10 +246,17 @@ def cmd_login(args) -> int:
     """
     from .browser import BrowserFetcher, BrowserUnavailable
 
+    profile = _resolve_profile(args)
+    if profile is None:
+        return 2
+
     f = BrowserFetcher(delay=0, jitter=0, headless=False, warm_up=False,
-                       profile_dir=args.profile)
+                       profile_dir=profile)
     try:
         f._ensure_browser()
+    except ProfileLocked as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 7
     except BrowserUnavailable as exc:
         print(f"browser engine unavailable: {exc}", file=sys.stderr)
         return 6
@@ -250,7 +274,7 @@ def cmd_login(args) -> int:
         print()
         print("  Your sign-in goes to eBay directly. It is not seen or")
         print("  stored by this project -- only the browser profile in")
-        print(f"  {args.profile} keeps the session, on this PC.")
+        print(f"  {profile} keeps the session, on this PC.")
         print()
         try:
             input("  Press Enter when you are signed in... ")
@@ -282,8 +306,13 @@ def cmd_doctor(args) -> int:
               file=sys.stderr)
         return 2
 
+    profile = _resolve_profile(args)
+    if profile is None:
+        return 2
+
     url = build_url(query.keywords, query.category, page=1, items_per_page=60)
-    diag = run_diagnosis(url, save_dir=args.save_html, headed=args.headed)
+    diag = run_diagnosis(url, save_dir=args.save_html, headed=args.headed,
+                         profile_dir=profile)
     print(format_report(diag))
     return 0 if diag.any_working else 1
 
@@ -398,6 +427,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("login", help="sign in to eBay once, in a real browser window")
     p.add_argument("--profile", default="data/browser-profile")
+    p.add_argument("--chrome-profile", action="store_true",
+                   help="use your everyday Chrome profile (close Chrome first)")
     p.set_defaults(func=cmd_login)
 
     p = sub.add_parser("doctor", help="test every fetch method and report what eBay returns")
@@ -405,6 +436,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--query", default="football_singles")
     p.add_argument("--save-html", default="data/html")
     p.add_argument("--headed", action="store_true", help="show the browser window")
+    p.add_argument("--profile", default="data/browser-profile")
+    p.add_argument("--chrome-profile", action="store_true",
+                   help="use your everyday Chrome profile (close Chrome first)")
     p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("import", help="load eBay pages you saved yourself")
