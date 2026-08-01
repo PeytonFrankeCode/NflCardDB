@@ -74,7 +74,7 @@ def test_auto_upgrades_to_browser_on_block(monkeypatch):
     import nflcarddb.browser as browser_mod
     monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
 
-    auto = make_fetcher("auto", delay=0, jitter=0)
+    auto = make_fetcher("auto", ladder=("requests", "browser"), delay=0, jitter=0)
     assert auto.get("https://www.ebay.com/x") == "<html>ok</html>"
     assert auto.switched is True
     assert calls == {"http": 1, "browser": 1}
@@ -108,7 +108,7 @@ def test_auto_carries_the_page_budget_across_the_switch(monkeypatch):
     import nflcarddb.browser as browser_mod
     monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
 
-    auto = make_fetcher("auto", delay=0, jitter=0, page_budget=10)
+    auto = make_fetcher("auto", ladder=("requests", "browser"), delay=0, jitter=0, page_budget=10)
     auto.get("https://www.ebay.com/x")
     assert auto.stats.requests == 7
 
@@ -134,13 +134,14 @@ def test_missing_browser_degrades_to_the_original_block(monkeypatch):
     import nflcarddb.browser as browser_mod
     monkeypatch.setattr(browser_mod, "BrowserFetcher", Missing)
 
-    auto = make_fetcher("auto", delay=0, jitter=0)
+    auto = make_fetcher("auto", ladder=("requests", "browser"), delay=0, jitter=0)
     with pytest.raises(BlockedError) as err:
         auto.get("https://www.ebay.com/x")
 
     message = str(err.value)
-    assert "HTTP 403" in message           # the real cause survives
-    assert "playwright install" in message  # and the fix is attached
+    assert "HTTP 403" in message                    # what eBay actually said survives
+    assert "Playwright is not installed" in message  # and so does the fixable part
+    assert "never actually tried" in message         # named as untried, not refused
 
 
 def test_http_client_sends_a_full_browser_header_set():
@@ -149,3 +150,91 @@ def test_http_client_sends_a_full_browser_header_set():
     for required in ("Accept-Language", "Accept-Encoding", "Sec-Fetch-Mode",
                      "Upgrade-Insecure-Requests", "sec-ch-ua"):
         assert required in headers
+
+
+def test_auto_ladder_starts_with_tls_impersonation():
+    """Plain requests is refused at the TLS layer, so auto must not start there."""
+    from nflcarddb.fetch import DEFAULT_LADDER
+
+    assert DEFAULT_LADDER[0] == "impersonate"
+    assert "browser" in DEFAULT_LADDER
+    assert "requests" not in DEFAULT_LADDER  # spending a request to relearn 403 is waste
+    assert make_fetcher("auto").engine == "impersonate"
+
+
+def test_engine_aliases_resolve():
+    from nflcarddb.fetch import build_engine
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    assert isinstance(build_engine("tls", delay=0), ImpersonateFetcher)
+    assert isinstance(build_engine("curl_cffi", delay=0), ImpersonateFetcher)
+    assert isinstance(build_engine("http", delay=0), Fetcher)
+
+
+def test_impersonate_rejects_a_403_rather_than_retrying(monkeypatch):
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    class Resp:
+        status_code = 403
+        text = ""
+
+    f = ImpersonateFetcher(delay=0, jitter=0, max_retries=3)
+
+    class FakeSession:
+        def get(self, *a, **k):
+            return Resp()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(f, "_ensure_session", lambda: FakeSession())
+
+    with pytest.raises(BlockedError) as err:
+        f.get("https://www.ebay.com/x")
+    assert "browser TLS fingerprint" in str(err.value)
+    assert f.stats.requests == 1
+
+
+def test_ladder_walks_all_the_way_to_the_browser(monkeypatch):
+    """impersonate refused -> browser tried, budget carried across."""
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    seen = []
+
+    def imp_get(self, url, label=None):
+        seen.append("impersonate")
+        self.stats.requests += 3
+        raise BlockedError("403 even with a browser TLS fingerprint")
+
+    class FakeBrowser:
+        def __init__(self, **kwargs):
+            self.stats = fetch_mod.FetchStats()
+
+        def get(self, url, label=None):
+            seen.append("browser")
+            return "<html>ok</html>"
+
+        def budget_exhausted(self):
+            return False
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ImpersonateFetcher, "get", imp_get)
+    import nflcarddb.browser as browser_mod
+    monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
+
+    auto = make_fetcher("auto", delay=0, jitter=0)
+    assert auto.get("https://www.ebay.com/x") == "<html>ok</html>"
+    assert seen == ["impersonate", "browser"]
+    assert auto.engine == "browser"
+    assert auto.stats.requests == 3  # the three spent requests carried over
+
+
+def test_browser_stealth_script_covers_the_known_tells():
+    from nflcarddb.browser import LAUNCH_ARGS, STEALTH_SCRIPT
+
+    assert "navigator" in STEALTH_SCRIPT and "webdriver" in STEALTH_SCRIPT
+    assert "plugins" in STEALTH_SCRIPT
+    assert "languages" in STEALTH_SCRIPT
+    assert any("AutomationControlled" in a for a in LAUNCH_ARGS)

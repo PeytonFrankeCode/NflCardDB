@@ -21,7 +21,7 @@ def cfg(tmp_path):
     path = tmp_path / "queries.yml"
     path.write_text(yaml.safe_dump({
         "database": str(tmp_path / "t.db"),
-        "fetch": {"delay": 0, "jitter": 0, "max_retries": 0},
+        "fetch": {"delay": 0, "jitter": 0, "max_retries": 0, "engine": "requests"},
         "price_bands": [[None, None]],
         "queries": [{"id": "football_singles", "keywords": "football", "category": "261328"}],
     }))

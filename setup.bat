@@ -63,7 +63,7 @@ if errorlevel 1 goto VENVFAIL
 call venv\Scripts\activate.bat
 python -m pip install --upgrade pip >nul 2>&1
 echo Installing the collector...
-pip install -e ".[browser]" >install-log.txt 2>&1
+pip install -e ".[all]" >install-log.txt 2>&1
 if errorlevel 1 goto INSTALLFAIL
 echo Installed.
 echo.
