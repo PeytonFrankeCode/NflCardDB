@@ -7,43 +7,85 @@ Obtaining file:///C:/Users/peyto/OneDrive/Documents/GitHub/NflCardDB
   Getting requirements to build editable: finished with status 'done'
   Preparing editable metadata (pyproject.toml): started
   Preparing editable metadata (pyproject.toml): finished with status 'done'
-Collecting requests>=2.31 (from nflcarddb==0.1.0)
-  Downloading requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
-Collecting beautifulsoup4>=4.12 (from nflcarddb==0.1.0)
-  Downloading beautifulsoup4-4.15.0-py3-none-any.whl.metadata (3.8 kB)
-Collecting lxml>=5.0 (from nflcarddb==0.1.0)
-  Downloading lxml-6.1.1-cp314-cp314-win_amd64.whl.metadata (3.6 kB)
-Collecting PyYAML>=6.0 (from nflcarddb==0.1.0)
-  Downloading pyyaml-6.0.3-cp314-cp314-win_amd64.whl.metadata (2.4 kB)
-Collecting soupsieve>=1.6.1 (from beautifulsoup4>=4.12->nflcarddb==0.1.0)
-  Downloading soupsieve-2.9.1-py3-none-any.whl.metadata (4.6 kB)
-Collecting typing-extensions>=4.0.0 (from beautifulsoup4>=4.12->nflcarddb==0.1.0)
-  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
-Collecting charset_normalizer<4,>=2 (from requests>=2.31->nflcarddb==0.1.0)
-  Downloading charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl.metadata (42 kB)
-Collecting idna<4,>=2.5 (from requests>=2.31->nflcarddb==0.1.0)
-  Downloading idna-3.18-py3-none-any.whl.metadata (6.1 kB)
-Collecting urllib3<3,>=1.26 (from requests>=2.31->nflcarddb==0.1.0)
-  Downloading urllib3-2.7.0-py3-none-any.whl.metadata (6.9 kB)
-Collecting certifi>=2023.5.7 (from requests>=2.31->nflcarddb==0.1.0)
-  Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)
-Downloading beautifulsoup4-4.15.0-py3-none-any.whl (109 kB)
-Downloading lxml-6.1.1-cp314-cp314-win_amd64.whl (4.1 MB)
-   ---------------------------------------- 4.1/4.1 MB 29.1 MB/s  0:00:00
-Downloading pyyaml-6.0.3-cp314-cp314-win_amd64.whl (156 kB)
-Downloading requests-2.34.2-py3-none-any.whl (73 kB)
-Downloading charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl (162 kB)
-Downloading idna-3.18-py3-none-any.whl (65 kB)
-Downloading urllib3-2.7.0-py3-none-any.whl (131 kB)
-Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)
-Downloading soupsieve-2.9.1-py3-none-any.whl (37 kB)
-Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Requirement already satisfied: requests>=2.31 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (2.34.2)
+Requirement already satisfied: beautifulsoup4>=4.12 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (4.15.0)
+Requirement already satisfied: lxml>=5.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.1.1)
+Requirement already satisfied: PyYAML>=6.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.0.3)
+Collecting playwright>=1.40 (from nflcarddb==0.1.0)
+  Downloading playwright-1.62.0-py3-none-win_amd64.whl.metadata (3.3 kB)
+Requirement already satisfied: soupsieve>=1.6.1 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (2.9.1)
+Requirement already satisfied: typing-extensions>=4.0.0 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (4.16.0)
+Collecting pyee<14,>=13 (from playwright>=1.40->nflcarddb==0.1.0)
+  Downloading pyee-13.0.1-py3-none-any.whl.metadata (3.0 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright>=1.40->nflcarddb==0.1.0)
+  Downloading greenlet-3.5.4-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.4.9)
+Requirement already satisfied: idna<4,>=2.5 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.18)
+Requirement already satisfied: urllib3<3,>=1.26 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (2.7.0)
+Requirement already satisfied: certifi>=2023.5.7 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (2026.7.22)
+Downloading playwright-1.62.0-py3-none-win_amd64.whl (38.2 MB)
+   ---------------------------------------- 38.2/38.2 MB 23.3 MB/s  0:00:01
+Downloading greenlet-3.5.4-cp314-cp314-win_amd64.whl (248 kB)
+Downloading pyee-13.0.1-py3-none-any.whl (15 kB)
 Building wheels for collected packages: nflcarddb
   Building editable for nflcarddb (pyproject.toml): started
   Building editable for nflcarddb (pyproject.toml): finished with status 'done'
-  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1637 sha256=e519cd731e4011b9cc31add641cc03bcceba4b839e8463232b5aa038e8373d8d
-  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-cdveyvmt\wheels\ef\13\c0\13fd32622ec535717474479b24e1a00ff164cfaa43df71110e
+  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1659 sha256=779aaf9bede831d19683cd633f8ec08e9baa68c9bc24655c57cfbf39cf3ed4e1
+  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-8tml8mw5\wheels\ef\13\c0\13fd32622ec535717474479b24e1a00ff164cfaa43df71110e
 Successfully built nflcarddb
-Installing collected packages: urllib3, typing-extensions, soupsieve, PyYAML, lxml, idna, charset_normalizer, certifi, requests, beautifulsoup4, nflcarddb
+Installing collected packages: pyee, greenlet, playwright, nflcarddb
+  Attempting uninstall: nflcarddb
+    Found existing installation: nflcarddb 0.1.0
+    Uninstalling nflcarddb-0.1.0:
+      Successfully uninstalled nflcarddb-0.1.0
 
-Successfully installed PyYAML-6.0.3 beautifulsoup4-4.15.0 certifi-2026.7.22 charset_normalizer-3.4.9 idna-3.18 lxml-6.1.1 nflcarddb-0.1.0 requests-2.34.2 soupsieve-2.9.1 typing-extensions-4.16.0 urllib3-2.7.0
+Successfully installed greenlet-3.5.4 nflcarddb-0.1.0 playwright-1.62.0 pyee-13.0.1
+Downloading Chrome for Testing 151.0.7922.34 (playwright chromium v1234)[2m from https://cdn.playwright.dev/builds/cft/151.0.7922.34/win64/chrome-win64.zip[22m
+|                                                                                |   0% of 191.8 MiB
+|■■■■■■■■                                                                        |  10% of 191.8 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 191.8 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 191.8 MiB
+Chrome for Testing 151.0.7922.34 (playwright chromium v1234) downloaded to C:\Users\peyto\AppData\Local\ms-playwright\chromium-1234
+Downloading FFmpeg (playwright ffmpeg v1011)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-win64.zip[22m
+|                                                                                |   0% of 1.3 MiB
+|■■■■■■■■                                                                        |  10% of 1.3 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 1.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 1.3 MiB
+FFmpeg (playwright ffmpeg v1011) downloaded to C:\Users\peyto\AppData\Local\ms-playwright\ffmpeg-1011
+Downloading Chrome Headless Shell 151.0.7922.34 (playwright chromium-headless-shell v1234)[2m from https://cdn.playwright.dev/builds/cft/151.0.7922.34/win64/chrome-headless-shell-win64.zip[22m
+|                                                                                |   0% of 114.5 MiB
+|■■■■■■■■                                                                        |  10% of 114.5 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 114.5 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 114.5 MiB
+Chrome Headless Shell 151.0.7922.34 (playwright chromium-headless-shell v1234) downloaded to C:\Users\peyto\AppData\Local\ms-playwright\chromium_headless_shell-1234
+Downloading Winldd (playwright winldd v1007)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/winldd/1007/winldd-win64.zip[22m
+|■■■■■■■■                                                                        |  12% of 0.1 MiB
+|■■■■■■■■■■■■■■■■                                                                |  25% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  38% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  63% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  76% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  89% of 0.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 0.1 MiB
+Winldd (playwright winldd v1007) downloaded to C:\Users\peyto\AppData\Local\ms-playwright\winldd-1007
