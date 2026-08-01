@@ -8,7 +8,7 @@ from typing import Optional
 
 from . import db as store
 from .config import Config, QuerySpec
-from .fetch import DEFAULT_UA, BlockedError, Fetcher, FetchError
+from .fetch import DEFAULT_UA, BlockedError, FetchError, make_fetcher
 from .models import Sale
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
 from .parse_title import load_roster, parse_title
@@ -36,11 +36,13 @@ class ScrapeReport:
         # Why the run stopped early, so callers (and exit codes) can distinguish
         # "eBay blocked us" from "the network is down".
         self.reason: Optional[str] = None
+        self.engine: Optional[str] = None
 
     def as_dict(self) -> dict:
         return {
             "run_id": self.run_id,
             "target_date": self.target_date,
+            "engine": self.engine,
             "items_seen": self.seen,
             "items_new": self.new,
             "pages_fetched": self.pages,
@@ -58,6 +60,7 @@ def run_scrape(
     save_html_dir: Optional[str] = None,
     delay_override: Optional[float] = None,
     page_budget_override: Optional[int] = None,
+    engine_override: Optional[str] = None,
     dry_run: bool = False,
 ) -> ScrapeReport:
     target_date = target_date or yesterday()
@@ -72,7 +75,8 @@ def run_scrape(
     run_id = store.start_run(conn, target_date)
     report = ScrapeReport(run_id, target_date)
 
-    fetcher = Fetcher(
+    fetcher = make_fetcher(
+        engine=engine_override or config.fetch.engine,
         delay=delay_override if delay_override is not None else config.fetch.delay,
         jitter=config.fetch.jitter,
         max_retries=config.fetch.max_retries,
@@ -150,6 +154,12 @@ def run_scrape(
     finally:
         flush()
         report.pages = fetcher.stats.requests
+        if getattr(fetcher, "switched", False):
+            report.engine = "browser"
+        # Chromium is a real process; it has to be shut down or it outlives the run.
+        closer = getattr(fetcher, "close", None)
+        if closer:
+            closer()
         if not dry_run:
             store.finish_run(
                 conn, run_id, report.status, report.pages,

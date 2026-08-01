@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 
 from . import db as store
+from .browser import BrowserUnavailable
 from .config import load_config
-from .fetch import BlockedError, Fetcher, FetchError
+from .fetch import BlockedError, FetchError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .pipeline import reparse_titles, run_scrape, yesterday
@@ -37,6 +38,7 @@ def cmd_scrape(args) -> int:
         save_html_dir=args.save_html,
         delay_override=args.delay,
         page_budget_override=args.page_budget,
+        engine_override=args.engine,
         dry_run=args.dry_run,
     )
     print(json.dumps(report.as_dict(), indent=2))
@@ -118,10 +120,25 @@ def cmd_probe(args) -> int:
 
     # One retry only: probe is a diagnostic, so it should report a dead network
     # in seconds rather than working through the full backoff ladder.
-    fetcher = Fetcher(delay=0, jitter=0, max_retries=1, save_dir=args.save_html)
-    html = fetcher.get(url, label=f"probe_{query.id}")
+    # One retry only: probe is a diagnostic, so it should report a dead network
+    # in seconds rather than working through the full backoff ladder.
+    fetcher = make_fetcher(
+        engine=args.engine or config.fetch.engine,
+        delay=0, jitter=0, max_retries=1, save_dir=args.save_html,
+    )
+    try:
+        html = fetcher.get(url, label=f"probe_{query.id}")
+    finally:
+        closer = getattr(fetcher, "close", None)
+        if closer:
+            closer()
+
+    engine_used = "browser" if getattr(fetcher, "switched", False) else (
+        args.engine or config.fetch.engine
+    )
     result = parse_search_page(html, query_id=query.id)
 
+    print(f"engine used:    {engine_used}")
     print(f"result count:   {result.total_results}{'+' if result.total_is_capped else ''}")
     print(f"listings parsed: {len(result.sales)}\n")
     for sale in result.sales[: args.limit]:
@@ -238,6 +255,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--delay", type=float, help="override seconds between requests")
     p.add_argument("--page-budget", type=int, help="override max requests for this run")
     p.add_argument("--save-html", help="directory to dump fetched pages into")
+    p.add_argument("--engine", choices=["auto", "requests", "browser"],
+                   help="how to fetch pages (default: from config, normally auto)")
     p.add_argument("--dry-run", action="store_true", help="fetch and parse but do not write")
     p.set_defaults(func=cmd_scrape)
 
@@ -258,6 +277,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--query", required=True)
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--save-html")
+    p.add_argument("--engine", choices=["auto", "requests", "browser"],
+                   help="how to fetch pages (default: from config, normally auto)")
     p.set_defaults(func=cmd_probe)
 
     p = sub.add_parser("stats", help="summarise what is in the database")
@@ -292,14 +313,20 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except BrowserUnavailable as exc:
+        print(f"browser engine unavailable: {exc}", file=sys.stderr)
+        return 6
     except BlockedError as exc:
         # Expected failure mode, not a crash: eBay served an interstitial.
         print(f"blocked: {exc}", file=sys.stderr)
         print(
-            "\nWhat to do: wait a while, then retry with a longer --delay (try 5)\n"
-            "and a smaller --page-budget. Do not add concurrency -- that is what\n"
-            "triggered this. Already-collected rows were saved; re-running the\n"
-            "same --date resumes safely.",
+            "\nWhat to do: if this was the plain HTTP client, the fix is the\n"
+            "browser engine (--engine browser), not waiting -- eBay refused the\n"
+            "request because it could tell no real browser sent it.\n"
+            "If a browser was already in use, wait a couple of hours and retry\n"
+            "with a longer --delay (try 5) and a smaller --page-budget.\n"
+            "Already-collected rows were saved; re-running the same --date\n"
+            "resumes safely.",
             file=sys.stderr,
         )
         return 4

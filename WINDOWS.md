@@ -56,10 +56,13 @@ Open that folder and **double-click `setup.bat`**.
 A black window opens and prints what it's doing. It takes a couple of minutes,
 and it ends with one of these:
 
+The first run also downloads a browser engine (a few hundred MB), because eBay
+refuses plain scripts on most connections. That download happens once.
+
 | It says | What it means |
 |---|---|
 | **IT WORKS** | eBay returned real listings. You're ready. |
-| **eBay showed a robot check** | Wait an hour or two and double-click `setup.bat` again. Not your fault. |
+| **eBay turned us away** | Wait an hour or two and double-click `setup.bat` again. Not your fault. |
 | **Reached eBay, but read zero listings** | The category number needs updating. It saves the page in `data\html` — send that file to Claude. |
 | **Could not reach eBay** | Check the PC is online. |
 | **Python is not on this PC yet** | Step 1 didn't take. Run the python.org installer again. |

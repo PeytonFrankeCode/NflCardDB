@@ -16,6 +16,14 @@ database: data/nflcarddb.sqlite
 # roster: config/nfl_players.txt
 
 fetch:
+  # auto | requests | browser
+  #   auto    - try the light HTTP client, switch to a real browser if refused
+  #   requests- HTTP client only (fast, but eBay 403s it on many connections)
+  #   browser - drive Chromium directly (slower, gets through far more often)
+  # eBay answers a plain HTTP client with 403 on the very first request from
+  # some connections. That is fingerprinting, not rate limiting, so waiting does
+  # not help -- only being a browser does.
+  engine: auto
   delay: 2.5              # seconds between requests (floor; jitter is added)
   jitter: 1.0
   max_retries: 4

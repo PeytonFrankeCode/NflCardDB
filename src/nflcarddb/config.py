@@ -36,6 +36,9 @@ class FetchConfig:
     max_pages_per_segment: int = 42
     max_subdivide_depth: int = 3
     user_agent: Optional[str] = None
+    # auto | requests | browser. "auto" tries the light HTTP client and switches
+    # to a real browser if eBay refuses it.
+    engine: str = "auto"
 
 
 @dataclass

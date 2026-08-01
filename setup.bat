@@ -63,9 +63,23 @@ if errorlevel 1 goto VENVFAIL
 call venv\Scripts\activate.bat
 python -m pip install --upgrade pip >nul 2>&1
 echo Installing the collector...
-pip install -e . >install-log.txt 2>&1
+pip install -e ".[browser]" >install-log.txt 2>&1
 if errorlevel 1 goto INSTALLFAIL
 echo Installed.
+echo.
+
+REM eBay refuses plain scripts on many connections, so a real browser engine is
+REM installed up front. It is a large download the first time (a few hundred MB)
+REM and is skipped automatically on later runs.
+echo Setting up the browser engine. First time only - this downloads a
+echo few hundred MB, so it can take several minutes. Please wait...
+playwright install chromium >>install-log.txt 2>&1
+if errorlevel 1 (
+  echo   Could not set up the browser engine. Carrying on anyway - the
+  echo   simple method may still work. Details are in install-log.txt
+) else (
+  echo   Browser engine ready.
+)
 echo.
 
 REM ---- 3. One request, to see whether eBay will talk to us -------------
@@ -93,15 +107,17 @@ echo NEXT: double-click  collect.bat  to gather a day of sales.
 goto END
 
 :BLOCKED
-echo    eBay showed a robot check
+echo    eBay turned us away
 echo ==========================================================
 echo.
-echo eBay served a "verify you are human" page instead of results.
-echo This happens - it is not something you did wrong.
+echo eBay refused the request, even through a real browser.
+echo This is not something you did wrong.
 echo.
-echo Wait an hour or two, then double-click setup.bat again.
-echo If it keeps happening, tell Claude and we will slow the
-echo collector down.
+echo Wait an hour or two, then double-click setup.bat again -
+echo this often clears by itself.
+echo.
+echo If it keeps happening, send the messages above to Claude.
+echo A copy of what eBay sent back was saved in  data\html
 goto END
 
 :OFFLINE

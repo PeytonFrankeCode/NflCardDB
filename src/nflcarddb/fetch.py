@@ -74,11 +74,25 @@ class Fetcher:
         self._last_request = 0.0
 
         self.session = requests.Session()
+        # A bare User-Agent is not enough: eBay compares the whole header set
+        # against what a real Chrome sends, and a short list stands out.
         self.session.headers.update({
             "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "image/avif,image/webp,image/apng,*/*;q=0.8"
+            ),
             "Accept-Language": "en-US,en;q=0.9",
-            "Cache-Control": "no-cache",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "sec-ch-ua": '"Chromium";v="126", "Not;A=Brand";v="24", "Google Chrome";v="126"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "Connection": "keep-alive",
         })
 
     def _sleep_until_allowed(self) -> None:
@@ -102,6 +116,19 @@ class Fetcher:
                 resp = self.session.get(url, timeout=self.timeout)
                 self._last_request = time.monotonic()
                 self.stats.requests += 1
+
+                if resp.status_code == 403:
+                    # 403 on a plain HTTP client is a fingerprinting refusal, not
+                    # throttling -- it happens on the very first request, before
+                    # any rate could have been exceeded. Retrying or waiting does
+                    # not help; only looking like a real browser does.
+                    self.stats.blocked += 1
+                    raise BlockedError(
+                        "eBay refused the request outright (HTTP 403). This is not "
+                        "rate limiting -- it means eBay can tell these requests are "
+                        "not coming from a real web browser. Waiting will not help. "
+                        "Use the browser engine instead: --engine browser"
+                    )
 
                 if resp.status_code in (429, 503):
                     self.stats.retries += 1
@@ -140,3 +167,83 @@ class Fetcher:
                 time.sleep(backoff)
 
         raise FetchError(f"giving up on {url}: {last_err}")
+
+    def close(self) -> None:
+        self.session.close()
+
+
+class AutoFetcher:
+    """Start with the light HTTP client; switch to a browser if eBay refuses.
+
+    eBay's answer differs by machine and by day, so hard-coding one engine means
+    somebody always gets the wrong one. This tries the cheap path first and
+    upgrades permanently on the first refusal, carrying the page budget across so
+    the switch cannot buy extra requests.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        self._kwargs = kwargs
+        self._impl: object = Fetcher(**kwargs)
+        self.switched = False
+
+    @property
+    def stats(self) -> FetchStats:
+        return self._impl.stats  # type: ignore[attr-defined]
+
+    def budget_exhausted(self) -> bool:
+        return self._impl.budget_exhausted()  # type: ignore[attr-defined]
+
+    def get(self, url: str, label: Optional[str] = None) -> str:
+        try:
+            return self._impl.get(url, label)  # type: ignore[attr-defined]
+        except BlockedError as blocked:
+            if self.switched:
+                raise
+            log.warning("eBay refused the plain HTTP client; switching to a browser")
+            spent = self._impl.stats  # type: ignore[attr-defined]
+            from .browser import INSTALL_HINT, BrowserUnavailable
+
+            try:
+                # Chromium only launches on the first navigation, so the
+                # "no browser here" failure surfaces from get(), not the
+                # constructor -- both have to be inside this guard.
+                self._upgrade()
+                self._impl.stats.requests = spent.requests  # type: ignore[attr-defined]
+                self._impl.stats.blocked = spent.blocked  # type: ignore[attr-defined]
+                return self._impl.get(url, label)  # type: ignore[attr-defined]
+            except BrowserUnavailable as exc:
+                # Report the block that actually happened, with the fix appended
+                # -- not a confusing "browser missing" error for an engine the
+                # user never asked for.
+                raise BlockedError(
+                    f"{blocked}\n\nA real browser would likely get through, but the "
+                    f"browser engine is not available here.\n{INSTALL_HINT}"
+                ) from exc
+
+    def _upgrade(self) -> None:
+        from .browser import BrowserFetcher
+
+        self.close()
+        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
+        self._impl = BrowserFetcher(**{k: v for k, v in self._kwargs.items() if k in allowed})
+        self.switched = True
+
+    def close(self) -> None:
+        closer = getattr(self._impl, "close", None)
+        if closer:
+            closer()
+
+
+def make_fetcher(engine: str = "auto", **kwargs):
+    """Build the fetcher for an engine name: auto | requests | browser."""
+    engine = (engine or "auto").lower()
+    if engine in ("browser", "chromium", "playwright"):
+        from .browser import BrowserFetcher
+
+        allowed = {"delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir"}
+        return BrowserFetcher(**{k: v for k, v in kwargs.items() if k in allowed})
+    if engine in ("requests", "http", "plain"):
+        return Fetcher(**kwargs)
+    if engine == "auto":
+        return AutoFetcher(**kwargs)
+    raise ValueError(f"unknown engine {engine!r}; use auto, requests, or browser")

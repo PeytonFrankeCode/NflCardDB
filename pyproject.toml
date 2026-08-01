@@ -16,6 +16,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# eBay refuses the plain HTTP client on some connections (403 on the first
+# request), so the browser engine is the fallback that actually gets through.
+# Needs `playwright install chromium` afterwards to fetch the browser itself.
+browser = ["playwright>=1.40"]
 
 [project.scripts]
 nflcarddb = "nflcarddb.cli:main"
