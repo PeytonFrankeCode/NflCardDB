@@ -18,3 +18,8 @@ data/html/
 .pytest_cache/
 .coverage
 .DS_Store
+
+# Browser profile the collector reuses between runs (cookies, cache)
+data/browser-profile/
+doctor-report.txt
+install-log.txt
