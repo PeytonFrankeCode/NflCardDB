@@ -184,7 +184,7 @@ HTTP_KWARGS = frozenset({
 })
 BROWSER_KWARGS = frozenset({
     "delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir",
-    "headless", "executable_path",
+    "headless", "executable_path", "profile_dir", "warm_up",
 })
 
 

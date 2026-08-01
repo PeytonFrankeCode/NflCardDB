@@ -106,6 +106,8 @@ class BrowserFetcher:
         save_dir: Optional[str] = None,
         headless: bool = True,
         executable_path: Optional[str] = None,
+        profile_dir: Optional[str] = "data/browser-profile",
+        warm_up: bool = True,
     ) -> None:
         self.delay = delay
         self.jitter = jitter
@@ -120,9 +122,13 @@ class BrowserFetcher:
         self._last_request = 0.0
         self._pw = None
         self._browser = None
+        self._context = None
         self._page = None
         self._headless = headless
         self._executable_path = executable_path
+        self._profile_dir = profile_dir
+        self._warm_up = warm_up
+        self._warmed = False
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -144,12 +150,39 @@ class BrowserFetcher:
         attempts = [] if self._executable_path else [{"channel": "chrome"}]
         attempts.append({})
 
+        context_kwargs = {
+            "viewport": {"width": 1440, "height": 900},
+            "locale": "en-US",
+            "timezone_id": "America/New_York",
+            "user_agent": BROWSER_UA,
+            "extra_http_headers": {"Accept-Language": "en-US,en;q=0.9"},
+        }
+
+        # A persistent profile keeps cookies between runs. It matters more than it
+        # looks: a browser arriving with no cookies at all, straight onto a deep
+        # filtered search URL, is exactly the shape of a scraper. After one
+        # ordinary visit this profile carries the same session state a returning
+        # visitor has.
         last_exc: Optional[Exception] = None
+        if self._profile_dir:
+            profile = Path(self._profile_dir)
+            profile.mkdir(parents=True, exist_ok=True)
+            for extra in attempts:
+                try:
+                    context = self._pw.chromium.launch_persistent_context(
+                        str(profile), **launch_kwargs, **context_kwargs, **extra
+                    )
+                    self._browser = context.browser
+                    context.add_init_script(STEALTH_SCRIPT)
+                    self._page = context.pages[0] if context.pages else context.new_page()
+                    self._context = context
+                    return
+                except Exception as exc:  # pragma: no cover - environment dependent
+                    last_exc = exc
+
         for extra in attempts:
             try:
                 self._browser = self._pw.chromium.launch(**launch_kwargs, **extra)
-                if extra:
-                    log.debug("launched real Chrome")
                 break
             except Exception as exc:  # pragma: no cover - depends on environment
                 last_exc = exc
@@ -159,18 +192,44 @@ class BrowserFetcher:
                 f"Could not start a browser: {last_exc}\n{INSTALL_HINT}"
             ) from last_exc
 
-        context = self._browser.new_context(
-            viewport={"width": 1440, "height": 900},
-            locale="en-US",
-            timezone_id="America/New_York",
-            user_agent=BROWSER_UA,
-            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-        )
+        context = self._browser.new_context(**context_kwargs)
         context.add_init_script(STEALTH_SCRIPT)
+        self._context = context
         self._page = context.new_page()
 
+    def _warm_up_session(self) -> None:
+        """Visit the homepage once before any search.
+
+        Nobody arrives cold on a deep filtered search URL with no cookies and no
+        referrer -- a person lands on ebay.com and searches from there. Doing the
+        same picks up the session cookies a normal visit sets, and means the
+        search request carries a referrer from the site itself. Best effort: if
+        the homepage does not load, the real request still goes ahead.
+        """
+        if self._warmed or not self._warm_up:
+            return
+        self._warmed = True
+        try:
+            self._page.goto("https://www.ebay.com/", timeout=self.timeout,
+                            wait_until="domcontentloaded")
+            self._page.wait_for_timeout(random.randint(1200, 2600))
+            # Dismiss a consent banner if one is shown; it blocks nothing, but a
+            # real session would have answered it.
+            for selector in ("#gdpr-banner-accept", "button[aria-label*='Accept']"):
+                try:
+                    button = self._page.query_selector(selector)
+                    if button:
+                        button.click(timeout=2000)
+                        self._page.wait_for_timeout(400)
+                        break
+                except Exception:
+                    pass
+            log.debug("warm-up visit to ebay.com complete")
+        except Exception as exc:
+            log.debug("warm-up visit failed (%s); continuing anyway", exc)
+
     def close(self) -> None:
-        for attr in ("_browser", "_pw"):
+        for attr in ("_context", "_browser", "_pw"):
             obj = getattr(self, attr, None)
             if obj is None:
                 continue
@@ -203,6 +262,7 @@ class BrowserFetcher:
             raise FetchError(f"page budget of {self.page_budget} exhausted")
 
         self._ensure_browser()
+        self._warm_up_session()
         last_err: Optional[Exception] = None
 
         for attempt in range(self.max_retries + 1):

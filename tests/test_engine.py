@@ -284,3 +284,73 @@ def test_doctor_names_the_winning_engine():
     report = format_report(diag)
     assert "engine: impersonate" in report
     assert "240 listings" in report
+
+
+def test_browser_warms_up_before_the_first_search(monkeypatch):
+    """Arriving cold on a deep search URL with no cookies is the scraper shape."""
+    from nflcarddb.browser import BrowserFetcher
+
+    visited = []
+
+    class FakePage:
+        def goto(self, url, **kw):
+            visited.append(url)
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def query_selector(self, sel):
+            return None
+
+        def content(self):
+            return "<html><a href='/itm/123456789012'>x</a></html>"
+
+    f = BrowserFetcher(delay=0, jitter=0, profile_dir=None)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    f._page = FakePage()
+
+    f.get("https://www.ebay.com/sch/i.html?_nkw=football")
+    assert visited[0] == "https://www.ebay.com/"        # homepage first
+    assert "sch/i.html" in visited[1]                    # then the search
+
+    # A second fetch must not warm up again.
+    f.get("https://www.ebay.com/sch/i.html?_pgn=2")
+    assert visited.count("https://www.ebay.com/") == 1
+
+
+def test_warm_up_failure_does_not_stop_the_real_request(monkeypatch):
+    from nflcarddb.browser import BrowserFetcher
+
+    calls = []
+
+    class FlakyPage:
+        def goto(self, url, **kw):
+            calls.append(url)
+            if url == "https://www.ebay.com/":
+                raise RuntimeError("homepage unreachable")
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def query_selector(self, sel):
+            return None
+
+        def content(self):
+            return "<html><a href='/itm/123456789012'>x</a></html>"
+
+    f = BrowserFetcher(delay=0, jitter=0, profile_dir=None)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    f._page = FlakyPage()
+
+    assert f.get("https://www.ebay.com/sch/i.html") is not None
+    assert len(calls) == 2  # warm-up attempted, then the real request went ahead
+
+
+def test_browser_kwargs_include_the_profile_options():
+    from nflcarddb.fetch import BROWSER_KWARGS, build_engine
+
+    assert {"profile_dir", "warm_up"} <= BROWSER_KWARGS
+    f = build_engine("browser", delay=0, profile_dir=None, warm_up=False, user_agent="ignored")
+    assert f._warm_up is False
