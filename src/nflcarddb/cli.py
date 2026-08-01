@@ -237,6 +237,35 @@ def _resolve_profile(args) -> Optional[str]:
     return str(found)
 
 
+def _looks_signed_in(fetcher) -> bool:
+    """Check every open tab, not just the one we drive.
+
+    With a real Chrome profile the user may well sign in on a different tab
+    from the one this command opened, so looking only at ours reports a false
+    negative. Never raises: this is a convenience check, and a wrong answer
+    here must not fail the command.
+    """
+    def _check(html: str) -> bool:
+        low = html.lower()
+        return ("my ebay" in low) and ("sign in" not in low[:200000])
+
+    context = getattr(fetcher, "_context", None)
+    pages = list(getattr(context, "pages", []) or []) if context else []
+    for page in pages:
+        try:
+            if "ebay." in (page.url or "") and _check(page.content()):
+                return True
+        except Exception:
+            continue
+
+    try:
+        fetcher._page.goto("https://www.ebay.com/", timeout=45000,
+                           wait_until="domcontentloaded")
+        return _check(fetcher._page.content())
+    except Exception:
+        return False
+
+
 def cmd_login(args) -> int:
     """Open a real browser window so you can sign in to eBay once.
 
@@ -262,15 +291,31 @@ def cmd_login(args) -> int:
         return 6
 
     try:
-        f._page.goto("https://www.ebay.com/signin/", timeout=60000,
-                     wait_until="domcontentloaded")
+        landed = True
+        try:
+            f._page.goto("https://www.ebay.com/", timeout=60000,
+                         wait_until="domcontentloaded")
+        except Exception as exc:
+            landed = False
+            log_detail = str(exc).splitlines()[0]
+
         print("=" * 58)
         print("  A browser window has opened.")
         print("=" * 58)
         print()
-        print("  1. Sign in to eBay in that window, as you normally would.")
-        print("  2. Once you are signed in and can see the eBay homepage,")
-        print("     come back here and press Enter.")
+        if landed:
+            print("  1. Sign in to eBay in that window, as you normally would.")
+            print("     (If you are already signed in, there is nothing to do.)")
+            print("  2. Then come back here and press Enter.")
+        else:
+            # Navigation can fail while the window itself is perfectly usable --
+            # the point is only that the profile ends up holding a session.
+            print(f"  It could not open eBay for you ({log_detail}).")
+            print("  That is fine -- do it by hand in that window:")
+            print()
+            print("  1. Click the address bar, type   ebay.com   and press Enter.")
+            print("  2. Sign in if you are not already.")
+            print("  3. Then come back here and press Enter.")
         print()
         print("  Your sign-in goes to eBay directly. It is not seen or")
         print("  stored by this project -- only the browser profile in")
@@ -281,17 +326,14 @@ def cmd_login(args) -> int:
         except EOFError:
             pass
 
-        f._page.goto("https://www.ebay.com/", timeout=60000,
-                     wait_until="domcontentloaded")
-        html = f._page.content().lower()
-        signed_in = ("my ebay" in html) and ("sign in" not in html[:200000])
         print()
-        if signed_in:
+        if _looks_signed_in(f):
             print("  Signed in. The collector will reuse this session.")
+            print("  Next: run doctor.bat to see whether sold listings open up.")
             return 0
         print("  Could not confirm you are signed in.")
-        print("  If you did sign in, try `nflcarddb doctor` anyway -- this check")
-        print("  is only reading the page, and it can be wrong.")
+        print("  Run doctor.bat anyway -- this check only reads the page and can")
+        print("  be wrong. The session is saved either way.")
         return 1
     finally:
         f.close()

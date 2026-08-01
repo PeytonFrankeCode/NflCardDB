@@ -197,9 +197,19 @@ class BrowserFetcher:
                     context = self._pw.chromium.launch_persistent_context(
                         str(profile), **launch_kwargs, **context_kwargs, **extra
                     )
+                    # launch_persistent_context returns None for .browser; the
+                    # context is the thing that has to be closed.
                     self._browser = context.browser
                     context.add_init_script(STEALTH_SCRIPT)
-                    self._page = context.pages[0] if context.pages else context.new_page()
+                    # A real profile restores its previous tabs, so pages[0] is
+                    # some old tab rather than anything we control -- and the
+                    # user watches a window we are not driving. Always open a
+                    # fresh page and raise it to the front.
+                    self._page = context.new_page()
+                    try:
+                        self._page.bring_to_front()
+                    except Exception:
+                        pass
                     self._context = context
                     return
                 except Exception as exc:  # pragma: no cover - environment dependent

@@ -401,3 +401,61 @@ def test_stages_are_skipped_when_something_already_works():
     diag = Diagnosis(checks=[EngineCheck("impersonate", WORKING, 200, 500, 60)])
     assert diag.any_working
     assert diag.stages == []
+
+
+def test_signed_in_check_looks_at_every_open_tab():
+    """With a real profile the user may sign in on a different tab than ours."""
+    from nflcarddb.cli import _looks_signed_in
+
+    class Page:
+        def __init__(self, url, html):
+            self.url, self._html = url, html
+
+        def content(self):
+            return self._html
+
+    class Fetcher_:
+        pass
+
+    f = Fetcher_()
+    f._context = type("C", (), {"pages": [
+        Page("https://mail.google.com/", "<html>inbox</html>"),
+        Page("https://www.ebay.com/", "<html>My eBay | Watchlist</html>"),
+    ]})()
+    f._page = Page("about:blank", "")
+    assert _looks_signed_in(f) is True
+
+
+def test_signed_in_check_survives_a_dead_tab():
+    from nflcarddb.cli import _looks_signed_in
+
+    class Exploding:
+        url = "https://www.ebay.com/"
+
+        def content(self):
+            raise RuntimeError("target closed")
+
+    class DeadPage:
+        def goto(self, *a, **k):
+            raise RuntimeError("navigation failed")
+
+    f = type("F", (), {})()
+    f._context = type("C", (), {"pages": [Exploding()]})()
+    f._page = DeadPage()
+    # A broken tab and a failed navigation must report "not confirmed", not crash.
+    assert _looks_signed_in(f) is False
+
+
+def test_signed_in_check_rejects_a_logged_out_page():
+    from nflcarddb.cli import _looks_signed_in
+
+    class Page:
+        url = "https://www.ebay.com/"
+
+        def content(self):
+            return "<html><a>Sign in</a> or register</html>"
+
+    f = type("F", (), {})()
+    f._context = type("C", (), {"pages": [Page()]})()
+    f._page = Page()
+    assert _looks_signed_in(f) is False
