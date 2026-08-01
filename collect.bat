@@ -31,7 +31,7 @@ if /i not "%USECHROME%"=="n" (
 )
 echo.
 
-nflcarddb -v scrape %EXTRA%
+nflcarddb -v scrape %EXTRA% --save-html data\html
 set CODE=!errorlevel!
 echo.
 

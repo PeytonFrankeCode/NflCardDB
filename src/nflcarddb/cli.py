@@ -124,10 +124,24 @@ def cmd_probe(args) -> int:
 
     # One retry only: probe is a diagnostic, so it should report a dead network
     # in seconds rather than working through the full backoff ladder.
+    engine = args.engine or config.fetch.engine
+    profile_dir = "data/browser-profile"
+    if getattr(args, "chrome_profile", False):
+        from .browser import default_chrome_profile
+
+        found = default_chrome_profile()
+        if found:
+            profile_dir = str(found)
+            print(f"using your everyday Chrome profile: {found}")
+            print("(Chrome must be closed)\n")
+            # Cookies only reach the browser engine.
+            if not args.engine and engine == "auto":
+                engine = "browser"
+
     fetcher = make_fetcher(
-        engine=args.engine or config.fetch.engine,
+        engine=engine,
         delay=0, jitter=0, max_retries=1, save_dir=args.save_html,
-        headless=not args.headed,
+        headless=not args.headed, profile_dir=profile_dir,
     )
     try:
         html = fetcher.get(url, label=f"probe_{query.id}")
@@ -457,6 +471,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="how to fetch pages (default: from config, normally auto)")
     p.add_argument("--headed", action="store_true",
                    help="show the browser window, so you can see what eBay serves")
+    p.add_argument("--chrome-profile", action="store_true",
+                   help="use your everyday, already-signed-in Chrome (close Chrome first)")
     p.set_defaults(func=cmd_probe)
 
     p = sub.add_parser("stats", help="summarise what is in the database")
