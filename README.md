@@ -9,7 +9,42 @@ eBay sold search  ->  listing parser  ->  title parser  ->  SQLite
    (price bands)      (item id anchor)     (regex+vocab)    (sales + cards)
 ```
 
-## Quick start
+## Start here — no terminal needed
+
+You can run the whole thing from your browser. Nothing to install.
+
+**1. Turn the website on** (once)
+Go to **Settings** → **Pages** → under "Source" choose **GitHub Actions**.
+
+**2. Let it save results** (once)
+Go to **Settings** → **Actions** → **General** → scroll to "Workflow permissions"
+→ choose **Read and write permissions** → Save.
+
+**3. Collect some sales**
+Go to the **Actions** tab → click **Collect card sales** in the left sidebar →
+click the grey **Run workflow** button → click the green **Run workflow** button.
+
+Wait about two minutes, then click into the run. It writes a plain-English
+report telling you what happened and what to do next.
+
+**4. Look at your data**
+Your dashboard is at `https://peytonfrankecode.github.io/NflCardDB/`.
+
+### If it says eBay blocked it
+
+That is expected, and it is not something you set up wrong. eBay is much
+stricter with GitHub's servers than with a home internet connection — it sees
+datacenter traffic and assumes it is a bot. The run attaches the page eBay
+actually returned, as **ebay-page-for-debugging**. Download it and hand it to
+Claude, and the next step is to run the collector from your own computer, which
+uses your home connection.
+
+The first run deliberately collects only a small sample (25 requests). Once a
+run succeeds, run it again with the page budget set to **400** for a full day.
+
+---
+
+## Quick start (command line)
 
 ```bash
 pip install -e ".[dev]"

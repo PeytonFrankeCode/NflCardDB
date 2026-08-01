@@ -1,0 +1,175 @@
+name: Collect card sales
+
+# The no-terminal path. Go to the Actions tab, pick this workflow, click
+# "Run workflow". It checks that eBay is reachable, collects a day of sales,
+# updates the dashboard, and writes a plain-English report in the run summary.
+#
+# Heads up: GitHub's servers use datacenter IP addresses, which eBay blocks far
+# more often than a home connection. If this reports a block, that is expected
+# and the report says what to do next -- it is not something you configured wrong.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Which day to collect (YYYY-MM-DD). Leave blank for yesterday."
+        required: false
+      page_budget:
+        description: "How many requests to allow. Start small (25) for a first test."
+        required: false
+        default: "25"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Restore previous data
+        uses: actions/cache/restore@v4
+        with:
+          path: data/nflcarddb.sqlite
+          key: nflcarddb-${{ github.run_id }}
+          restore-keys: nflcarddb-
+
+      # Step 1 of 2: one request, to find out whether eBay will talk to us at all.
+      - name: Check that eBay is reachable
+        id: check
+        run: |
+          set +e
+          nflcarddb probe --query football_singles --save-html data/html > probe.txt 2>&1
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          cat probe.txt
+          {
+            echo "## Step 1: can we reach eBay?"
+            echo ""
+            case $code in
+              0) echo "**Yes.** eBay returned listings and the parser read them." ;;
+              1) echo "**Reached eBay, but read zero listings.** The page loaded but nothing was recognised — usually the category id is wrong, or eBay changed its page layout." ;;
+              4) echo "**Blocked.** eBay served a bot-check page instead of results. This is the common outcome on GitHub's servers, because they run on datacenter IP addresses." ;;
+              5) echo "**Could not connect.** The network request failed outright." ;;
+              *) echo "**Stopped with an unexpected error (code $code).**" ;;
+            esac
+            echo ""
+            echo "<details><summary>Full output</summary>"
+            echo ""
+            echo '```'
+            cat probe.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Save the page eBay returned
+        if: steps.check.outputs.exit_code != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebay-page-for-debugging
+          path: |
+            data/html
+            probe.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Step 2 of 2: only runs if step 1 succeeded.
+      - name: Collect the day's sales
+        id: scrape
+        if: steps.check.outputs.exit_code == '0'
+        run: |
+          set +e
+          nflcarddb -v scrape \
+            --date "${{ inputs.date }}" \
+            --page-budget "${{ inputs.page_budget || 25 }}" > report.json 2> scrape.log
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          tail -40 scrape.log
+          cat report.json
+          exit 0
+
+      # Only refresh the dashboard if we actually collected something. A failed
+      # run must not overwrite good data with an empty file, or fill the history
+      # with no-op "refresh" commits.
+      - name: Update the dashboard
+        if: steps.check.outputs.exit_code == '0'
+        run: |
+          items=$(python3 -c "import json;print(json.load(open('report.json')).get('items_seen',0))" 2>/dev/null || echo 0)
+          if [ "${items:-0}" -gt 0 ]; then
+            nflcarddb publish --out site/data
+          else
+            echo "Collected no sales, so the dashboard is left untouched."
+          fi
+
+      - name: Save the results
+        if: steps.check.outputs.exit_code == '0'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data
+          if git diff --cached --quiet; then
+            echo "Nothing new to save."
+          else
+            git commit -m "data: collected ${{ inputs.date || 'yesterday' }}"
+            git push
+          fi
+
+      - name: Keep the database for next time
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/nflcarddb.sqlite
+          key: nflcarddb-${{ github.run_id }}
+
+      - name: Write the report
+        if: always()
+        run: |
+          echo "## Step 2: what we collected" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.check.outputs.exit_code }}" != "0" ]; then
+            {
+              echo "Skipped, because step 1 could not reach eBay."
+              echo ""
+              echo "### What to do next"
+              echo ""
+              echo "This almost certainly is not something you set up wrong. eBay treats"
+              echo "GitHub's servers differently from a home internet connection."
+              echo ""
+              echo "Ask Claude to help you run the collector on your own computer instead —"
+              echo "that uses your home connection, which eBay is far more relaxed about."
+              echo "The saved page is attached to this run as **ebay-page-for-debugging**;"
+              echo "hand that file to Claude and it can tell you exactly what eBay returned."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            nflcarddb stats --date "${{ inputs.date }}" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            {
+              echo ""
+              echo '```json'
+              cat report.json 2>/dev/null || echo '{}'
+              echo '```'
+              echo ""
+              echo "### What to do next"
+              echo ""
+              echo "Your dashboard rebuilds automatically in a minute or two."
+              echo "If this run looked healthy, run it again with a bigger"
+              echo "**page budget** (try 400) to collect a full day instead of a sample."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

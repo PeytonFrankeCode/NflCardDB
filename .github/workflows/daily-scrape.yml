@@ -9,9 +9,14 @@ name: Daily scrape
 # `self-hosted`. See README "Where to run this".
 
 on:
-  schedule:
-    # 09:15 UTC daily. Late enough that the previous US day is fully closed out.
-    - cron: "15 9 * * *"
+  # The daily schedule is intentionally OFF until you have confirmed that
+  # scraping works from GitHub's servers at all -- otherwise this fails every
+  # morning and emails you about it, with nothing you can do differently.
+  # Use the "Collect card sales" workflow first. Once a run there succeeds,
+  # uncomment the two lines below to run automatically.
+  #
+  # schedule:
+  #   - cron: "15 9 * * *"   # 09:15 UTC, after the previous US day has closed out
   workflow_dispatch:
     inputs:
       date:
@@ -61,9 +66,17 @@ jobs:
             | tee report.json
         continue-on-error: true
 
+      # Guarded: a blocked run collects nothing, and must not overwrite good data
+      # with an empty file or add a no-op commit.
       - name: Publish dashboard JSON
         if: always()
-        run: nflcarddb publish --out site/data || true
+        run: |
+          items=$(python3 -c "import json;print(json.load(open('report.json')).get('items_seen',0))" 2>/dev/null || echo 0)
+          if [ "${items:-0}" -gt 0 ]; then
+            nflcarddb publish --out site/data
+          else
+            echo "Collected no sales, so the dashboard is left untouched."
+          fi
 
       - name: Commit refreshed data
         if: always()
