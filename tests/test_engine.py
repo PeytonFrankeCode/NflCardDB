@@ -459,3 +459,131 @@ def test_signed_in_check_rejects_a_logged_out_page():
     f._context = type("C", (), {"pages": [Page()]})()
     f._page = Page()
     assert _looks_signed_in(f) is False
+
+
+def test_chrome_profile_forces_the_browser_engine(tmp_path, monkeypatch):
+    """Cookies only reach the browser engine, so auto must not start on TLS."""
+    import yaml
+
+    from nflcarddb import fetch as fm
+    from nflcarddb.config import load_config
+    from nflcarddb.pipeline import run_scrape
+
+    cfg = tmp_path / "q.yml"
+    cfg.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "c.db"),
+        "fetch": {"engine": "auto", "delay": 0, "jitter": 0, "page_budget": 1},
+        "price_bands": [[None, None]],
+        "queries": [{"id": "football_singles", "keywords": "f", "category": "1"}],
+    }))
+
+    seen = {}
+
+    def fake_make(engine="auto", **kwargs):
+        seen["engine"] = engine
+        seen["profile_dir"] = kwargs.get("profile_dir")
+
+        class Stub:
+            stats = fm.FetchStats()
+
+            def get(self, url, label=None):
+                raise fm.BlockedError("stop")
+
+            def budget_exhausted(self):
+                return False
+
+            def close(self):
+                pass
+
+        return Stub()
+
+    monkeypatch.setattr("nflcarddb.pipeline.make_fetcher", fake_make)
+    monkeypatch.setattr("nflcarddb.browser.default_chrome_profile",
+                        lambda: tmp_path / "ChromeProfile")
+
+    run_scrape(load_config(cfg), target_date="2025-07-30", chrome_profile=True)
+    assert seen["engine"] == "browser"
+    assert "ChromeProfile" in str(seen["profile_dir"])
+
+
+def test_explicit_engine_still_wins_over_the_chrome_default(tmp_path, monkeypatch):
+    import yaml
+
+    from nflcarddb import fetch as fm
+    from nflcarddb.config import load_config
+    from nflcarddb.pipeline import run_scrape
+
+    cfg = tmp_path / "q.yml"
+    cfg.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "d.db"),
+        "fetch": {"engine": "auto", "delay": 0, "jitter": 0, "page_budget": 1},
+        "price_bands": [[None, None]],
+        "queries": [{"id": "football_singles", "keywords": "f", "category": "1"}],
+    }))
+
+    seen = {}
+
+    def fake_make(engine="auto", **kwargs):
+        seen["engine"] = engine
+
+        class Stub:
+            stats = fm.FetchStats()
+
+            def get(self, url, label=None):
+                raise fm.BlockedError("stop")
+
+            def budget_exhausted(self):
+                return False
+
+            def close(self):
+                pass
+
+        return Stub()
+
+    monkeypatch.setattr("nflcarddb.pipeline.make_fetcher", fake_make)
+    monkeypatch.setattr("nflcarddb.browser.default_chrome_profile", lambda: tmp_path / "P")
+
+    run_scrape(load_config(cfg), target_date="2025-07-30",
+               chrome_profile=True, engine_override="impersonate")
+    assert seen["engine"] == "impersonate"
+
+
+def test_without_chrome_profile_the_project_profile_is_used(tmp_path, monkeypatch):
+    import yaml
+
+    from nflcarddb import fetch as fm
+    from nflcarddb.config import load_config
+    from nflcarddb.pipeline import run_scrape
+
+    cfg = tmp_path / "q.yml"
+    cfg.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "e.db"),
+        "fetch": {"engine": "auto", "delay": 0, "jitter": 0, "page_budget": 1},
+        "price_bands": [[None, None]],
+        "queries": [{"id": "football_singles", "keywords": "f", "category": "1"}],
+    }))
+
+    seen = {}
+
+    def fake_make(engine="auto", **kwargs):
+        seen["engine"] = engine
+        seen["profile_dir"] = kwargs.get("profile_dir")
+
+        class Stub:
+            stats = fm.FetchStats()
+
+            def get(self, url, label=None):
+                raise fm.BlockedError("stop")
+
+            def budget_exhausted(self):
+                return False
+
+            def close(self):
+                pass
+
+        return Stub()
+
+    monkeypatch.setattr("nflcarddb.pipeline.make_fetcher", fake_make)
+    run_scrape(load_config(cfg), target_date="2025-07-30")
+    assert seen["engine"] == "auto"
+    assert seen["profile_dir"] == "data/browser-profile"

@@ -39,6 +39,10 @@ class FetchConfig:
     # auto | requests | browser. "auto" tries the light HTTP client and switches
     # to a real browser if eBay refuses it.
     engine: str = "auto"
+    # Use the everyday Chrome profile -- the one already signed in to eBay --
+    # instead of a profile belonging to this project. Chrome must be closed
+    # while a run is in progress, because it locks its own profile.
+    chrome_profile: bool = False
 
 
 @dataclass

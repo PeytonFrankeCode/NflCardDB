@@ -61,6 +61,7 @@ def run_scrape(
     delay_override: Optional[float] = None,
     page_budget_override: Optional[int] = None,
     engine_override: Optional[str] = None,
+    chrome_profile: Optional[bool] = None,
     dry_run: bool = False,
 ) -> ScrapeReport:
     target_date = target_date or yesterday()
@@ -75,8 +76,33 @@ def run_scrape(
     run_id = store.start_run(conn, target_date)
     report = ScrapeReport(run_id, target_date)
 
+    use_chrome = (
+        config.fetch.chrome_profile if chrome_profile is None else chrome_profile
+    )
+    profile_dir = "data/browser-profile"
+    if use_chrome:
+        from .browser import default_chrome_profile
+
+        found = default_chrome_profile()
+        if found:
+            profile_dir = str(found)
+            log.info("using your everyday Chrome profile: %s", found)
+            log.info("Chrome must stay closed while this runs")
+        else:
+            log.warning("no Chrome profile found; using this project's own")
+
+    # The signed-in session lives in Chrome's cookies, and only the browser
+    # engine can use them -- the TLS client "auto" starts with would ignore the
+    # profile entirely and get refused for being logged out. So asking for the
+    # Chrome profile implies the browser engine, unless one was named outright.
+    engine = engine_override or config.fetch.engine
+    if use_chrome and not engine_override and engine == "auto":
+        engine = "browser"
+        log.info("using the browser engine, so the signed-in session applies")
+
     fetcher = make_fetcher(
-        engine=engine_override or config.fetch.engine,
+        engine=engine,
+        profile_dir=profile_dir,
         delay=delay_override if delay_override is not None else config.fetch.delay,
         jitter=config.fetch.jitter,
         max_retries=config.fetch.max_retries,

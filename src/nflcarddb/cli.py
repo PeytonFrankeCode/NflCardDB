@@ -42,6 +42,7 @@ def cmd_scrape(args) -> int:
         delay_override=args.delay,
         page_budget_override=args.page_budget,
         engine_override=args.engine,
+        chrome_profile=args.chrome_profile or None,
         dry_run=args.dry_run,
     )
     print(json.dumps(report.as_dict(), indent=2))
@@ -430,6 +431,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--save-html", help="directory to dump fetched pages into")
     p.add_argument("--engine", choices=["auto", "requests", "browser"],
                    help="how to fetch pages (default: from config, normally auto)")
+    p.add_argument("--chrome-profile", action="store_true",
+                   help="use your everyday, already-signed-in Chrome (close Chrome first)")
     p.add_argument("--dry-run", action="store_true", help="fetch and parse but do not write")
     p.set_defaults(func=cmd_scrape)
 

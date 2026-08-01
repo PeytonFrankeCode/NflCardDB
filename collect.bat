@@ -15,8 +15,23 @@ echo This usually takes 5-10 minutes. The collector goes slowly
 echo on purpose, so eBay does not mistake it for an attack.
 echo Leave this window open until it finishes.
 echo.
+echo eBay only shows sold prices to signed-in accounts, so this
+echo can use the Chrome you are already signed in to.
+echo.
+set "EXTRA="
+set /p USECHROME=Use your everyday Chrome? (Y/n):
+if /i not "%USECHROME%"=="n" (
+  set "EXTRA=--chrome-profile"
+  echo.
+  echo IMPORTANT: close Google Chrome completely first - including
+  echo anything still in the system tray. Chrome locks its own
+  echo profile, so this cannot read it while Chrome is running.
+  echo.
+  pause
+)
+echo.
 
-nflcarddb -v scrape
+nflcarddb -v scrape %EXTRA%
 set CODE=!errorlevel!
 echo.
 
