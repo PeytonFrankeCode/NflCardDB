@@ -8,7 +8,13 @@ from typing import Optional
 
 from . import db as store
 from .config import Config, QuerySpec
-from .fetch import DEFAULT_UA, BlockedError, FetchError, make_fetcher
+from .fetch import (
+    DEFAULT_UA,
+    BlockedError,
+    FetchError,
+    SignedOutError,
+    make_fetcher,
+)
 from .models import Sale
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
 from .parse_title import load_roster, parse_title
@@ -162,6 +168,11 @@ def run_scrape(
                     flush()
             flush()
 
+    except SignedOutError as exc:
+        report.status = "partial"
+        report.reason = "signed_out"
+        report.error = str(exc)
+        log.error("stopping: %s", exc)
     except BlockedError as exc:
         report.status = "partial"
         report.reason = "blocked"

@@ -14,7 +14,7 @@ from . import db as store
 from .browser import BrowserUnavailable
 from .config import load_config
 from .diagnose import format_report, run_diagnosis
-from .fetch import BlockedError, FetchError, make_fetcher
+from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .ingest import import_files
@@ -51,7 +51,8 @@ def cmd_scrape(args) -> int:
     # Same codes `probe` uses, so scripts can branch on the cause rather than
     # on a generic failure. run_scrape swallows these errors to keep the rows it
     # already collected, so the reason has to travel back on the report.
-    return {"blocked": 4, "network": 5, "interrupted": 130}.get(report.reason, 1)
+    return {"blocked": 4, "network": 5, "signed_out": 8,
+            "interrupted": 130}.get(report.reason, 1)
 
 
 def cmd_parse(args) -> int:
@@ -530,6 +531,9 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except SignedOutError as exc:
+        print(f"not signed in: {exc}", file=sys.stderr)
+        return 8
     except BrowserUnavailable as exc:
         print(f"browser engine unavailable: {exc}", file=sys.stderr)
         return 6

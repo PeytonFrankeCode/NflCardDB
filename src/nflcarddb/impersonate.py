@@ -30,6 +30,8 @@ from .fetch import (
     EngineUnavailable,
     FetchError,
     FetchStats,
+    SignedOutError,
+    looks_signed_out,
 )
 
 log = logging.getLogger(__name__)
@@ -146,6 +148,13 @@ class ImpersonateFetcher:
                 if self.save_dir and label:
                     (self.save_dir / f"{label}.html").write_text(html, encoding="utf-8")
 
+                if looks_signed_out(html):
+                    raise SignedOutError(
+                        "eBay redirected to its sign-in page, so this session is not signed in.\n"
+                        "Sold listings are only shown to signed-in accounts.\n"
+                        "Run login.bat, or use --chrome-profile with Chrome fully closed."
+                    )
+
                 low = html[:6000].lower()
                 if any(marker in low for marker in CHALLENGE_MARKERS):
                     self.stats.blocked += 1
@@ -162,7 +171,7 @@ class ImpersonateFetcher:
 
                 return html
 
-            except (BlockedError, ImpersonateUnavailable):
+            except (BlockedError, SignedOutError, ImpersonateUnavailable):
                 raise
             except Exception as exc:
                 self.stats.retries += 1

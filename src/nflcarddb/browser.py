@@ -31,6 +31,8 @@ from .fetch import (
     EngineUnavailable,
     FetchError,
     FetchStats,
+    SignedOutError,
+    looks_signed_out,
 )
 
 log = logging.getLogger(__name__)
@@ -133,6 +135,7 @@ class BrowserFetcher:
         executable_path: Optional[str] = None,
         profile_dir: Optional[str] = "data/browser-profile",
         warm_up: bool = True,
+        profile_directory: Optional[str] = None,
     ) -> None:
         self.delay = delay
         self.jitter = jitter
@@ -154,6 +157,14 @@ class BrowserFetcher:
         self._profile_dir = profile_dir
         self._warm_up = warm_up
         self._warmed = False
+        self._profile_directory = profile_directory
+
+    def _is_real_chrome_profile(self) -> bool:
+        """A Chrome 'User Data' directory, as opposed to one of ours."""
+        if not self._profile_dir:
+            return False
+        p = Path(self._profile_dir)
+        return (p / "Local State").exists() or p.name == "User Data"
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -172,8 +183,25 @@ class BrowserFetcher:
 
         # Real Chrome beats bundled Chromium when it is installed: same binary
         # everyone else browses with, rather than the build automation ships.
-        attempts = [] if self._executable_path else [{"channel": "chrome"}]
-        attempts.append({})
+        #
+        # With a real Chrome profile it is not merely better, it is required.
+        # Chrome encrypts its cookies with a key only Chrome itself can unwrap
+        # (DPAPI, and app-bound encryption since Chrome 127), so bundled
+        # Chromium opens the profile perfectly happily and finds no session in
+        # it -- which lands on eBay's sign-in page and looks exactly like "no
+        # results". Falling back silently there is worse than failing.
+        real_profile = self._is_real_chrome_profile()
+        if self._executable_path:
+            attempts = [{}]
+        elif real_profile:
+            attempts = [{"channel": "chrome"}]
+        else:
+            attempts = [{"channel": "chrome"}, {}]
+
+        if real_profile and self._profile_directory:
+            launch_kwargs["args"] = launch_kwargs["args"] + [
+                f"--profile-directory={self._profile_directory}"
+            ]
 
         context_kwargs = {
             "viewport": {"width": 1440, "height": 900},
@@ -235,6 +263,14 @@ class BrowserFetcher:
                 last_exc = exc
         if self._browser is None:
             self.close()
+            if real_profile:
+                raise BrowserUnavailable(
+                    f"Could not start Google Chrome itself: {last_exc}\n\n"
+                    "Your everyday Chrome profile can only be opened by Chrome -- "
+                    "its cookies are encrypted so that nothing else can read "
+                    "them. Install Google Chrome, or drop --chrome-profile and "
+                    "sign in with login.bat instead."
+                ) from last_exc
             raise BrowserUnavailable(
                 f"Could not start a browser: {last_exc}\n{INSTALL_HINT}"
             ) from last_exc
@@ -336,6 +372,13 @@ class BrowserFetcher:
                 if self.save_dir and label:
                     (self.save_dir / f"{label}.html").write_text(html, encoding="utf-8")
 
+                if looks_signed_out(html):
+                    raise SignedOutError(
+                        "eBay redirected to its sign-in page, so this session is not signed in.\n"
+                        "Sold listings are only shown to signed-in accounts.\n"
+                        "Run login.bat, or use --chrome-profile with Chrome fully closed."
+                    )
+
                 low = html[:6000].lower()
                 if any(marker in low for marker in CHALLENGE_MARKERS):
                     self.stats.blocked += 1
@@ -351,7 +394,7 @@ class BrowserFetcher:
 
                 return html
 
-            except BlockedError:
+            except (BlockedError, SignedOutError):
                 raise
             except Exception as exc:
                 if isinstance(exc, (FetchError, BrowserUnavailable)):

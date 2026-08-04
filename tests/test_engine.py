@@ -587,3 +587,100 @@ def test_without_chrome_profile_the_project_profile_is_used(tmp_path, monkeypatc
     run_scrape(load_config(cfg), target_date="2025-07-30")
     assert seen["engine"] == "auto"
     assert seen["profile_dir"] == "data/browser-profile"
+
+
+def test_signed_out_page_is_recognised():
+    """The real captured page: eBay's sign-in form, served HTTP 200."""
+    from nflcarddb.fetch import looks_signed_out
+
+    page = open("tests/fixtures/signin_redirect.html", encoding="utf-8").read()
+    assert looks_signed_out(page) is True
+
+
+def test_real_results_are_not_mistaken_for_signed_out():
+    from nflcarddb.fetch import looks_signed_out
+
+    listings = open("tests/fixtures/sold_s_item.html", encoding="utf-8").read()
+    assert looks_signed_out(listings) is False
+    # A results page that merely has a "Sign in" link in its header is fine.
+    assert looks_signed_out(
+        '<html><a>Sign in</a><ul class="srp-results">'
+        '<a href="/itm/123456789012">x</a></ul></html>'
+    ) is False
+
+
+def test_signed_out_stops_the_ladder_instead_of_switching(monkeypatch):
+    """Every engine would be equally logged out, so switching is pointless."""
+    from nflcarddb.fetch import SignedOutError
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    tried = []
+
+    def imp_get(self, url, label=None):
+        tried.append("impersonate")
+        raise SignedOutError("sign in")
+
+    class FakeBrowser:
+        def __init__(self, **kwargs):
+            self.stats = fetch_mod.FetchStats()
+
+        def get(self, url, label=None):
+            tried.append("browser")
+            return "<html/>"
+
+        def budget_exhausted(self):
+            return False
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ImpersonateFetcher, "get", imp_get)
+    import nflcarddb.browser as browser_mod
+    monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
+
+    auto = make_fetcher("auto", delay=0, jitter=0)
+    with pytest.raises(SignedOutError):
+        auto.get("https://www.ebay.com/x")
+    assert tried == ["impersonate"]  # the browser was never tried
+
+
+def test_real_chrome_profile_never_falls_back_to_chromium(tmp_path):
+    """Bundled Chromium cannot decrypt Chrome's cookies, so it must not be used."""
+    from nflcarddb.browser import BrowserFetcher
+
+    real = tmp_path / "User Data"
+    real.mkdir()
+    (real / "Local State").write_text("{}")
+
+    f = BrowserFetcher(profile_dir=str(real))
+    assert f._is_real_chrome_profile() is True
+
+    ours = BrowserFetcher(profile_dir=str(tmp_path / "browser-profile"))
+    assert ours._is_real_chrome_profile() is False
+
+
+def test_scrape_reports_signed_out_with_its_own_exit_code(tmp_path, monkeypatch, capsys):
+    import json as _json
+
+    import yaml
+
+    from nflcarddb.cli import main
+    from nflcarddb.fetch import SignedOutError
+
+    cfg = tmp_path / "q.yml"
+    cfg.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "s.db"),
+        "fetch": {"engine": "requests", "delay": 0, "jitter": 0, "max_retries": 0},
+        "price_bands": [[None, None]],
+        "queries": [{"id": "football_singles", "keywords": "f", "category": "1"}],
+    }))
+
+    def signed_out(self, url, label=None):
+        raise SignedOutError("eBay redirected to its sign-in page")
+
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", signed_out)
+    code = main(["scrape", "--config", str(cfg), "--date", "2025-07-30"])
+    assert code == 8
+
+    report = _json.loads(capsys.readouterr().out)
+    assert report["reason"] == "signed_out"

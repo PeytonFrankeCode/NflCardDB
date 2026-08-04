@@ -30,12 +30,33 @@ CHALLENGE_MARKERS = (
     "checking your browser",
     "please verify yourself",
     "unusual traffic",
-    "captcha",
 )
+
+# eBay answers a sold-listings search from a logged-out session by redirecting to
+# the sign-in form. That comes back HTTP 200 with a perfectly valid page on which
+# there is simply nothing to parse -- which is indistinguishable from "no cards
+# sold" unless it is recognised. It cost a whole run reported as "0 sales".
+SIGNED_OUT_MARKERS = (
+    "sign in or register",
+    'action="https://signin.ebay.com/signin/s',
+    'name="userid"',
+)
+
+
+def looks_signed_out(html: str) -> bool:
+    """True when this is eBay's sign-in page rather than search results."""
+    head = html[:20000].lower()
+    if "srp-results" in head or "/itm/" in head:
+        return False
+    return sum(m in head for m in SIGNED_OUT_MARKERS) >= 2
 
 
 class BlockedError(RuntimeError):
     """eBay served a challenge/interstitial instead of results."""
+
+
+class SignedOutError(RuntimeError):
+    """eBay redirected to sign-in: the session is not authenticated."""
 
 
 class EngineUnavailable(RuntimeError):
@@ -149,6 +170,13 @@ class Fetcher:
                 html = resp.text
                 self.stats.bytes += len(html)
 
+                if looks_signed_out(html):
+                    raise SignedOutError(
+                        "eBay redirected to its sign-in page, so this session is not signed in.\n"
+                        "Sold listings are only shown to signed-in accounts.\n"
+                        "Run login.bat, or use --chrome-profile with Chrome fully closed."
+                    )
+
                 low = html[:6000].lower()
                 if any(marker in low for marker in CHALLENGE_MARKERS):
                     self.stats.blocked += 1
@@ -161,7 +189,7 @@ class Fetcher:
                     (self.save_dir / f"{label}.html").write_text(html, encoding="utf-8")
                 return html
 
-            except BlockedError:
+            except (BlockedError, SignedOutError):
                 raise
             except requests.RequestException as exc:
                 self.stats.retries += 1
@@ -185,6 +213,7 @@ HTTP_KWARGS = frozenset({
 BROWSER_KWARGS = frozenset({
     "delay", "jitter", "max_retries", "timeout", "page_budget", "save_dir",
     "headless", "executable_path", "profile_dir", "warm_up",
+    "profile_directory",
 })
 
 
@@ -252,6 +281,10 @@ class AutoFetcher:
         while True:
             try:
                 return self._impl.get(url, label)
+            except SignedOutError:
+                # Every rung would be equally logged out; switching engines
+                # cannot sign anybody in.
+                raise
             except (BlockedError, EngineUnavailable) as exc:
                 if self._first_block is None and isinstance(exc, BlockedError):
                     self._first_block = exc
