@@ -92,6 +92,10 @@ One thing worth knowing before you build against it: **a key placed in browser
 JavaScript is public**, because the visitor's browser has to know it to send it.
 For real protection the caller must be a server. API.md spells out both cases.
 
+**If your website is itself on Cloudflare, you probably do not need a key at
+all** — bind the D1 database straight to the Pages project and read it directly.
+No secret, no quota, no extra hop. See **[CLOUDFLARE.md](CLOUDFLARE.md)**.
+
 Best-offer sales carry `price: null` there rather than eBay's asking price — a
 missing number cannot be averaged by mistake, a wrong one can.
 
