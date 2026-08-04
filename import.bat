@@ -59,11 +59,15 @@ echo.
 echo Nothing was dropped onto this file.
 echo.
 echo HOW TO USE:
-echo   1. In your browser, search eBay for sold cards.
-echo   2. Press Ctrl+S and save the page.
-echo   3. Drag the saved file onto this import.bat file.
+echo   1. Open  tools\grabber.html  and drag its blue button
+echo      onto your bookmarks bar. You only do this once.
+echo   2. Search eBay as normal, tick "Sold items", and set the
+echo      page size to 240.
+echo   3. Click the bookmark. A small .json file downloads.
+echo   4. Drag that file onto this import.bat file.
 echo.
 echo You can drag several files, or a whole folder, at once.
+echo Saved web pages (Ctrl+S) work too, if you prefer.
 goto END
 
 :NOSETUP

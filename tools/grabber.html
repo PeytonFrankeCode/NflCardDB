@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NflCardDB - one-click page grabber</title>
+<style>
+ body{font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:680px;
+      margin:0 auto;padding:32px 20px 64px;color:#0b0b0b;background:#f9f9f7}
+ h1{font-size:22px;margin:0 0 4px} h2{font-size:15px;margin:28px 0 8px}
+ p{margin:0 0 12px} ol{padding-left:22px} li{margin-bottom:10px}
+ .grab{display:inline-block;background:#2a78d6;color:#fff;text-decoration:none;
+       padding:10px 20px;border-radius:8px;font-weight:600;cursor:grab}
+ .bar{background:#fff;border:1px solid rgba(11,11,11,.1);border-radius:10px;
+      padding:20px;margin:16px 0;text-align:center}
+ code{background:#eeede9;padding:1px 5px;border-radius:4px;font-size:13.5px}
+ .note{color:#52514e;font-size:14px}
+ @media (prefers-color-scheme:dark){
+   body{background:#0d0d0d;color:#fff}.bar{background:#1a1a19;border-color:rgba(255,255,255,.1)}
+   code{background:#2c2c2a}.note{color:#c3c2b7}}
+</style>
+</head>
+<body>
+<h1>NflCardDB page grabber</h1>
+<p class="note">Grabs the sold listings off an eBay page you are looking at.</p>
+
+<h2>Install it once</h2>
+<p>Press <code>Ctrl</code>+<code>Shift</code>+<code>B</code> to show your bookmarks bar,
+then <strong>drag the blue button onto it</strong>.</p>
+<div class="bar"><a class="grab" href="javascript:(function () { var out = []; var seen = {}; function textOf(el) { return el ? (el.innerText || el.textContent || &quot;&quot;).replace(/\s+/g, &quot; &quot;).trim() : &quot;&quot;; } function closestTile(a) { var n = a; for (var i = 0; i < 8 &amp;&amp; n; i++) { n = n.parentElement; if (!n) break; if (n.tagName === &quot;LI&quot;) return n; var c = n.className || &quot;&quot;; if (typeof c === &quot;string&quot; &amp;&amp; /s-item__wrapper|s-card__wrapper/.test(c)) return n; } return a.parentElement || a; } var links = document.querySelectorAll('a[href*=&quot;/itm/&quot;]'); for (var i = 0; i < links.length; i++) { var href = links[i].getAttribute(&quot;href&quot;) || &quot;&quot;; var m = href.match(/\/itm\/(?:[^/?#]+\/)?(\d{9,15})/); if (!m) continue; var id = m[1]; if (seen[id]) continue; var tile = closestTile(links[i]); var blob = textOf(tile); if (!blob) continue; var tEl = tile.querySelector( '.s-item__title span[role=heading], .s-item__title, .s-card__title span, ' + '.s-card__title, [class*=item__title], [class*=card__title], h3' ); var title = textOf(tEl) || links[i].getAttribute(&quot;aria-label&quot;) || textOf(links[i]); title = title.replace(/^new listing\s*/i, &quot;&quot;).trim(); if (!title || /^shop on ebay$/i.test(title)) continue; var pEl = tile.querySelector( '.s-item__price, .s-card__price, [class*=item__price], [class*=card__price], ' + '.su-styled-text.primary.bold' ); var priceText = textOf(pEl); if (!priceText) { var lines = blob.split(/\s{2,}|\n/); for (var j = 0; j < lines.length; j++) { if (/[$£€¥]\s?\d/.test(lines[j]) &amp;&amp; !/shipping|postage|delivery/i.test(lines[j])) { priceText = lines[j]; break; } } } var soldM = blob.match(/sold\s+([A-Z][a-z]{2}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Z][a-z]{2}\s+\d{4})/i); var bidsM = blob.match(/(\d+)\s+bids?\b/i); seen[id] = 1; out.push({ id: id, title: title, price_text: priceText, sold_text: soldM ? soldM[1] : null, bids: bidsM ? parseInt(bidsM[1], 10) : null, best_offer: /best\s+offer/i.test(blob), shipping_text: (blob.match(/(free\s+(?:shipping|postage|delivery)|\+\s*[$£€¥]\s?[\d,.]+\s*(?:shipping|postage|delivery))/i) || [null])[0] }); } if (!out.length) { alert( &quot;NflCardDB: no listings found on this page.\n\n&quot; + &quot;Make sure you are on an eBay SEARCH RESULTS page with the &quot; + &quot;'Sold items' filter switched on.&quot; ); return; } var payload = { source: &quot;bookmarklet&quot;, version: 1, url: location.href, captured_at: new Date().toISOString(), sales: out }; var blob = new Blob([JSON.stringify(payload)], { type: &quot;application/json&quot; }); var a = document.createElement(&quot;a&quot;); a.href = URL.createObjectURL(blob); a.download = &quot;nflcarddb-&quot; + Date.now() + &quot;.json&quot;; document.body.appendChild(a); a.click(); setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000); alert(&quot;NflCardDB: captured &quot; + out.length + &quot; listings.\n\nDrag the downloaded file onto import.bat&quot;); })();">Grab card sales</a></div>
+<p class="note">Dragging is required -- clicking it here does nothing, because
+there are no eBay listings on this page.</p>
+
+<h2>Use it</h2>
+<ol>
+  <li>Search eBay as you normally would, signed in as yourself.</li>
+  <li>In the left sidebar, tick <strong>Sold items</strong>.</li>
+  <li>At the bottom of the results, set the page size to <strong>240</strong>
+      -- that makes each grab worth 240 sales instead of 60.</li>
+  <li>Click <strong>Grab card sales</strong> on your bookmarks bar. A small
+      <code>.json</code> file downloads.</li>
+  <li>Drag that file onto <code>import.bat</code>.</li>
+</ol>
+<p>Repeat for as many pages as you want. Duplicates are ignored, so you can
+never double-count a sale by grabbing the same page twice.</p>
+
+<h2>Why this works when the collector does not</h2>
+<p>Nothing here contacts eBay. You load the page yourself, in your own browser,
+signed in as yourself -- and this only reads what is already on your screen.
+There is no automated request for eBay to refuse.</p>
+</body>
+</html>
