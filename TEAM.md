@@ -13,6 +13,22 @@ Repo: `PeytonFrankeCode/NflCardDB`. Two ways to consume it. **Pick one.**
 
 ---
 
+## Loading data without wrangler
+
+Cloudflare's D1 has an HTTP API, so the data upload needs no Node at all:
+
+```bash
+export CLOUDFLARE_API_TOKEN=...        # Account | D1 | Edit
+nflcarddb d1-push --account-id <ACCT> --database-id <DBID> --schema api/schema.sql --schema-only
+nflcarddb d1-push --account-id <ACCT> --database-id <DBID>
+```
+
+Idempotent — every statement is an upsert. `--dry-run` shows what would be sent.
+`--since YYYY-MM-DD` uploads only recent days once the dataset is large.
+
+**Binding name:** the site currently binds this database as `env.NFLDB`. The
+examples in `examples/` use `env.DB`; adjust whichever you keep.
+
 ## Option A — D1 binding (no API, no key)
 
 If the site is on Cloudflare and in the same account, skip the API entirely.

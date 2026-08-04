@@ -1,5 +1,28 @@
 # Wiring the data into a Cloudflare site
 
+## Quickest path: `d1-push.bat` (no Node.js)
+
+Cloudflare has a plain HTTPS API, so uploading needs nothing but Python and a
+token. Double-click **`d1-push.bat`**, paste an API token and your Account ID,
+and it creates the tables and uploads every sale you have collected.
+
+* **API token** — https://dash.cloudflare.com/profile/api-tokens →
+  Create Token → Custom token → permission **Account · D1 · Edit**. Shown once.
+* **Account ID** — the long value on the right of your Cloudflare overview page.
+
+Set `CLOUDFLARE_API_TOKEN` and `CF_ACCOUNT_ID` as Windows environment variables
+to skip the prompts next time.
+
+Re-run it after any `collect.bat` — every write is an upsert, so repeats are
+harmless.
+
+> **Binding name.** The site binds this database as **`env.NFLDB`**. The example
+> Functions in `examples/` use `env.DB`, so change that name if you copy one, or
+> add a second binding called `DB`. A binding that does not exist reads as
+> `undefined`, which surfaces as a confusing null rather than an error.
+
+---
+
 Your website is already on Cloudflare, which means you have a better option than
 an API key. Both are written up here; pick one.
 

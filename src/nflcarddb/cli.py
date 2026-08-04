@@ -505,6 +505,62 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_d1_push(args) -> int:
+    """Upload schema and data to D1 over HTTPS. No Node, no wrangler."""
+    import os
+
+    from .api_export import export_api_sql
+    from .d1_http import D1Error, push_sql, verify
+
+    token = args.token or os.environ.get("CLOUDFLARE_API_TOKEN")
+    if not token:
+        print("No API token.\n", file=sys.stderr)
+        print("Create one at https://dash.cloudflare.com/profile/api-tokens", file=sys.stderr)
+        print("  Create Token -> Custom token -> Account | D1 | Edit\n", file=sys.stderr)
+        print("Then either pass --token, or set it first:", file=sys.stderr)
+        print("  set CLOUDFLARE_API_TOKEN=your_token_here", file=sys.stderr)
+        return 2
+
+    def progress(index, total, count):
+        print(f"  batch {index}/{total} ({count} statements)", flush=True)
+
+    try:
+        if args.schema:
+            print(f"Applying schema from {args.schema}...")
+            sql = Path(args.schema).read_text(encoding="utf-8")
+            push_sql(args.account_id, args.database_id, token, sql,
+                     dry_run=args.dry_run, on_progress=progress)
+            print("Schema applied.\n")
+
+        if not args.schema_only:
+            print("Building the upload from your local database...")
+            stats = export_api_sql(args.db, args.out, since=args.since)
+            print(f"  {stats['rows']} rows, {stats['bytes'] // 1024} KB\n")
+            if not stats["rows"]:
+                print("Nothing to upload -- collect some sales first.", file=sys.stderr)
+                return 1
+
+            print("Uploading...")
+            sql = Path(args.out).read_text(encoding="utf-8")
+            result = push_sql(args.account_id, args.database_id, token, sql,
+                              dry_run=args.dry_run, on_progress=progress)
+            print()
+            print(json.dumps(result.as_dict(), indent=2))
+
+        if args.dry_run:
+            print("\nDry run -- nothing was sent.")
+            return 0
+
+        print("\nChecking what D1 now holds...")
+        state = verify(args.account_id, args.database_id, token)
+        print(json.dumps(state, indent=2))
+        return 0
+
+    except D1Error as exc:
+        print(f"\nUpload failed: {exc}", file=sys.stderr)
+        return 3
+
+
 def cmd_setup_api(args) -> int:
     """Create the database, upload the data, deploy the API -- in one go."""
     from .cloud_setup import SetupError, setup
@@ -719,6 +775,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db")
     p.add_argument("--roster")
     p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser("d1-push", help="upload to Cloudflare D1 over HTTPS (no Node needed)")
+    p.add_argument("--account-id", required=True)
+    p.add_argument("--database-id", required=True)
+    p.add_argument("--token", help="or set CLOUDFLARE_API_TOKEN")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--out", default="api/import.sql")
+    p.add_argument("--schema", help="path to schema.sql, to create the tables first")
+    p.add_argument("--schema-only", action="store_true", help="tables only, no data")
+    p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
+    p.add_argument("--dry-run", action="store_true", help="show what would be sent")
+    p.set_defaults(func=cmd_d1_push)
 
     p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")
     p.add_argument("--db", default="data/nflcarddb.sqlite")
