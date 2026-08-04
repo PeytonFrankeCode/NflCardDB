@@ -86,14 +86,24 @@ def run_scrape(
         config.fetch.chrome_profile if chrome_profile is None else chrome_profile
     )
     profile_dir = "data/browser-profile"
+    profile_directory = None
     if use_chrome:
         from .browser import default_chrome_profile
+        from .chrome_profiles import pick_ebay_profile
 
         found = default_chrome_profile()
         if found:
             profile_dir = str(found)
             log.info("using your everyday Chrome profile: %s", found)
             log.info("Chrome must stay closed while this runs")
+            # Chrome keeps several profiles side by side; the eBay session is in
+            # exactly one of them, and it is not always Default.
+            chosen = pick_ebay_profile(found)
+            if chosen:
+                profile_directory = chosen.directory
+            else:
+                log.warning("no Chrome profile here holds eBay cookies -- "
+                            "is the eBay sign-in in a different browser?")
         else:
             log.warning("no Chrome profile found; using this project's own")
 
@@ -109,6 +119,7 @@ def run_scrape(
     fetcher = make_fetcher(
         engine=engine,
         profile_dir=profile_dir,
+        profile_directory=profile_directory,
         delay=delay_override if delay_override is not None else config.fetch.delay,
         jitter=config.fetch.jitter,
         max_retries=config.fetch.max_retries,

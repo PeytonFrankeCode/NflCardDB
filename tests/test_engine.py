@@ -684,3 +684,73 @@ def test_scrape_reports_signed_out_with_its_own_exit_code(tmp_path, monkeypatch,
 
     report = _json.loads(capsys.readouterr().out)
     assert report["reason"] == "signed_out"
+
+
+def _make_cookie_db(path, hosts_and_names):
+    import sqlite3 as s3
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = s3.connect(path)
+    conn.execute("CREATE TABLE cookies (host_key TEXT, name TEXT, value BLOB)")
+    conn.executemany("INSERT INTO cookies VALUES (?,?,?)",
+                     [(h, n, b"encrypted") for h, n in hosts_and_names])
+    conn.commit(); conn.close()
+
+
+def test_finds_the_chrome_profile_holding_the_ebay_session(tmp_path):
+    """The eBay login is in one profile, and it is not always Default."""
+    import json as _json
+
+    from nflcarddb.chrome_profiles import list_profiles, pick_ebay_profile
+
+    root = tmp_path / "User Data"
+    (root / "Default").mkdir(parents=True)
+    _make_cookie_db(root / "Default" / "Network" / "Cookies",
+                    [("google.com", "SID")])
+    _make_cookie_db(root / "Profile 1" / "Network" / "Cookies",
+                    [(".ebay.com", "ebay"), (".ebay.com", "npii"), (".ebay.com", "dp1")])
+    (root / "Local State").write_text(_json.dumps({
+        "profile": {"info_cache": {"Default": {"name": "Person 1"},
+                                   "Profile 1": {"name": "Peyton"}}}
+    }))
+
+    chosen = pick_ebay_profile(root)
+    assert chosen is not None
+    assert chosen.directory == "Profile 1"
+    assert chosen.name == "Peyton"
+    assert chosen.ebay_cookies == 3
+    assert chosen.signed_in_hint is True
+
+    listed = list_profiles(root)
+    assert listed[0].directory == "Profile 1"  # richest first
+    assert "eBay cookies" in listed[0].describe()
+
+
+def test_no_ebay_session_anywhere_returns_nothing(tmp_path):
+    from nflcarddb.chrome_profiles import pick_ebay_profile
+
+    root = tmp_path / "User Data"
+    _make_cookie_db(root / "Default" / "Cookies", [("amazon.com", "session")])
+    assert pick_ebay_profile(root) is None
+
+
+def test_profile_scan_survives_an_unreadable_cookie_file(tmp_path):
+    """A locked or corrupt DB must be skipped, not crash the run."""
+    from nflcarddb.chrome_profiles import list_profiles
+
+    root = tmp_path / "User Data"
+    (root / "Default").mkdir(parents=True)
+    (root / "Default" / "Cookies").write_bytes(b"not a database at all")
+    profiles = list_profiles(root)
+    assert len(profiles) == 1
+    assert profiles[0].ebay_cookies == 0
+
+
+def test_cookie_values_are_never_read(tmp_path):
+    """Only hostnames are inspected; encrypted values are left alone."""
+    import inspect
+
+    from nflcarddb import chrome_profiles
+
+    source = inspect.getsource(chrome_profiles)
+    assert "SELECT host_key, name FROM cookies" in source
+    assert "value" not in source.split("SELECT")[1].split("FROM")[0]
