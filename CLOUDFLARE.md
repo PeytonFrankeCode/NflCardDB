@@ -44,6 +44,15 @@ it ever needs the data, you want Option B as well — and you can run both.
 Use this if your site is elsewhere, or you want other people or apps to be able
 to read the data.
 
+### The short way: `api-setup.bat`
+
+Double-click it. It signs you in to Cloudflare, creates the database, uploads
+your sales, deploys the API, and prints the two values to paste into your
+website. A few minutes, once.
+
+Everything below is the same thing done by hand, if you would rather see each
+step. Both are safe to re-run.
+
 ### Your key
 
 ```

@@ -505,6 +505,55 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_setup_api(args) -> int:
+    """Create the database, upload the data, deploy the API -- in one go."""
+    from .cloud_setup import SetupError, setup
+
+    try:
+        result = setup(args.db, label=args.label, skip_login=args.skip_login)
+    except SetupError as exc:
+        print(f"\nSetup stopped: {exc}", file=sys.stderr)
+        return 2
+
+    print()
+    print("=" * 64)
+    print("  Your API is live")
+    print("=" * 64)
+    print()
+    for step in result.steps:
+        print(f"  done: {step}")
+    print()
+    print("  PASTE THESE TWO INTO YOUR WEBSITE")
+    print("  (Cloudflare -> your website's Pages project -> Settings ->")
+    print("   Environment variables -> Add -> tick Encrypt)")
+    print()
+    print("  Name:  NFLCARDDB_API")
+    print(f"  Value: {result.worker_url}")
+    print()
+    print("  Name:  NFLCARDDB_KEY")
+    print(f"  Value: {result.api_key}")
+    print()
+    print("  Then redeploy your website -- variables only attach on a deploy.")
+    print()
+    print("  The key is not stored anywhere and cannot be shown again.")
+    print("  Losing it just means running this again.")
+    print()
+    print(f"  Try it:  curl -H \"Authorization: Bearer {result.api_key}\" \\")
+    print(f"             {result.worker_url}/v1/summary")
+    print()
+
+    Path("api-details.txt").write_text(
+        "NFLCARDDB_API=" + (result.worker_url or "") + "\n"
+        "NFLCARDDB_KEY=" + (result.api_key or "") + "\n"
+        "\nPaste these into your WEBSITE's Cloudflare Pages project as\n"
+        "encrypted environment variables, then redeploy it.\n"
+        "\nDelete this file once you have.\n",
+        encoding="utf-8",
+    )
+    print("  Also written to api-details.txt -- delete it once you have copied them.")
+    return 0
+
+
 def cmd_api_key(args) -> int:
     """Mint a key. Shown once here and never stored -- only its hash is."""
     from .api_export import new_api_key
@@ -670,6 +719,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db")
     p.add_argument("--roster")
     p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--label", default="website")
+    p.add_argument("--skip-login", action="store_true",
+                   help="already signed in to Cloudflare")
+    p.set_defaults(func=cmd_setup_api)
 
     p = sub.add_parser("api-key", help="mint an API key for the hosted API")
     p.add_argument("--label", default="website", help="what this key is for")

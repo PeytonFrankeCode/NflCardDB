@@ -31,3 +31,4 @@ install-log.txt
 api/import.sql
 api/node_modules/
 api/.wrangler/
+api-details.txt
