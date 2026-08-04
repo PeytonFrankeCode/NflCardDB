@@ -122,6 +122,18 @@ curl -H "Authorization: Bearer KEY" \
   "https://YOUR-URL/v1/sales?player=Stroud&grader=PSA&grade=10&limit=20"
 ```
 
+Each row carries an `image` field — the front photo of the listing, as a URL on
+eBay's own CDN, ready to drop into an `<img>`:
+
+```html
+<img src="${sale.image}" alt="${sale.title}" loading="lazy">
+```
+
+Two things to know about it. It is `null` when the listing had no usable photo,
+so guard before rendering. And eBay purges images for old listings — roughly 90
+days after the sale — so an `<img>` for an old row will 404; handle `onerror` if
+you show history. Only the URL is stored; the image itself is never copied.
+
 ### `GET /v1/prices?player=Name`
 Median, mean, p10/p90, low and high for one player. Optional `grader` and
 `grade` to narrow it — `?player=CJ Stroud&grader=PSA&grade=10` is the common one.

@@ -5,10 +5,13 @@ fail, so most of this is about it: card titles are seller-written and routinely
 contain semicolons and apostrophes.
 """
 
+from pathlib import Path
+
 import pytest
 
 from nflcarddb.d1_http import (
     D1Error,
+    apply_migrations,
     batch_statements,
     push_sql,
     split_statements,
@@ -152,6 +155,57 @@ def test_a_bad_token_is_not_retried(monkeypatch):
     with pytest.raises(D1Error, match="refused the token"):
         push_sql("acct", "db", "token", "SELECT 1;")
     assert attempts["n"] == 1
+
+
+def test_a_migration_already_applied_is_not_an_error(monkeypatch):
+    """Every push replays the ALTERs; after the first they are all duplicates."""
+    from nflcarddb.d1_http import apply_migrations
+
+    def duplicate(account, database, token, sql):
+        raise D1Error("duplicate column name: image_url")
+
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql", duplicate)
+    assert apply_migrations("acct", "db", "token") == []
+
+
+def test_a_migration_runs_on_a_database_that_predates_the_column(monkeypatch):
+    seen = []
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql",
+                        lambda a, d, t, sql: seen.append(sql) or {"success": True})
+
+    applied = apply_migrations("acct", "db", "token",
+                               ("ALTER TABLE sales ADD COLUMN image_url TEXT",))
+    assert applied == ["ALTER TABLE sales ADD COLUMN image_url TEXT"]
+    assert "image_url" in seen[0]
+
+
+def test_a_real_migration_failure_is_raised(monkeypatch):
+    """Swallowing every error would hide a broken schema until the INSERTs fail."""
+    monkeypatch.setattr(
+        "nflcarddb.d1_http.run_sql",
+        lambda *a, **k: (_ for _ in ()).throw(D1Error("no such table: sales")),
+    )
+    with pytest.raises(D1Error, match="no such table"):
+        apply_migrations("acct", "db", "token")
+
+
+def test_the_shipped_migrations_cover_every_exported_column():
+    """A column added to the export but not to MIGRATIONS breaks every push
+    into a database created before it."""
+    import re
+
+    from nflcarddb.api_export import EXPORT_COLUMNS
+    from nflcarddb.d1_http import MIGRATIONS
+
+    schema = (Path(__file__).resolve().parents[1] / "api" / "schema.sql").read_text()
+    create = re.search(r"CREATE TABLE IF NOT EXISTS sales \((.*?)\n\);", schema,
+                       re.S).group(1)
+    in_schema = set(re.findall(r"^\s{4}(\w+)", create, re.M))
+    added = {re.search(r"ADD COLUMN (\w+)", m).group(1) for m in MIGRATIONS}
+
+    missing = set(EXPORT_COLUMNS) - in_schema
+    assert not missing, f"exported but not in api/schema.sql: {missing}"
+    assert added <= in_schema, f"migrated in but not in api/schema.sql: {added - in_schema}"
 
 
 def test_verify_reports_priced_sales_separately(monkeypatch):

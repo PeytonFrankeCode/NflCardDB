@@ -15,6 +15,7 @@ from .fetch import (
     SignedOutError,
     make_fetcher,
 )
+from .images import DEFAULT_SIZE, normalize_image_url
 from .models import Sale
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
 from .parse_title import load_roster, parse_title
@@ -320,6 +321,57 @@ def reparse_titles(
     )
     conn.close()
     return count
+
+
+def image_report(db_path: str, size: int = DEFAULT_SIZE, upgrade: bool = False) -> dict:
+    """Report photo coverage, and optionally resize the URLs already stored.
+
+    Resizing needs no re-scrape: the size lives in the filename, so the 140px
+    thumbnail captured off a results page rewrites to a 500px photo of the same
+    listing. Rows collected before that rewrite existed keep their thumbnails
+    until this runs.
+    """
+    conn = store.connect(db_path)
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
+        with_url = conn.execute(
+            "SELECT COUNT(*) FROM sales WHERE image_url IS NOT NULL AND image_url != ''"
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            "SELECT item_id, image_url FROM sales "
+            "WHERE image_url IS NOT NULL AND image_url != ''"
+        ).fetchall()
+
+        changed = [
+            (new, item_id)
+            for item_id, url in rows
+            if (new := normalize_image_url(url, size=size)) and new != url
+        ]
+
+        if upgrade and changed:
+            conn.executemany(
+                "UPDATE sales SET image_url = ?, updated_at = ? WHERE item_id = ?",
+                [(new, store.utcnow(), item_id) for new, item_id in changed],
+            )
+            conn.commit()
+
+        sample = conn.execute(
+            "SELECT image_url FROM sales WHERE image_url IS NOT NULL "
+            "AND image_url != '' LIMIT 1"
+        ).fetchone()
+
+        return {
+            "sales": total,
+            "with_photo": with_url,
+            "coverage": round(with_url / total, 3) if total else 0.0,
+            "resizable": len(changed),
+            "upgraded": len(changed) if upgrade else 0,
+            "size": size,
+            "example": sample[0] if sample else None,
+        }
+    finally:
+        conn.close()
 
 
 def query_spec_summary(queries: list[QuerySpec]) -> str:

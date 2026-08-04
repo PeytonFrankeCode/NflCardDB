@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS sales (
     best_offer     INTEGER NOT NULL DEFAULT 0,
     listing_format TEXT,
     bids           INTEGER,
+    -- eBay's own CDN URL for the front photo. Only the link is stored; the
+    -- image stays on eBay, which also means it disappears when they purge the
+    -- listing (roughly 90 days after the sale).
+    image_url      TEXT,
     player         TEXT,
     team           TEXT,
     year           INTEGER,

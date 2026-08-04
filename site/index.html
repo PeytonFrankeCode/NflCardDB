@@ -130,6 +130,13 @@
   td a:hover { text-decoration: underline; }
   .flag { font-size: 10.5px; color: var(--warn); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 6px; }
 
+  /* Listing photos. Fixed box so rows stay one height whatever eBay returns,
+     and an empty box rather than a gap when a photo is missing or purged. */
+  td.thumb { width: 52px; padding: 4px 6px 4px 10px; }
+  td.thumb div { width: 42px; height: 42px; border-radius: 5px; border: 1px solid var(--border); background: var(--page); overflow: hidden; }
+  td.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  td.thumb img.gone { display: none; }
+
   .empty { text-align: center; padding: 44px 20px; color: var(--text-secondary); }
   .empty h2 { font-size: 16px; margin-bottom: 10px; }
   .empty pre {
@@ -308,6 +315,8 @@ function renderTable() {
 
   $("#tbody").innerHTML = shown.map(r => `
     <tr>
+      <td class="thumb"><div>${r.img
+        ? `<img src="${esc(r.img)}" alt="" loading="lazy" decoding="async">` : ""}</div></td>
       <td>${fmtDay(r.d)}</td>
       <td>${esc(r.player || "—")}</td>
       <td>${esc(r.set || "—")}${r.par ? " · " + esc(r.par) : ""}</td>
@@ -315,7 +324,7 @@ function renderTable() {
       <td class="num">${r.cur === "USD" ? fmtUsd(r.p) : esc(r.cur) + " " + fmtUsd(r.p).slice(1)}${
         r.bo ? '<span class="flag" title="eBay shows the asking price on accepted offers, not the amount paid">offer</span>' : ""}</td>
       <td class="title"><a href="https://www.ebay.com/itm/${esc(r.id)}" target="_blank" rel="noopener">${esc(r.t)}</a></td>
-    </tr>`).join("") || `<tr><td colspan="6" style="color:var(--muted)">No rows match.</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="7" style="color:var(--muted)">No rows match.</td></tr>`;
 }
 
 /* ---------- page ---------- */
@@ -421,7 +430,7 @@ async function main() {
       </div>
       <div class="scroll-x">
         <table>
-          <thead><tr><th>Sold</th><th>Player</th><th>Set</th><th>Grade</th><th style="text-align:right">Price</th><th>Listing</th></tr></thead>
+          <thead><tr><th></th><th>Sold</th><th>Player</th><th>Set</th><th>Grade</th><th style="text-align:right">Price</th><th>Listing</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -431,6 +440,11 @@ async function main() {
   attachLineHover($("#c-med"), { rows: daily, x: r => r.d, y: r => r.median, format: v => fmtUsd(v) });
 
   tableState.rows = recent;
+  // eBay purges photos for old listings, so some src values 404. Hide those
+  // rather than showing a broken-image icon. `error` does not bubble; capture.
+  $("#tbody").addEventListener("error", e => {
+    if (e.target.tagName === "IMG") e.target.classList.add("gone");
+  }, true);
   $("#q").addEventListener("input", e => { tableState.query = e.target.value; renderTable(); });
   $("#usd").addEventListener("change", e => { tableState.usdOnly = e.target.checked; renderTable(); });
   renderTable();

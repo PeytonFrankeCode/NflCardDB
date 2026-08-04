@@ -113,6 +113,9 @@ function shapeSale(r) {
     best_offer: !!r.best_offer,
     format: r.listing_format,
     bids: r.bids,
+    // eBay's CDN, straight into an <img>. Null when the tile had no photo, and
+    // it stops resolving once eBay purges the listing (~90 days after sale).
+    image: r.image_url || null,
     player: r.player,
     team: r.team,
     year: r.year,

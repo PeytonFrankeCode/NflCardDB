@@ -19,7 +19,8 @@ from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .ingest import import_files
-from .pipeline import reparse_titles, run_backfill, run_scrape, yesterday
+from .images import DEFAULT_SIZE
+from .pipeline import image_report, reparse_titles, run_backfill, run_scrape, yesterday
 from .publish import publish
 from .search import PriceBand, build_url
 
@@ -103,6 +104,23 @@ def cmd_parse(args) -> int:
     return 0
 
 
+def cmd_images(args) -> int:
+    """Report photo coverage, and resize the URLs already collected."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    report = image_report(db_path, size=args.size, upgrade=args.upgrade)
+    print(json.dumps(report, indent=2))
+
+    if report["resizable"] and not args.upgrade:
+        print(f"\n{report['resizable']} photo(s) are still stored at a smaller "
+              f"size. Run with --upgrade to rewrite them to {args.size}px.")
+    elif args.upgrade and report["upgraded"]:
+        print(f"\nRewrote {report['upgraded']} photo URL(s) to {args.size}px. "
+              "Re-run publish or d1-push to send them out.")
+    return 0
+
+
 def cmd_calibrate(args) -> int:
     """Parse a saved HTML page and report what the selectors found.
 
@@ -129,10 +147,15 @@ def cmd_calibrate(args) -> int:
         "sold_date": sum(1 for s in result.sales if not s.sold_date),
         "shipping": sum(1 for s in result.sales if s.shipping_cents is None),
         "condition": sum(1 for s in result.sales if not s.condition),
+        "photo": sum(1 for s in result.sales if not s.image_url),
     }
     print("\nfield coverage (lower missing is better):")
     for name, n in missing.items():
         print(f"  {name:<10} missing on {n}/{len(result.sales)}")
+
+    photo = next((s.image_url for s in result.sales if s.image_url), None)
+    if photo:
+        print(f"\nexample photo: {photo}")
 
     print("\nsample:")
     for sale in result.sales[: args.limit]:
@@ -530,7 +553,7 @@ def cmd_d1_push(args) -> int:
     import os
 
     from .api_export import export_api_sql
-    from .d1_http import D1Error, push_sql, verify
+    from .d1_http import D1Error, apply_migrations, push_sql, verify
 
     token = args.token or os.environ.get("CLOUDFLARE_API_TOKEN")
     if not token:
@@ -564,6 +587,12 @@ def cmd_d1_push(args) -> int:
             push_sql(args.account_id, args.database_id, token, sql,
                      dry_run=args.dry_run, on_progress=progress)
             print("Schema applied.\n")
+
+        # A database created before a column existed needs it added; the schema
+        # above cannot do that, because the table is already there.
+        if not args.dry_run:
+            for statement in apply_migrations(args.account_id, args.database_id, token):
+                print(f"Migrated: {statement}")
 
         if not args.schema_only:
             print("Building the upload from your local database...")
@@ -764,6 +793,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--roster")
     p.add_argument("--all", action="store_true", help="reparse every row, not just new ones")
     p.set_defaults(func=cmd_parse)
+
+    p = sub.add_parser("images", help="report photo coverage, resize stored URLs")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--size", type=int, default=DEFAULT_SIZE,
+                   help=f"longest edge in pixels (default {DEFAULT_SIZE})")
+    p.add_argument("--upgrade", action="store_true",
+                   help="rewrite stored URLs to --size (no re-scrape needed)")
+    p.set_defaults(func=cmd_images)
 
     p = sub.add_parser("calibrate", help="parse a saved HTML page and report coverage")
     p.add_argument("html")

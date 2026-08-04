@@ -19,6 +19,7 @@ from typing import Iterable, Optional
 
 from bs4 import BeautifulSoup, Tag
 
+from .images import DEFAULT_SIZE, best_from_srcset, normalize_image_url
 from .models import PageResult, Sale
 
 PARSER_VERSION = "listing/1"
@@ -247,12 +248,35 @@ def parse_search_page(html: str, query_id: Optional[str] = None) -> PageResult:
     return result
 
 
-def _extract_image(container: Tag) -> Optional[str]:
-    img = container.select_one("img[src], img[data-src]")
-    if not img:
-        return None
-    src = img.get("src") or img.get("data-src")
-    # eBay lazy-loads with a 1x1 gif placeholder.
-    if src and "s-l" in src and not src.startswith("data:"):
-        return src
-    return src if src and not src.startswith("data:") else None
+def _img_candidates(img: Tag) -> Iterable[str]:
+    """Every URL one <img> offers, best first.
+
+    Below the fold eBay leaves a base64 pixel in `src` and puts the real photo
+    in `data-src`, so `src` alone misses most of a long results page.
+    """
+    yield best_from_srcset(img.get("srcset")) or ""
+    yield best_from_srcset(img.get("data-srcset")) or ""
+    for attr in ("src", "data-src", "data-image-src", "data-defer-load"):
+        yield img.get(attr) or ""
+
+
+def _extract_image(container: Tag, size: int = DEFAULT_SIZE) -> Optional[str]:
+    """The listing's front photo, at a size worth looking at.
+
+    Tiles carry more than one image -- seller badges, "Top Rated" marks, the
+    eBay logo -- so the photo is looked for inside the image wrapper first and
+    site furniture is rejected by URL. Taking the first <img> in the tile picks
+    up a badge on the listings that have one.
+    """
+    scopes = (
+        ".s-item__image-wrapper img", ".s-item__image img", ".s-card__image img",
+        "[class*=image-wrapper] img", "[class*=__image] img",
+        "a[href*='/itm/'] img", "img",
+    )
+    for selector in scopes:
+        for img in container.select(selector):
+            for raw in _img_candidates(img):
+                url = normalize_image_url(raw, size=size)
+                if url:
+                    return url
+    return None

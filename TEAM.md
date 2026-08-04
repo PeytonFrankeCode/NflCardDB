@@ -59,7 +59,7 @@ Query it directly from a Pages Function. Working example:
 export async function onRequestGet({ request, env }) {
   const { searchParams } = new URL(request.url);
   const rows = await env.DB.prepare(
-    `SELECT title, price_cents, sold_date, grader, grade
+    `SELECT title, price_cents, sold_date, grader, grade, image_url
      FROM sales
      WHERE player LIKE ? AND best_offer = 0 AND price_cents IS NOT NULL
      ORDER BY sold_date DESC LIMIT 25`
@@ -123,7 +123,7 @@ Responses carry `X-Quota-Limit` / `X-Quota-Used`.
 
 ---
 
-## Two things that will bite you if nobody says them
+## Three things that will bite you if nobody says them
 
 **1. `price` is null on ~46% of rows, and that is correct.**
 
@@ -136,7 +136,21 @@ They are excluded from `/v1/sales` unless `include_offers=true`, and never
 appear in `/v1/prices` or the daily medians. Volume counts do include them —
 that is why `sales` and `priced_sales` differ.
 
-**2. Filter on `confidence` for anything player-driven.**
+**2. `image_url` is a link to eBay, not a copy.**
+
+The front photo of each listing, on eBay's CDN, sized for display (500px longest
+edge). Nothing is downloaded — 20,000 photos a day is a storage bill nobody
+asked for, and an `<img src>` is what a site needs anyway.
+
+The consequence: **the URL rots.** eBay purges images for old listings around 90
+days after the sale, so a photo that works today 404s eventually. Render with an
+`onerror` fallback rather than assuming it resolves. If you need photos to
+outlive the listing, they have to be copied to R2 or similar — say so and that
+can be built, but it is a deliberate cost, not a default.
+
+It is `null` on listings with no usable photo. Served as `image` by the API.
+
+**3. Filter on `confidence` for anything player-driven.**
 
 Sellers write titles freely. `confidence` (0–1) is how much of a title the parser
 explained. `>= 0.5` is a sensible floor; about 86% of rows clear it. Below that,

@@ -187,7 +187,7 @@ interrupted run keeps everything it already paid for.
 
 | table | what's in it |
 |---|---|
-| `sales` | one row per listing: price, shipping, sold date, format, bids, best-offer flag, seller, URL |
+| `sales` | one row per listing: price, shipping, sold date, format, bids, best-offer flag, seller, URL, photo URL |
 | `cards` | structured attributes parsed from the title, plus a `confidence` score |
 | `scrape_runs` | one row per invocation: status, pages fetched, items seen/new |
 | `scrape_segments` | per-band progress, including which bands hit the cap |
@@ -265,6 +265,7 @@ selectors.
 | `probe` | one live request against a configured query |
 | `calibrate` | parse a saved HTML file, report coverage — no network |
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
+| `images` | photo coverage; `--upgrade` resizes stored URLs without re-scraping |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
 | `import` | load eBay pages you saved by hand — no network, cannot be blocked |
@@ -282,4 +283,8 @@ selectors.
   column. There is no FX conversion; aggregate on `currency = 'USD'` or add a
   rates table.
 - **Player extraction is heuristic.** Filter on `confidence`.
+- **Photos are links, not copies.** `image_url` points at eBay's CDN at 500px.
+  Nothing is downloaded, so nothing costs storage — but eBay purges listing
+  images roughly 90 days after the sale, and the URL dies with them. Copying
+  them to object storage is the fix if photos need to outlive the listing.
 - **Sold dates are eBay's display dates**, in the site's timezone, not UTC.

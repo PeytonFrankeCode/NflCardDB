@@ -140,8 +140,8 @@ def _recent(conn: sqlite3.Connection) -> list[dict]:
     rows = []
     for r in conn.execute(
         "SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.currency, "
-        "       s.best_offer, s.bids, c.player, c.team, c.year, c.set_name, "
-        "       c.parallel, c.grader, c.grade, c.confidence "
+        "       s.best_offer, s.bids, s.image_url, c.player, c.team, c.year, "
+        "       c.set_name, c.parallel, c.grader, c.grade, c.confidence "
         "FROM sales s LEFT JOIN cards c USING (item_id) "
         "WHERE s.sold_date IS NOT NULL "
         "ORDER BY s.sold_date DESC, s.price_cents DESC LIMIT ?",
@@ -154,6 +154,7 @@ def _recent(conn: sqlite3.Connection) -> list[dict]:
             "p": round(r["price_cents"] / 100.0, 2) if r["price_cents"] else None,
             "cur": r["currency"],
             "bo": r["best_offer"],
+            "img": r["image_url"],
             "player": r["player"],
             "team": r["team"],
             "yr": r["year"],

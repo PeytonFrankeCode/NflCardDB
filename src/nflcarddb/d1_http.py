@@ -31,6 +31,18 @@ MAX_BATCH_BYTES = 90_000
 MAX_BATCH_STATEMENTS = 40
 
 
+# Columns added to `sales` after the table shipped. `CREATE TABLE IF NOT EXISTS`
+# is a no-op on a table that already exists, so a new column never reaches a
+# database created before it -- the next INSERT then fails on the unknown
+# column. These run every push and are expected to fail as duplicates once the
+# column is there, which is why that one error is swallowed rather than raised.
+MIGRATIONS = (
+    "ALTER TABLE sales ADD COLUMN image_url TEXT",
+)
+
+ALREADY_APPLIED = ("duplicate column", "already exists")
+
+
 class D1Error(RuntimeError):
     """Cloudflare rejected a request."""
 
@@ -214,6 +226,30 @@ def push_sql(
                 time.sleep(wait)
 
     return result
+
+
+def apply_migrations(
+    account_id: str,
+    database_id: str,
+    token: str,
+    migrations: tuple[str, ...] = MIGRATIONS,
+) -> list[str]:
+    """Bring an existing database up to the current schema.
+
+    Returns the migrations that actually changed something. A migration that
+    reports the column already exists has nothing to do, which is the normal
+    case on every push after the first -- anything else is a real failure and
+    is raised.
+    """
+    applied = []
+    for statement in migrations:
+        try:
+            run_sql(account_id, database_id, token, statement + ";")
+            applied.append(statement)
+        except D1Error as exc:
+            if not any(hint in str(exc).lower() for hint in ALREADY_APPLIED):
+                raise
+    return applied
 
 
 def verify(account_id: str, database_id: str, token: str) -> dict:

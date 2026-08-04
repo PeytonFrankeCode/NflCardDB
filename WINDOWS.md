@@ -133,6 +133,22 @@ in `data\browser-profile`.
    data to Cloudflare. To check it landed, `d1-check.bat` prints what Cloudflare
    holds without uploading anything. Details in `CLOUDFLARE.md`.
 
+---
+
+## Card photos
+
+Every sale keeps the picture from its eBay listing, and they show in the
+dashboard table. Nothing is downloaded — the picture stays on eBay and the
+database just remembers where it is, so 20,000 photos a day cost you no space.
+
+**Double-click `photos.bat`** to see how many sales have one. It also fixes an
+old wrinkle: sales collected early on kept eBay's tiny 140-pixel thumbnail, and
+this rewrites those to the full-size picture without re-scraping anything.
+
+One catch worth knowing: eBay deletes listing photos about 90 days after the
+sale, and the picture disappears from your dashboard when they do. The prices
+are yours forever; the photos are borrowed.
+
 > First time only: turn the website on at **Settings → Pages** in your repo on
 > github.com, and under "Source" choose **GitHub Actions**.
 
