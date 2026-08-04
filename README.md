@@ -12,8 +12,18 @@ eBay sold search  ->  listing parser  ->  title parser  ->  SQLite
 ## Start here
 
 **Not comfortable with a terminal? → [WINDOWS.md](WINDOWS.md)** walks you through
-it with no typing: install two free programs once, then double-click `setup.bat`
-and `collect.bat`.
+it with no typing.
+
+**Automatic collecting is blocked, and the working path is the grabber.** eBay
+serves sold listings only to signed-in accounts, refuses automated clients
+outright (HTTP 403 on the first request, from any transport), and since Chrome
+127 the browser's saved session cannot be reused by another program -- cookies
+are bound to Chrome's own process. Every automated route ends at the sign-in
+page. So the data comes from a page *you* have open: open `tools/grabber.html`,
+drag its button to your bookmarks bar, and click it on any eBay sold-search
+page. It reads the listings already on your screen and downloads them; drag
+that file onto `import.bat`. One click per page, 240 sales at a time, nothing
+for eBay to refuse.
 
 **Run it on your own computer, not on GitHub's servers.** This was tested, not
 assumed: a scheduled run on a GitHub Actions runner got a bot-check page and

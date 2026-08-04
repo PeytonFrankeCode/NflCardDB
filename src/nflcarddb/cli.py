@@ -7,6 +7,7 @@ import csv
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -262,7 +263,7 @@ def _resolve_profile(args) -> Optional[str]:
     return str(found)
 
 
-def _looks_signed_in(fetcher) -> bool:
+def _looks_signed_in(fetcher, navigate: bool = True) -> bool:
     """Check every open tab, not just the one we drive.
 
     With a real Chrome profile the user may well sign in on a different tab
@@ -283,6 +284,8 @@ def _looks_signed_in(fetcher) -> bool:
         except Exception:
             continue
 
+    if not navigate:
+        return False
     try:
         fetcher._page.goto("https://www.ebay.com/", timeout=45000,
                            wait_until="domcontentloaded")
@@ -292,11 +295,18 @@ def _looks_signed_in(fetcher) -> bool:
 
 
 def cmd_login(args) -> int:
-    """Open a real browser window so you can sign in to eBay once.
+    """Sign in once, by hand, in the browser the collector owns.
 
-    eBay gates sold-listing search behind an account. The browser engine keeps a
-    persistent profile, so a session established here is reused by every later
-    run -- this is your own account and your own session, not a shared one.
+    This is what makes unattended collecting possible. Reusing the everyday
+    Chrome profile cannot work: since Chrome 127 cookies are bound to the Chrome
+    process that wrote them, so a Chrome launched from here cannot decrypt a
+    session created by a Chrome launched from the desktop. When the same
+    launcher writes *and* reads the profile that problem disappears -- which is
+    exactly this profile.
+
+    Any human verification is solved by the person sitting here, in a normal
+    visible window. Nothing is bypassed; the session is simply established once
+    and then reused.
     """
     from .browser import BrowserFetcher, BrowserUnavailable
 
@@ -346,13 +356,28 @@ def cmd_login(args) -> int:
         print("  stored by this project -- only the browser profile in")
         print(f"  {profile} keeps the session, on this PC.")
         print()
-        try:
-            input("  Press Enter when you are signed in... ")
-        except EOFError:
-            pass
+        # Poll rather than demanding a keypress: signing in can take a while
+        # when eBay asks for a code or a puzzle, and people forget to come back.
+        print("  Waiting for you to sign in (up to 10 minutes)...")
+        print("  Tick 'Stay signed in' if eBay offers it -- it makes the")
+        print("  session last far longer.")
+        print()
+        deadline = time.monotonic() + 600
+        detected = False
+        while time.monotonic() < deadline:
+            if _looks_signed_in(f, navigate=False):
+                detected = True
+                break
+            time.sleep(5)
+
+        if not detected:
+            try:
+                input("  Not detected yet. Press Enter once you are signed in... ")
+            except EOFError:
+                pass
 
         print()
-        if _looks_signed_in(f):
+        if detected or _looks_signed_in(f):
             print("  Signed in. The collector will reuse this session.")
             print("  Next: run doctor.bat to see whether sold listings open up.")
             return 0

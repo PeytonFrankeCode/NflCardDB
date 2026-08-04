@@ -92,11 +92,34 @@ GitHub Desktop as usual.
 Set eBay to show **240 items per page** (a dropdown at the bottom of the
 results) and each saved page is worth 240 sales instead of 60.
 
+## Sign in once (this is what makes it automatic)
+
+eBay only shows sold prices to signed-in accounts, so the collector needs its
+own signed-in session.
+
+**Double-click `login.bat`.** A Chrome window opens. Sign in exactly as you
+normally would, and if eBay asks you to prove you are human, do the puzzle
+yourself -- that is why this step happens in a real window with you sitting
+there. Tick **Stay signed in** if offered; the session then lasts weeks.
+
+Nothing is bypassed and no password is read. The session is stored on your PC
+in `data\browser-profile`.
+
+> **Why not your everyday Chrome?** It cannot work. Since Chrome 127 cookies are
+> locked to the Chrome process that wrote them, so a Chrome started by this
+> project cannot decrypt a session created from your desktop shortcut -- it opens
+> the profile and finds itself logged out. When the same launcher writes *and*
+> reads the profile, that problem disappears. Hence a profile of its own.
+
 ## Every time you want data
 
 1. **Double-click `collect.bat`.**
-   It gathers yesterday's sales. Takes 5–10 minutes — it goes slowly on purpose,
-   so eBay doesn't mistake it for an attack. Leave the window open.
+   It gathers yesterday's sales on its own — no Chrome to close, no window to
+   watch. Takes 5–10 minutes, deliberately slow so eBay doesn't mistake it for
+   an attack. Leave it and come back.
+
+   If it ever says **"Not signed in"**, the session expired: run `login.bat`
+   once more. That is the only manual step in the whole thing.
 
 2. **Open GitHub Desktop.** You'll see a list of changed files on the left.
 

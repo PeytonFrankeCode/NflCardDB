@@ -1,5 +1,5 @@
 @echo off
-REM Double-click this file whenever you want to gather sales.
+REM Collects yesterday's sales on its own, using the session from login.bat.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
@@ -11,30 +11,16 @@ echo ==========================================================
 echo    Collecting yesterday's football card sales
 echo ==========================================================
 echo.
-echo This usually takes 5-10 minutes. The collector goes slowly
-echo on purpose, so eBay does not mistake it for an attack.
-echo Leave this window open until it finishes.
-echo.
-echo eBay only shows sold prices to signed-in accounts, so this
-echo can use the Chrome you are already signed in to.
-echo.
-set "EXTRA="
-set /p USECHROME=Use your everyday Chrome? (Y/n):
-if /i not "%USECHROME%"=="n" (
-  set "EXTRA=--chrome-profile"
-  echo.
-  echo IMPORTANT: close Google Chrome completely first - including
-  echo anything still in the system tray. Chrome locks its own
-  echo profile, so this cannot read it while Chrome is running.
-  echo.
-  pause
-)
+echo This runs on its own. It takes 5-10 minutes and goes
+echo slowly on purpose so eBay does not mistake it for an
+echo attack. You can leave it and come back.
 echo.
 
-nflcarddb -v scrape %EXTRA% --save-html data\html
+nflcarddb -v scrape --save-html data\html
 set CODE=!errorlevel!
 echo.
 
+if "!CODE!"=="8" goto SIGNEDOUT
 if "!CODE!"=="4" goto BLOCKED
 if "!CODE!"=="5" goto OFFLINE
 
@@ -47,28 +33,30 @@ echo ==========================================================
 echo    Done
 echo ==========================================================
 echo.
-echo Your numbers are saved on this PC. To put them on your
-echo website:
+echo To put this on your website: open GitHub Desktop, type
+echo anything in the Summary box, click Commit, then Push.
+goto END
+
+:SIGNEDOUT
+echo ==========================================================
+echo    Not signed in
+echo ==========================================================
 echo.
-echo   1. Open GitHub Desktop.
-echo   2. It will list the changed files on the left.
-echo   3. Type anything in the "Summary" box, e.g.  new data
-echo   4. Click "Commit to main".
-echo   5. Click "Push origin" at the top.
+echo The saved session has expired, or has not been set up yet.
 echo.
-echo Your dashboard updates a minute or two later.
+echo Double-click  login.bat , sign in once, and then run this
+echo again. That is the only manual step there is.
 goto END
 
 :BLOCKED
 echo ==========================================================
-echo    eBay showed a robot check partway through
+echo    eBay asked for a human check partway through
 echo ==========================================================
 echo.
-echo Whatever was collected before that point HAS been saved -
-echo nothing is lost, and running this again later picks up
-echo where it stopped.
+echo Everything collected before that point HAS been saved.
+echo Running this again later picks up where it stopped.
 echo.
-echo Wait an hour or two, then double-click collect.bat again.
+echo Wait an hour or two and try again.
 goto END
 
 :OFFLINE
@@ -76,13 +64,12 @@ echo ==========================================================
 echo    Could not reach eBay
 echo ==========================================================
 echo.
-echo Check that this PC is online, then try again.
+echo Check this PC is online, then try again.
 goto END
 
 :NOSETUP
 echo.
-echo Please double-click  setup.bat  first - that gets your PC
-echo ready. You only ever need to do it once.
+echo Please double-click  setup.bat  first.
 echo.
 
 :END

@@ -12,20 +12,81 @@ talks to eBay at all. The parser does not care where the HTML came from.
 from __future__ import annotations
 
 import glob
+import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
 from . import db as store
 from .models import Sale
-from .parse_listing import parse_search_page
+from .parse_listing import _money_to_cents, _parse_sold_date, parse_search_page
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
 from .parse_title import load_roster, parse_title
 
 log = logging.getLogger(__name__)
 
 HTML_SUFFIXES = {".html", ".htm", ".mhtml", ".xhtml"}
+JSON_SUFFIXES = {".json"}
+READABLE_SUFFIXES = HTML_SUFFIXES | JSON_SUFFIXES
+
+
+def _sale_from_bookmarklet(row: dict, query_id: str) -> Optional[Sale]:
+    """Turn one bookmarklet record into a Sale.
+
+    The bookmarklet reads the live page, so it captures rendered text rather
+    than markup -- the same values a person sees. Parsing happens here so that
+    the browser side stays as simple as possible.
+    """
+    item_id = str(row.get("id") or "").strip()
+    title = (row.get("title") or "").strip()
+    if not item_id.isdigit() or not title:
+        return None
+
+    price_cents, currency = _money_to_cents(row.get("price_text") or "")
+    shipping_cents = None
+    ship_text = row.get("shipping_text") or ""
+    if re.search(r"free", ship_text, re.I):
+        shipping_cents = 0
+    elif ship_text:
+        shipping_cents = _money_to_cents(ship_text)[0]
+
+    bids = row.get("bids")
+    return Sale(
+        item_id=item_id,
+        title=title,
+        price_cents=price_cents,
+        currency=currency or "USD",
+        shipping_cents=shipping_cents,
+        sold_date=_parse_sold_date(f"sold {row.get('sold_text') or ''}"),
+        listing_format="auction" if bids else "fixed",
+        bids=bids,
+        best_offer=bool(row.get("best_offer")),
+        url=f"https://www.ebay.com/itm/{item_id}",
+        query_id=query_id,
+    )
+
+
+def _read_bookmarklet(path: Path, query_id: str) -> tuple[list[Sale], Optional[str]]:
+    """Parse a bookmarklet capture. Returns (sales, reason-it-was-skipped)."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError) as exc:
+        return ([], f"not readable JSON: {exc}")
+
+    if not isinstance(payload, dict) or "sales" not in payload:
+        return ([], "JSON, but not a capture from the bookmarklet")
+
+    sales = []
+    for row in payload.get("sales") or []:
+        if isinstance(row, dict):
+            sale = _sale_from_bookmarklet(row, query_id)
+            if sale:
+                sales.append(sale)
+    if not sales:
+        return ([], "capture contained no usable listings")
+    return (sales, None)
 
 
 @dataclass
@@ -57,7 +118,7 @@ def collect_html_files(paths: Iterable[str | Path]) -> list[Path]:
         if p.is_dir():
             found.extend(
                 f for f in sorted(p.rglob("*"))
-                if f.is_file() and f.suffix.lower() in HTML_SUFFIXES
+                if f.is_file() and f.suffix.lower() in READABLE_SUFFIXES
             )
         elif p.is_file():
             found.append(p)
@@ -96,24 +157,34 @@ def import_files(
     try:
         for path in files:
             report.files += 1
-            try:
-                html = path.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                report.skipped.append((path.name, f"could not read: {exc}"))
-                continue
 
-            result = parse_search_page(html, query_id=query_id)
-            if not result.sales:
-                low = html[:6000].lower()
-                if any(m in low for m in ("pardon our interruption", "captcha", "verify")):
-                    reason = "this is a bot-check page, not search results"
-                else:
-                    reason = "no listings found -- is this a sold-listings search page?"
-                report.skipped.append((path.name, reason))
-                continue
+            if path.suffix.lower() in JSON_SUFFIXES:
+                sales, why = _read_bookmarklet(path, query_id)
+                if why:
+                    report.skipped.append((path.name, why))
+                    continue
+            else:
+                try:
+                    html = path.read_text(encoding="utf-8", errors="replace")
+                except OSError as exc:
+                    report.skipped.append((path.name, f"could not read: {exc}"))
+                    continue
+
+                result = parse_search_page(html, query_id=query_id)
+                if not result.sales:
+                    low = html[:6000].lower()
+                    if "sign in or register" in low:
+                        reason = ("this is eBay's sign-in page -- the page was saved "
+                                  "while signed out")
+                    elif any(m in low for m in ("pardon our interruption", "captcha")):
+                        reason = "this is a bot-check page, not search results"
+                    else:
+                        reason = "no listings found -- is this a sold-listings search page?"
+                    report.skipped.append((path.name, reason))
+                    continue
+                sales = result.sales
 
             report.parsed += 1
-            sales: list[Sale] = result.sales
             report.dates.update(s.sold_date for s in sales if s.sold_date)
 
             seen, new = store.upsert_sales(conn, sales, run_id)

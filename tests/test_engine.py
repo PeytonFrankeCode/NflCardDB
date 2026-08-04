@@ -609,8 +609,8 @@ def test_real_results_are_not_mistaken_for_signed_out():
     ) is False
 
 
-def test_signed_out_stops_the_ladder_instead_of_switching(monkeypatch):
-    """Every engine would be equally logged out, so switching is pointless."""
+def test_signed_out_on_a_cookieless_engine_escalates_to_the_browser(monkeypatch):
+    """The TLS client has no cookie jar, so signed-out there proves nothing."""
     from nflcarddb.fetch import SignedOutError
     from nflcarddb.impersonate import ImpersonateFetcher
 
@@ -639,9 +639,10 @@ def test_signed_out_stops_the_ladder_instead_of_switching(monkeypatch):
     monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
 
     auto = make_fetcher("auto", delay=0, jitter=0)
-    with pytest.raises(SignedOutError):
-        auto.get("https://www.ebay.com/x")
-    assert tried == ["impersonate"]  # the browser was never tried
+    assert auto.get("https://www.ebay.com/x") == "<html/>"
+    # The browser holds the stored session, so it must get its turn.
+    assert tried == ["impersonate", "browser"]
+    assert auto.engine == "browser"
 
 
 def test_real_chrome_profile_never_falls_back_to_chromium(tmp_path):
@@ -754,3 +755,68 @@ def test_cookie_values_are_never_read(tmp_path):
     source = inspect.getsource(chrome_profiles)
     assert "SELECT host_key, name FROM cookies" in source
     assert "value" not in source.split("SELECT")[1].split("FROM")[0]
+
+
+def test_signed_out_from_the_browser_itself_is_final(monkeypatch):
+    """Once the engine that holds the session says signed out, stop."""
+    from nflcarddb.fetch import SignedOutError
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    tried = []
+
+    def imp_get(self, url, label=None):
+        tried.append("impersonate")
+        raise SignedOutError("sign in")
+
+    class SignedOutBrowser:
+        def __init__(self, **kwargs):
+            self.stats = fetch_mod.FetchStats()
+
+        def get(self, url, label=None):
+            tried.append("browser")
+            raise SignedOutError("sign in")
+
+        def budget_exhausted(self):
+            return False
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ImpersonateFetcher, "get", imp_get)
+    import nflcarddb.browser as browser_mod
+    monkeypatch.setattr(browser_mod, "BrowserFetcher", SignedOutBrowser)
+
+    auto = make_fetcher("auto", delay=0, jitter=0)
+    with pytest.raises(SignedOutError):
+        auto.get("https://www.ebay.com/x")
+    assert tried == ["impersonate", "browser"]  # tried once each, then gave up
+
+
+def test_escalating_to_the_browser_keeps_the_spent_budget(monkeypatch):
+    from nflcarddb.fetch import SignedOutError
+    from nflcarddb.impersonate import ImpersonateFetcher
+
+    def imp_get(self, url, label=None):
+        self.stats.requests += 4
+        raise SignedOutError("sign in")
+
+    class FakeBrowser:
+        def __init__(self, **kwargs):
+            self.stats = fetch_mod.FetchStats()
+
+        def get(self, url, label=None):
+            return "<html/>"
+
+        def budget_exhausted(self):
+            return False
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ImpersonateFetcher, "get", imp_get)
+    import nflcarddb.browser as browser_mod
+    monkeypatch.setattr(browser_mod, "BrowserFetcher", FakeBrowser)
+
+    auto = make_fetcher("auto", delay=0, jitter=0, page_budget=10)
+    auto.get("https://www.ebay.com/x")
+    assert auto.stats.requests == 4

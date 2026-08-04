@@ -27,6 +27,12 @@ fetch:
   # is not about rate. "impersonate" sends Chrome's actual handshake; "browser"
   # is Chrome.
   engine: auto
+  # Reusing the everyday Chrome profile does NOT work: since Chrome 127 cookies
+  # are bound to the Chrome process that wrote them, so a Chrome launched from
+  # here cannot decrypt a session created from the desktop. Sign in through
+  # login.bat instead -- that profile is written and read by the same launcher,
+  # which is what makes it reusable.
+  chrome_profile: false
   delay: 2.5              # seconds between requests (floor; jitter is added)
   jitter: 1.0
   max_retries: 4
