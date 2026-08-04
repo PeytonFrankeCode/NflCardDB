@@ -1,0 +1,14 @@
+{
+  "name": "nflcarddb-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "schema": "wrangler d1 execute nflcarddb --remote --file=schema.sql",
+    "import": "wrangler d1 execute nflcarddb --remote --file=import.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

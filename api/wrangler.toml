@@ -1,0 +1,13 @@
+name = "nflcarddb-api"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# The D1 binding the Worker reads. database_id is filled in by
+# `wrangler d1 create nflcarddb` -- paste the id it prints here.
+[[d1_databases]]
+binding = "DB"
+database_name = "nflcarddb"
+database_id = "PASTE_YOUR_DATABASE_ID_HERE"
+
+# Nothing secret lives in this file: API keys are stored in D1 as hashes, so
+# there is no token to leak here and it is safe to commit.

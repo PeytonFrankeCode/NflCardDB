@@ -467,6 +467,55 @@ def cmd_import(args) -> int:
     return 0
 
 
+def cmd_api_key(args) -> int:
+    """Mint a key. Shown once here and never stored -- only its hash is."""
+    from .api_export import new_api_key
+
+    key, key_hash = new_api_key()
+    print("=" * 62)
+    print("  New API key -- copy it now, it is not recoverable")
+    print("=" * 62)
+    print()
+    print(f"  {key}")
+    print()
+    print(f"  label: {args.label}")
+    print(f"  hash:  {key_hash}")
+    print()
+    print("  Only the hash is stored, so this key cannot be recovered from")
+    print("  the database. Losing it means minting another.")
+    print()
+    print("  To activate it, include it in the next export:")
+    print(f"    nflcarddb export-api --add-key {key_hash}:{args.label}")
+    print()
+    print("  Use it as:  Authorization: Bearer <key>")
+    print()
+    print("  A key placed in website JavaScript is PUBLIC -- anyone can read")
+    print("  the page source. For that, give it a small quota and treat it as")
+    print("  identification, not protection. Keep real keys on a server.")
+    return 0
+
+
+def cmd_export_api(args) -> int:
+    """Write the SQL that loads this data into Cloudflare D1."""
+    from .api_export import export_api_sql
+
+    keys = []
+    for spec in args.add_key or []:
+        if ":" not in spec:
+            print(f"--add-key wants hash:label, got {spec!r}", file=sys.stderr)
+            return 2
+        key_hash, label = spec.split(":", 1)
+        keys.append((key_hash.strip(), label.strip()))
+
+    stats = export_api_sql(args.db, args.out, since=args.since, key_hashes=keys)
+    print(json.dumps(stats, indent=2))
+    if not stats["rows"]:
+        print("\nNo rows exported -- collect some sales first.", file=sys.stderr)
+        return 1
+    print(f"\nNext: wrangler d1 execute nflcarddb --remote --file={stats['file']}")
+    return 0
+
+
 def cmd_publish(args) -> int:
     """Flatten the database into the static JSON the Pages dashboard reads."""
     meta = publish(args.db, args.out)
@@ -574,6 +623,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db")
     p.add_argument("--roster")
     p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser("api-key", help="mint an API key for the hosted API")
+    p.add_argument("--label", default="website", help="what this key is for")
+    p.set_defaults(func=cmd_api_key)
+
+    p = sub.add_parser("export-api", help="write SQL to load this data into Cloudflare D1")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--out", default="api/import.sql")
+    p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
+    p.add_argument("--add-key", action="append", metavar="HASH:LABEL",
+                   help="activate a key (repeatable)")
+    p.set_defaults(func=cmd_export_api)
 
     p = sub.add_parser("publish", help="export static JSON for the Pages dashboard")
     p.add_argument("--db", default="data/nflcarddb.sqlite")

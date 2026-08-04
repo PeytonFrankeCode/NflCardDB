@@ -28,3 +28,6 @@ install-log.txt
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+api/import.sql
+api/node_modules/
+api/.wrangler/

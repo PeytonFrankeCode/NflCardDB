@@ -82,6 +82,19 @@ SELECT * FROM v_sales WHERE best_offer = 0;
 This is the single biggest quality caveat in the dataset and there is no fix
 available from search-page scraping alone.
 
+## The API (Cloudflare Workers + D1)
+
+`api/` is a read-only HTTP API so another site can query your sales — filter by
+player, set, grade and date, or ask for price statistics. Keyed, quota'd, and
+free to run at this size. Setup and endpoints: **[API.md](API.md)**.
+
+One thing worth knowing before you build against it: **a key placed in browser
+JavaScript is public**, because the visitor's browser has to know it to send it.
+For real protection the caller must be a server. API.md spells out both cases.
+
+Best-offer sales carry `price: null` there rather than eBay's asking price — a
+missing number cannot be averaged by mistake, a wrong one can.
+
 ## The dashboard (GitHub Pages)
 
 `site/` is a static dashboard — KPI tiles, daily volume and median-price charts,
@@ -249,6 +262,8 @@ selectors.
 | `export` | CSV out (`--date`, `--out`) |
 | `import` | load eBay pages you saved by hand — no network, cannot be blocked |
 | `publish` | write `site/data/*.json` for the Pages dashboard |
+| `api-key` | mint a key for the hosted API (shown once) |
+| `export-api` | write SQL that loads the data into Cloudflare D1 |
 | `url` | print the URLs a config would hit, fetch nothing |
 
 ## Known limitations
