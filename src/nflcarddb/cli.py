@@ -505,6 +505,26 @@ def cmd_import(args) -> int:
     return 0
 
 
+def _local_sale_count(db_path) -> Optional[int]:
+    """How many sales the export would send, for comparing against D1.
+
+    Mirrors the export's own WHERE clause -- a sale with no date is not
+    uploaded, so counting it here would report a mismatch that isn't one.
+    """
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            return conn.execute(
+                "SELECT COUNT(*) FROM sales WHERE sold_date IS NOT NULL"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
 def cmd_d1_push(args) -> int:
     """Upload schema and data to D1 over HTTPS. No Node, no wrangler."""
     import os
@@ -523,6 +543,19 @@ def cmd_d1_push(args) -> int:
 
     def progress(index, total, count):
         print(f"  batch {index}/{total} ({count} statements)", flush=True)
+
+    if args.verify_only:
+        try:
+            state = verify(args.account_id, args.database_id, token)
+        except D1Error as exc:
+            print(f"\nCould not read the database: {exc}", file=sys.stderr)
+            return 3
+        print(json.dumps(state, indent=2))
+        if not state.get("sales"):
+            print("\nD1 has no sales yet -- run this without --verify-only.",
+                  file=sys.stderr)
+            return 1
+        return 0
 
     try:
         if args.schema:
@@ -554,6 +587,18 @@ def cmd_d1_push(args) -> int:
         print("\nChecking what D1 now holds...")
         state = verify(args.account_id, args.database_id, token)
         print(json.dumps(state, indent=2))
+
+        # Compare against the local database rather than trusting the upload:
+        # a partial upload still exits 0 on every batch it did send.
+        if not args.schema_only and not args.since:
+            local = _local_sale_count(args.db)
+            remote = state.get("sales")
+            if local is not None and remote is not None and local != remote:
+                print(f"\nHeads up: {local} sales here, {remote} in D1.",
+                      file=sys.stderr)
+                print("Re-run this -- every write is an upsert, so it is safe.",
+                      file=sys.stderr)
+                return 1
         return 0
 
     except D1Error as exc:
@@ -786,6 +831,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--schema-only", action="store_true", help="tables only, no data")
     p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
     p.add_argument("--dry-run", action="store_true", help="show what would be sent")
+    p.add_argument("--verify-only", action="store_true",
+                   help="just report what D1 already holds, upload nothing")
     p.set_defaults(func=cmd_d1_push)
 
     p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")

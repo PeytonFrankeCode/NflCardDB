@@ -217,11 +217,21 @@ def push_sql(
 
 
 def verify(account_id: str, database_id: str, token: str) -> dict:
-    """Ask D1 what it now holds, so success is confirmed rather than assumed."""
+    """Ask D1 what it now holds, so success is confirmed rather than assumed.
+
+    `priced_sales` is reported separately because it is the number a website
+    actually plots: best-offer rows carry no sale price, and they are roughly
+    half the dataset, so `sales` alone looks wrong to anyone comparing the two.
+    """
     out = run_sql(
         account_id, database_id, token,
-        "SELECT COUNT(*) AS sales, MIN(sold_date) AS first_day, "
-        "MAX(sold_date) AS last_day FROM sales;",
+        "SELECT COUNT(*) AS sales,"
+        " SUM(CASE WHEN price_cents IS NOT NULL THEN 1 ELSE 0 END) AS priced_sales,"
+        " COUNT(DISTINCT sold_date) AS days,"
+        " MIN(sold_date) AS first_day,"
+        " MAX(sold_date) AS last_day,"
+        " (SELECT COUNT(*) FROM api_keys WHERE revoked = 0) AS active_keys"
+        " FROM sales;",
     )
     rows = (out.get("result") or [{}])[0].get("results") or [{}]
     return rows[0] if rows else {}

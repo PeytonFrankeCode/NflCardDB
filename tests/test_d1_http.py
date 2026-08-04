@@ -12,6 +12,7 @@ from nflcarddb.d1_http import (
     batch_statements,
     push_sql,
     split_statements,
+    verify,
 )
 
 
@@ -151,6 +152,60 @@ def test_a_bad_token_is_not_retried(monkeypatch):
     with pytest.raises(D1Error, match="refused the token"):
         push_sql("acct", "db", "token", "SELECT 1;")
     assert attempts["n"] == 1
+
+
+def test_verify_reports_priced_sales_separately(monkeypatch):
+    """`sales` alone reads as wrong to anyone comparing it with a price chart."""
+    captured = {}
+
+    def fake_run(account, database, token, sql):
+        captured["sql"] = sql
+        return {"result": [{"results": [{
+            "sales": 20665, "priced_sales": 11160, "days": 1,
+            "first_day": "2026-08-03", "last_day": "2026-08-03",
+            "active_keys": 1,
+        }]}]}
+
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql", fake_run)
+    state = verify("acct", "db", "token")
+
+    assert state["sales"] == 20665
+    assert state["priced_sales"] == 11160
+    assert state["first_day"] == "2026-08-03"
+    assert "price_cents IS NOT NULL" in captured["sql"]
+
+
+def test_verify_survives_an_empty_database(monkeypatch):
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql",
+                        lambda *a, **k: {"result": [{"results": []}]})
+    assert verify("acct", "db", "token") == {}
+
+
+def test_local_sale_count_matches_what_the_export_sends(tmp_path):
+    """The comparison is only useful if both sides count the same rows."""
+    from nflcarddb import db as store
+    from nflcarddb.api_export import _rows_to_export
+    from nflcarddb.cli import _local_sale_count
+    from nflcarddb.models import Sale
+
+    path = tmp_path / "count.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    store.upsert_sales(conn, [
+        Sale(item_id="1", title="a", price_cents=100, sold_date="2026-08-03"),
+        Sale(item_id="2", title="b", price_cents=200, sold_date="2026-08-03"),
+        Sale(item_id="3", title="undated", price_cents=300, sold_date=None),
+    ], run)
+    exported = len(_rows_to_export(conn, None))
+    conn.close()
+
+    assert _local_sale_count(path) == exported == 2
+
+
+def test_local_sale_count_returns_none_for_a_missing_database(tmp_path):
+    from nflcarddb.cli import _local_sale_count
+
+    assert _local_sale_count(tmp_path / "nope.db") is None
 
 
 def test_real_export_survives_a_round_trip(tmp_path):

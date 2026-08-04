@@ -16,6 +16,29 @@ to skip the prompts next time.
 Re-run it after any `collect.bat` — every write is an upsert, so repeats are
 harmless.
 
+### Did it work?
+
+Double-click **`d1-check.bat`**. It asks Cloudflare what the database holds and
+prints it — nothing is uploaded:
+
+```json
+{
+  "sales": 20665,
+  "priced_sales": 11160,
+  "days": 1,
+  "first_day": "2026-08-03",
+  "last_day": "2026-08-03",
+  "active_keys": 1
+}
+```
+
+`sales` should match what you collected. `priced_sales` is smaller *and that is
+correct* — best offers have no published sale price (see the note further down).
+
+`d1-push.bat` runs this check itself at the end and tells you if the two counts
+disagree, which would mean the upload stopped partway. The fix is to run it
+again.
+
 > **Binding name.** The site binds this database as **`env.NFLDB`**. The example
 > Functions in `examples/` use `env.DB`, so change that name if you copy one, or
 > add a second binding called `DB`. A binding that does not exist reads as

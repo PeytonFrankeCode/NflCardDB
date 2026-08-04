@@ -129,6 +129,10 @@ in `data\browser-profile`.
 4. A minute or two later your dashboard updates at
    **https://peytonfrankecode.github.io/NflCardDB/**
 
+5. **Feeding your own website too?** Double-click `d1-push.bat` to send the same
+   data to Cloudflare. To check it landed, `d1-check.bat` prints what Cloudflare
+   holds without uploading anything. Details in `CLOUDFLARE.md`.
+
 > First time only: turn the website on at **Settings → Pages** in your repo on
 > github.com, and under "Source" choose **GitHub Actions**.
 

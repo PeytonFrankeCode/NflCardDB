@@ -26,6 +26,11 @@ nflcarddb d1-push --account-id <ACCT> --database-id <DBID>
 Idempotent — every statement is an upsert. `--dry-run` shows what would be sent.
 `--since YYYY-MM-DD` uploads only recent days once the dataset is large.
 
+`--verify-only` reads back row count, priced-row count, day count and date range
+without uploading anything — the quickest way to answer "is the data actually
+there". A full push runs the same check afterwards and exits non-zero if the
+remote count does not match the local one.
+
 **Binding name:** the site currently binds this database as `env.NFLDB`. The
 examples in `examples/` use `env.DB`; adjust whichever you keep.
 
