@@ -1,6 +1,5 @@
 @echo off
-REM Double-click this to sign in to eBay once, so the collector can see
-REM sold listings. You only need to do this again if it stops working.
+REM Sign in once. After this, collecting runs on its own.
 setlocal
 cd /d "%~dp0"
 
@@ -9,56 +8,53 @@ call venv\Scripts\activate.bat
 
 echo.
 echo ==========================================================
-echo    Signing in to eBay
+echo    Sign in once - then collecting is automatic
 echo ==========================================================
 echo.
 echo eBay only shows sold prices to signed-in accounts, so the
-echo collector needs to be signed in as you.
+echo collector needs its own signed-in session.
 echo.
-echo A browser window is about to open. Sign in there as normal,
-echo then come back to THIS window and press Enter.
+echo A Chrome window will open. Sign in there exactly as you
+echo normally would. If eBay asks you to prove you are human,
+echo do the puzzle yourself - that is the whole point of this
+echo step happening in a real window with you sitting here.
+echo.
+echo TICK "Stay signed in" if eBay offers it. That keeps the
+echo session alive for weeks instead of hours.
 echo.
 echo Your password goes straight to eBay. This project never
-echo sees it - only the signed-in session is kept, on this PC.
+echo sees it. Only the signed-in session is kept, on this PC,
+echo in the  data\browser-profile  folder.
 echo.
-echo If eBay shows a "verify you are human" puzzle here that you
-echo cannot complete, close the window and press N below instead.
+pause
 echo.
-set "EXTRA="
-set /p USECHROME=Use your everyday Chrome instead? (y/N):
-if /i "%USECHROME%"=="y" (
-  set "EXTRA=--chrome-profile"
-  echo.
-  echo IMPORTANT: close Google Chrome completely first - including
-  echo anything still running in the system tray - or this cannot
-  echo open your profile.
-  echo.
-  pause
-)
 
-nflcarddb login %EXTRA%
+nflcarddb login
 set CODE=%errorlevel%
 echo.
 
 if "%CODE%"=="0" (
   echo ==========================================================
-  echo    Signed in
+  echo    Signed in - you are done here
   echo ==========================================================
   echo.
-  echo Next: double-click  doctor.bat  to confirm it can now
-  echo read sold listings, then  collect.bat  to gather data.
+  echo From now on just run  collect.bat  and it works on its
+  echo own. No Chrome to close, no windows to watch.
+  echo.
+  echo Come back and run this again only if collecting starts
+  echo saying "signed out", which happens when the session
+  echo eventually expires.
 ) else (
   echo ==========================================================
-  echo    Could not confirm sign-in
+  echo    Could not confirm the sign-in
   echo ==========================================================
   echo.
-  echo Run  doctor.bat  anyway - the check above is only reading
-  echo the page and can be wrong. If doctor still says REFUSED,
-  echo send its report to Claude.
+  echo Run  collect.bat  anyway - the check only reads the page
+  echo and can be wrong. The session is saved either way.
   echo.
-  echo If eBay would not let you past its human-verification
-  echo puzzle, use  import.bat  instead: browse eBay normally in
-  echo your own Chrome, save the page with Ctrl+S, and drag it on.
+  echo If collecting says "signed out", run this again and make
+  echo sure you get all the way to the eBay homepage with your
+  echo name showing in the corner before closing the window.
 )
 goto END
 

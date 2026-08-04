@@ -282,8 +282,17 @@ class AutoFetcher:
             try:
                 return self._impl.get(url, label)
             except SignedOutError:
-                # Every rung would be equally logged out; switching engines
-                # cannot sign anybody in.
+                # Being logged out is only worth escalating when the *current*
+                # engine cannot carry a session at all. The HTTP transports have
+                # no cookie jar, so they are signed out by construction -- the
+                # browser holds the stored session and may well be signed in.
+                # Once the browser itself reports signed out, nothing left to try.
+                remaining = self._ladder[self._pos + 1:]
+                if self.engine != "browser" and "browser" in remaining:
+                    log.warning("%s has no session; trying the browser, which does",
+                                self.engine)
+                    self._advance_to("browser")
+                    continue
                 raise
             except (BlockedError, EngineUnavailable) as exc:
                 if self._first_block is None and isinstance(exc, BlockedError):
@@ -291,6 +300,17 @@ class AutoFetcher:
                 if self._pos + 1 >= len(self._ladder):
                     raise self._exhausted(exc) from exc
                 self._advance(exc)
+
+    def _advance_to(self, name: str) -> None:
+        """Jump straight to a named rung, keeping the spent budget."""
+        spent = self._impl.stats
+        self.close()
+        self._pos = self._ladder.index(name)
+        self.engine = name
+        self._impl = build_engine(name, **self._kwargs)
+        self._impl.stats.requests = spent.requests
+        self._impl.stats.blocked = spent.blocked
+        self.switched = True
 
     def _advance(self, exc: Exception) -> None:
         # Engines construct lazily, so a missing dependency surfaces from get()
