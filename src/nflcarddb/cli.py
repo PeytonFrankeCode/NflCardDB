@@ -20,7 +20,14 @@ from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .ingest import import_files
 from .images import DEFAULT_SIZE
-from .pipeline import image_report, reparse_titles, run_backfill, run_scrape, yesterday
+from .pipeline import (
+    coverage_report,
+    image_report,
+    reparse_titles,
+    run_backfill,
+    run_scrape,
+    yesterday,
+)
 from .publish import publish
 from .search import PriceBand, build_url
 
@@ -76,12 +83,18 @@ def cmd_backfill(args) -> int:
     report = run_backfill(
         config, days=args.days, db_path=args.db, end_date=args.end_date,
         force=args.force, page_budget_per_day=args.page_budget,
-        on_day=announce,
+        max_minutes=args.max_minutes, on_day=announce,
     )
 
     print()
     print(json.dumps(report.as_dict(), indent=2))
 
+    if report.stopped_early == "time_budget":
+        # Not a failure: the run did what it was allowed to, and the next one
+        # resumes. Exiting non-zero here would make every scheduled run "fail".
+        print(f"\nStopped after {args.max_minutes} minutes, as instructed. "
+              "Run again to continue -- collected days are skipped.")
+        return 0
     if report.stopped_early == "signed_out":
         print("\nThe session expired. Run login.bat, then run this again -- "
               "the days already collected are kept.", file=sys.stderr)
@@ -101,6 +114,38 @@ def cmd_parse(args) -> int:
     roster = args.roster or (config.roster if config else None)
     count = reparse_titles(db_path, roster, all_rows=args.all)
     print(f"parsed {count} title(s)")
+    return 0
+
+
+def cmd_coverage(args) -> int:
+    """Report how much of eBay's 90-day window is collected."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    report = coverage_report(db_path, days=args.days)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+
+    done, total = report["collected"], report["window_days"]
+    bar_width = 40
+    filled = round(bar_width * done / total) if total else 0
+    print(f"[{'#' * filled}{'.' * (bar_width - filled)}]  {done}/{total} days")
+    print()
+
+    if report["complete"]:
+        print("Every day eBay still has is collected. Nothing left to catch up on.")
+    else:
+        print(f"{report['missing']} day(s) still to collect — roughly "
+              f"{report['estimated_hours_left']} hours of collecting.")
+        print(f"Next up: {report['next_up']}")
+        print("\nThe oldest of these age out of eBay's window as time passes, "
+              "so they are the ones worth collecting first.")
+
+    if report["outside_window"]:
+        print(f"\nYou also hold {report['outside_window']} day(s) older than "
+              f"{args.days} days. eBay no longer serves those, so that data now "
+              "exists only here.")
     return 0
 
 
@@ -827,7 +872,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--end-date", help="newest day to collect (default: yesterday)")
     p.add_argument("--force", action="store_true", help="re-collect days already done")
     p.add_argument("--page-budget", type=int, help="max requests per day")
+    p.add_argument("--max-minutes", type=float,
+                   help="stop starting new days after this long (for scheduled runs)")
     p.set_defaults(func=cmd_backfill)
+
+    p = sub.add_parser("coverage", help="which of the last 90 days you have")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--days", type=int, default=90,
+                   help="window to report on (default 90, eBay's retention)")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.set_defaults(func=cmd_coverage)
 
     p = sub.add_parser("parse", help="(re)parse titles into the cards table")
     p.add_argument("--config", default="config/queries.yml")

@@ -45,6 +45,29 @@ if not "!CODE!"=="0" (
   exit /b !CODE!
 )
 
+REM ---- catch up on missing days -------------------------------------------
+REM One task, not two: the collector holds a lock on its Chrome profile, so a
+REM separate backfill task running at the same time would just fail on it.
+REM
+REM Bounded by wall clock so this ends before the PC is wanted for something
+REM else. Days already collected are skipped, so it walks backwards through
+REM eBay's 90-day window a few days a night and then becomes a no-op.
+if "%NFLCARDDB_CATCHUP_MINUTES%"=="" set NFLCARDDB_CATCHUP_MINUTES=180
+if "%NFLCARDDB_CATCHUP_MINUTES%"=="0" goto SKIPCATCHUP
+
+call :log "catching up on older days (up to !NFLCARDDB_CATCHUP_MINUTES! minutes)..."
+nflcarddb -v backfill --days 90 --max-minutes !NFLCARDDB_CATCHUP_MINUTES! >> "!LOG!" 2>&1
+set BCODE=!errorlevel!
+if "!BCODE!"=="8" call :log "catch-up stopped: session expired -- run login.bat"
+if "!BCODE!"=="4" call :log "catch-up stopped: eBay human check. Days already collected are kept."
+goto CATCHUPDONE
+
+:SKIPCATCHUP
+call :log "catch-up disabled (NFLCARDDB_CATCHUP_MINUTES=0)"
+
+:CATCHUPDONE
+nflcarddb coverage >> "!LOG!" 2>&1
+
 REM ---- photos + dashboard files -------------------------------------------
 call :log "sizing photos and refreshing the dashboard..."
 nflcarddb images --upgrade >> "!LOG!" 2>&1

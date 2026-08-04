@@ -262,10 +262,12 @@ selectors.
 | command | does |
 |---|---|
 | `scrape` | fetch and store one day (`--date`, `--query`, `--delay`, `--page-budget`, `--dry-run`, `--save-html`) |
+| `backfill` | collect past days, newest first, skipping done ones (`--days`, `--max-minutes`, `--force`) |
 | `probe` | one live request against a configured query |
 | `calibrate` | parse a saved HTML file, report coverage — no network |
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `images` | photo coverage; `--upgrade` resizes stored URLs without re-scraping |
+| `coverage` | which of the last 90 days you hold, and how long the rest will take |
 | `schedule` | daily unattended run via Windows Task Scheduler (`--at`, `--status`, `--remove`, `--run-now`) |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |

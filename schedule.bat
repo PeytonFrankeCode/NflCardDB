@@ -36,6 +36,22 @@ echo.
 nflcarddb schedule --at "!WHEN!"
 if errorlevel 1 goto FAILED
 echo.
+
+echo Each run collects yesterday, then works backwards through
+echo the older days eBay still has. How long may it spend on
+echo that older catch-up before stopping for the day?
+echo.
+set /p CMINS=Hours (press Enter for 3, or 0 for none):
+if "!CMINS!"=="" set CMINS=3
+set /a CATCHUP=!CMINS! * 60
+setx NFLCARDDB_CATCHUP_MINUTES "!CATCHUP!" >nul
+echo.
+if "!CATCHUP!"=="0" (
+  echo Catch-up off - it will only collect yesterday.
+) else (
+  nflcarddb coverage
+)
+echo.
 if "%CLOUDFLARE_API_TOKEN%"=="" (
   echo NOTE: it will collect and update the dashboard files, but
   echo it will NOT upload to your website until you double-click

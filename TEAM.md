@@ -176,5 +176,11 @@ stayed off is collected late, not lost, and eBay's ~90-day retention is the
 outer bound on catching up. Treat `MAX(sold_date)` as the freshness signal
 rather than assuming yesterday is always present.
 
+**History fills in backwards, over weeks.** Each nightly run spends a few hours
+collecting older days after it finishes yesterday, so the dataset grows at both
+ends for a while. Do not assume a contiguous date range early on — a query
+spanning "the last 60 days" may hit gaps that fill in later. `SELECT
+COUNT(DISTINCT sold_date)` against the range you care about is the honest check.
+
 `item_id` is the primary key end to end, so every import is an upsert. Re-running
 anything is safe.

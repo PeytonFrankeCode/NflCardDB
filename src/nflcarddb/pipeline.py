@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, timedelta
 from typing import Optional
 
@@ -246,6 +247,7 @@ def run_backfill(
     end_date: Optional[str] = None,
     force: bool = False,
     page_budget_per_day: Optional[int] = None,
+    max_minutes: Optional[float] = None,
     on_day=None,
 ) -> BackfillReport:
     """Collect the last `days` days, most recent first.
@@ -257,9 +259,16 @@ def run_backfill(
 
     A block stops the whole thing rather than grinding through the remaining
     days -- once eBay is refusing, further requests only deepen the hole.
+
+    `max_minutes` bounds the run for an unattended overnight slot. The check is
+    between days, never mid-day: a day is only counted as collected when its
+    whole run finished, so stopping partway would throw away the pages already
+    paid for. One more day therefore overruns the budget slightly, which is the
+    cheaper of the two mistakes.
     """
     report = BackfillReport()
     last = date.fromisoformat(end_date) if end_date else date.today() - timedelta(days=1)
+    deadline = (time.monotonic() + max_minutes * 60) if max_minutes else None
 
     conn = store.connect(db_path or config.database)
     already = set() if force else store.completed_days(conn)
@@ -274,6 +283,11 @@ def run_backfill(
             if on_day:
                 on_day(target, "skipped", None)
             continue
+
+        if deadline is not None and time.monotonic() >= deadline:
+            report.stopped_early = "time_budget"
+            log.info("time budget reached; %s and earlier left for next time", target)
+            break
 
         log.info("collecting %s (%d of %d)", target, offset + 1, days)
         result = run_scrape(
@@ -321,6 +335,42 @@ def reparse_titles(
     )
     conn.close()
     return count
+
+
+def coverage_report(db_path: str, days: int = 90, minutes_per_day: float = 10.0) -> dict:
+    """Which of the last `days` are collected, and what is left to do.
+
+    The window is 90 days because that is roughly how long eBay keeps sold
+    listings visible. Days older than that are not "missing" in any actionable
+    sense -- they are gone, and no amount of running the backfill brings them
+    back -- so they are reported separately from days still worth collecting.
+    """
+    conn = store.connect(db_path)
+    try:
+        done = store.completed_days(conn)
+    finally:
+        conn.close()
+
+    yesterday = date.today() - timedelta(days=1)
+    window = [(yesterday - timedelta(days=n)).isoformat() for n in range(days)]
+
+    have = [d for d in window if d in done]
+    missing = [d for d in window if d not in done]
+
+    return {
+        "window_days": days,
+        "collected": len(have),
+        "missing": len(missing),
+        "complete": not missing,
+        "oldest_collected": min(done) if done else None,
+        "newest_collected": max(done) if done else None,
+        "next_up": missing[0] if missing else None,
+        "missing_days": missing,
+        "estimated_hours_left": round(len(missing) * minutes_per_day / 60, 1),
+        # Collected days that have aged out of the window: kept, but eBay would
+        # no longer serve them, so they can never be re-collected if lost.
+        "outside_window": len([d for d in done if d < window[-1]]),
+    }
 
 
 def image_report(db_path: str, size: int = DEFAULT_SIZE, upgrade: bool = False) -> dict:

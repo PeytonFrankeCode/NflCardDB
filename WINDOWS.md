@@ -122,10 +122,30 @@ failure at 7am. After this, uploads never ask again.
 **2. `schedule.bat`** — choose **1**, pick a time, done. Pick a time this PC is
 usually on and you're signed in to Windows.
 
-From then on it collects yesterday's sales, sizes the photos, refreshes the
-dashboard files, and uploads to your website — with nobody watching. Option
-**2** in the same menu runs it immediately so you can prove it works instead of
-waiting a day.
+From then on it collects yesterday's sales, **works backwards through the older
+days eBay still has**, sizes the photos, refreshes the dashboard files, and
+uploads to your website — with nobody watching. Option **2** in the same menu
+runs it immediately so you can prove it works instead of waiting a day.
+
+### The catch-up, and why it takes weeks
+
+eBay keeps sold listings for about **90 days**, then drops them for good. So
+there is a backlog worth collecting — roughly 15 hours of it, at ten minutes a
+day of history.
+
+Rather than one enormous run, each nightly run spends a few hours going
+backwards (you choose how many when you set the schedule; 3 is the default).
+Days already collected are skipped, so it walks steadily back through the window
+and then quietly becomes a no-op. It also fills in any day the schedule missed,
+which means a week away from the PC repairs itself.
+
+**Double-click `catchup.bat`** to see a progress bar of how much of the 90 days
+you hold, and to push harder if you want — "collect for a few hours" or "collect
+until it's finished", right now, on top of whatever the schedule is doing.
+
+The unavoidable part: the oldest days are disappearing while you collect. If you
+want the deepest history, run `catchup.bat` overnight a couple of times early on
+rather than leaving it entirely to the nightly window.
 
 Three honest limits:
 
@@ -197,10 +217,9 @@ that point is saved — nothing is lost. Running `collect.bat` again later picks
 where it left off. If it happens every time, tell Claude and the collector can be
 slowed down.
 
-**You want more than yesterday.** eBay only keeps sold listings for about 90
-days, so older days are gone for good once they age out. If you want history,
-collect it sooner rather than later — ask Claude to add a "catch me up on the
-last 30 days" button.
+**You want more than yesterday.** That is what `catchup.bat` is for, and the
+daily schedule already works backwards on its own. eBay only keeps about 90
+days, so the backlog shrinks whether or not you collect it.
 
 **You closed the window too early.** No harm done. It saves as it goes, in
 batches, so you keep everything collected up to that point.
