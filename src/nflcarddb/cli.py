@@ -121,6 +121,48 @@ def cmd_images(args) -> int:
     return 0
 
 
+def cmd_schedule(args) -> int:
+    """Install, inspect or remove the daily Windows scheduled task."""
+    from .scheduling import (
+        ScheduleError,
+        install,
+        remove,
+        run_now,
+        status,
+    )
+
+    try:
+        if args.remove:
+            existed = remove()
+            print("Daily collection removed." if existed else "Nothing was scheduled.")
+            return 0
+
+        if args.status:
+            state = status()
+            if not state.installed:
+                print("Not scheduled. Run `nflcarddb schedule --at 07:00` to set it up.")
+                return 1
+            print("Scheduled.\n")
+            print(state.detail)
+            return 0
+
+        if args.run_now:
+            run_now()
+            print("Started. It runs in the background; watch logs\\ for progress.")
+            return 0
+
+        when = install(Path(args.command).resolve(), args.at)
+        print(f"Scheduled: {args.command} runs every day at {when}.\n")
+        print("It needs this PC switched on and you signed in to Windows. If the")
+        print("PC is off at that time, the run happens once it is back on.")
+        print("\nCheck on it any time with:  nflcarddb schedule --status")
+        return 0
+
+    except ScheduleError as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 2
+
+
 def cmd_calibrate(args) -> int:
     """Parse a saved HTML page and report what the selectors found.
 
@@ -802,6 +844,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--upgrade", action="store_true",
                    help="rewrite stored URLs to --size (no re-scrape needed)")
     p.set_defaults(func=cmd_images)
+
+    p = sub.add_parser("schedule", help="run the collector daily (Windows Task Scheduler)")
+    p.add_argument("--at", default="07:00", metavar="HH:MM",
+                   help="24-hour local time to run daily (default 07:00)")
+    p.add_argument("--command", default="daily.bat",
+                   help="what the task runs (default daily.bat)")
+    p.add_argument("--status", action="store_true", help="report whether it is scheduled")
+    p.add_argument("--remove", action="store_true", help="unschedule it")
+    p.add_argument("--run-now", action="store_true", help="run the task immediately")
+    p.set_defaults(func=cmd_schedule)
 
     p = sub.add_parser("calibrate", help="parse a saved HTML page and report coverage")
     p.add_argument("html")

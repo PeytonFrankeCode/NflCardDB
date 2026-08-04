@@ -24,6 +24,9 @@ data/browser-profile/
 doctor-report.txt
 install-log.txt
 
+# Unattended run logs, one per day -- local diagnostics, not project files
+logs/
+
 # Working database -- rewritten by every run, not a project file
 *.sqlite
 *.sqlite-wal

@@ -266,6 +266,7 @@ selectors.
 | `calibrate` | parse a saved HTML file, report coverage — no network |
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `images` | photo coverage; `--upgrade` resizes stored URLs without re-scraping |
+| `schedule` | daily unattended run via Windows Task Scheduler (`--at`, `--status`, `--remove`, `--run-now`) |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
 | `import` | load eBay pages you saved by hand — no network, cannot be blocked |

@@ -111,15 +111,51 @@ in `data\browser-profile`.
 > the profile and finds itself logged out. When the same launcher writes *and*
 > reads the profile, that problem disappears. Hence a profile of its own.
 
-## Every time you want data
+## Set it and forget it
+
+Two double-clicks, once, and it collects and uploads every day by itself.
+
+**1. `connect-cloudflare.bat`** — paste your Cloudflare API token and Account ID.
+It checks they work before saving, so you find out now rather than in a silent
+failure at 7am. After this, uploads never ask again.
+
+**2. `schedule.bat`** — choose **1**, pick a time, done. Pick a time this PC is
+usually on and you're signed in to Windows.
+
+From then on it collects yesterday's sales, sizes the photos, refreshes the
+dashboard files, and uploads to your website — with nobody watching. Option
+**2** in the same menu runs it immediately so you can prove it works instead of
+waiting a day.
+
+Three honest limits:
+
+- **The PC has to be on and you signed in.** Not just powered — actually logged
+  in, because the collector drives a real Chrome window holding your eBay
+  session. If the PC is off at that time, the run happens when it next comes
+  back, so a missed morning isn't a lost day.
+- **The eBay session still expires** every few weeks. When it does, the run
+  stops and says so in the log; double-click `login.bat` once and it resumes.
+  That is the only thing that ever needs you.
+- **The public dashboard is still a manual push.** GitHub Desktop: Commit, then
+  Push. Automating that means storing a GitHub credential too, which is a
+  bigger ask than it's worth for a once-a-day click.
+
+**How did last night go?** Open the `logs` folder — one file per day, newest at
+the bottom. Or run `schedule.bat` and read the top, which shows the last run's
+result and the next one's time.
+
+## Doing it by hand instead
+
+Still works, any time, whether or not it's scheduled.
 
 1. **Double-click `collect.bat`.**
    It gathers yesterday's sales on its own — no Chrome to close, no window to
    watch. Takes 5–10 minutes, deliberately slow so eBay doesn't mistake it for
-   an attack. Leave it and come back.
+   an attack. Leave it and come back. If you've run `connect-cloudflare.bat`, it
+   uploads to your website at the end too.
 
    If it ever says **"Not signed in"**, the session expired: run `login.bat`
-   once more. That is the only manual step in the whole thing.
+   once more.
 
 2. **Open GitHub Desktop.** You'll see a list of changed files on the left.
 
@@ -129,9 +165,9 @@ in `data\browser-profile`.
 4. A minute or two later your dashboard updates at
    **https://peytonfrankecode.github.io/NflCardDB/**
 
-5. **Feeding your own website too?** Double-click `d1-push.bat` to send the same
-   data to Cloudflare. To check it landed, `d1-check.bat` prints what Cloudflare
-   holds without uploading anything. Details in `CLOUDFLARE.md`.
+5. `d1-push.bat` uploads to Cloudflare on its own if you ever need it; and
+   `d1-check.bat` prints what Cloudflare currently holds without uploading
+   anything. Details in `CLOUDFLARE.md`.
 
 ---
 

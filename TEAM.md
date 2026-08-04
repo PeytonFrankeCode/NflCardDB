@@ -162,14 +162,19 @@ Also: `team` is populated opportunistically and is often null. Do not join on it
 
 ## Refresh cadence
 
-Peyton runs `collect.bat` (collects yesterday) and then `api-deploy.bat`
-(exports + uploads). Both are manual today.
+A Windows scheduled task on Peyton's PC runs `daily.bat` once a day: collect
+yesterday → parse → resize photos → upload to D1 over the HTTP API. No CI, no
+server, no wrangler.
 
-If you want this automated, the collector must run somewhere with a
-residential-looking connection and a signed-in eBay session — it does **not**
-work from CI. That constraint is real and was established the hard way: GitHub
-Actions runners get bot-checked, and eBay only serves sold listings to
-signed-in accounts.
+That it runs on a desktop is not laziness. The collector needs a
+residential-looking connection and a signed-in eBay session, and it does **not**
+work from CI — GitHub Actions runners get bot-checked, and eBay serves sold
+listings only to signed-in accounts. Both were established the hard way.
+
+What follows from that: **data arrives when that PC is on.** A day the machine
+stayed off is collected late, not lost, and eBay's ~90-day retention is the
+outer bound on catching up. Treat `MAX(sold_date)` as the freshness signal
+rather than assuming yesterday is always present.
 
 `item_id` is the primary key end to end, so every import is an upsert. Re-running
 anything is safe.

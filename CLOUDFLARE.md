@@ -16,6 +16,20 @@ to skip the prompts next time.
 Re-run it after any `collect.bat` — every write is an upsert, so repeats are
 harmless.
 
+### Better: stop running it at all
+
+`d1-push.bat` prompts for credentials, which is exactly what stops it happening
+by itself. Run **`connect-cloudflare.bat`** once to store them (it validates
+them first), and from then on:
+
+* `collect.bat` uploads at the end automatically, and
+* `schedule.bat` will do the whole thing daily with nobody watching.
+
+The credentials go into your Windows user environment, not into this folder, so
+they cannot end up in a commit. The token only carries **Account · D1 · Edit** —
+it cannot touch your domains, DNS, or email. Revoke it in the Cloudflare page
+above at any time.
+
 ### Did it work?
 
 Double-click **`d1-check.bat`**. It asks Cloudflare what the database holds and

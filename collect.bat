@@ -25,16 +25,44 @@ if "!CODE!"=="4" goto BLOCKED
 if "!CODE!"=="5" goto OFFLINE
 
 echo Updating your dashboard...
+nflcarddb images --upgrade
 nflcarddb publish
 echo.
+
+REM Upload without asking when the credentials are already stored. Prompting
+REM here would be a second manual step for something that can just happen.
+if "%CLOUDFLARE_API_TOKEN%"=="" goto NOCLOUD
+if "%CF_ACCOUNT_ID%"=="" goto NOCLOUD
+
+set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
+echo Uploading to your website...
+nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only
+nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID%
+if errorlevel 1 (
+  echo.
+  echo Upload did not finish - your data is still safe on this PC.
+  echo Run  d1-push.bat  to try again.
+)
+echo.
+goto SUMMARY
+
+:NOCLOUD
+echo Skipping the website upload - this PC is not connected to
+echo Cloudflare yet. Double-click  connect-cloudflare.bat  once
+echo and it will happen automatically from then on.
+echo.
+
+:SUMMARY
 nflcarddb stats
 echo.
 echo ==========================================================
 echo    Done
 echo ==========================================================
 echo.
-echo To put this on your website: open GitHub Desktop, type
+echo For the public dashboard: open GitHub Desktop, type
 echo anything in the Summary box, click Commit, then Push.
+echo.
+echo Tired of doing this daily? Double-click  schedule.bat.
 goto END
 
 :SIGNEDOUT
