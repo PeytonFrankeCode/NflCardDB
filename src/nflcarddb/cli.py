@@ -127,14 +127,22 @@ def cmd_probe(args) -> int:
     # in seconds rather than working through the full backoff ladder.
     engine = args.engine or config.fetch.engine
     profile_dir = "data/browser-profile"
+    profile_directory = None
     if getattr(args, "chrome_profile", False):
         from .browser import default_chrome_profile
+        from .chrome_profiles import pick_ebay_profile
 
         found = default_chrome_profile()
         if found:
             profile_dir = str(found)
             print(f"using your everyday Chrome profile: {found}")
-            print("(Chrome must be closed)\n")
+            print("(Chrome must be closed)")
+            chosen = pick_ebay_profile(found)
+            if chosen:
+                profile_directory = chosen.directory
+                print(f"eBay session found in: {chosen.describe()}\n")
+            else:
+                print("no profile here holds eBay cookies\n")
             # Cookies only reach the browser engine.
             if not args.engine and engine == "auto":
                 engine = "browser"
@@ -143,6 +151,7 @@ def cmd_probe(args) -> int:
         engine=engine,
         delay=0, jitter=0, max_retries=1, save_dir=args.save_html,
         headless=not args.headed, profile_dir=profile_dir,
+        profile_directory=profile_directory,
     )
     try:
         html = fetcher.get(url, label=f"probe_{query.id}")
@@ -355,6 +364,33 @@ def cmd_login(args) -> int:
         f.close()
 
 
+def cmd_profiles(args) -> int:
+    """List Chrome profiles and say which one holds an eBay session."""
+    from .browser import default_chrome_profile
+    from .chrome_profiles import list_profiles
+
+    root = Path(args.path) if args.path else default_chrome_profile()
+    if not root:
+        print("No Chrome installation found on this machine.", file=sys.stderr)
+        return 2
+
+    print(f"Chrome profiles under {root}\n")
+    profiles = list_profiles(root)
+    if not profiles:
+        print("  (none found)")
+        return 1
+    for p in profiles:
+        mark = "  <-- signed in to eBay" if p.ebay_cookies else ""
+        print(f"  {p.describe()}{mark}")
+
+    if not any(p.ebay_cookies for p in profiles):
+        print("\nNone of these hold eBay cookies. If you are signed in to eBay")
+        print("in a different browser (Edge, Firefox), that session cannot be")
+        print("used here -- sign in once in Chrome, then try again.")
+        return 1
+    return 0
+
+
 def cmd_doctor(args) -> int:
     """Try every fetch method once and report exactly what eBay returns to each."""
     config = load_config(args.config)
@@ -492,6 +528,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--chrome-profile", action="store_true",
                    help="use your everyday Chrome profile (close Chrome first)")
     p.set_defaults(func=cmd_login)
+
+    p = sub.add_parser("profiles", help="show Chrome profiles and which is signed in to eBay")
+    p.add_argument("--path", help="a Chrome User Data directory (default: auto-detect)")
+    p.set_defaults(func=cmd_profiles)
 
     p = sub.add_parser("doctor", help="test every fetch method and report what eBay returns")
     p.add_argument("--config", default="config/queries.yml")
