@@ -216,6 +216,29 @@ def unparsed_items(conn: sqlite3.Connection, limit: Optional[int] = None) -> lis
     return [(r[0], r[1]) for r in conn.execute(sql)]
 
 
+def completed_days(conn: sqlite3.Connection) -> set[str]:
+    """Days already collected successfully, so a backfill can skip them.
+
+    A day counts as done when a run finished 'ok' for it AND rows exist. Either
+    alone is not enough: an 'ok' run that collected nothing usually means the
+    date was mistyped or fell outside eBay's window, and rows without a
+    successful run may be a partial left by a block.
+    """
+    ran_ok = {
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT target_date FROM scrape_runs "
+            "WHERE status = 'ok' AND target_date IS NOT NULL"
+        )
+    }
+    have_rows = {
+        r[0] for r in conn.execute(
+            "SELECT sold_date FROM sales WHERE sold_date IS NOT NULL "
+            "GROUP BY sold_date HAVING COUNT(*) > 0"
+        )
+    }
+    return ran_ok & have_rows
+
+
 def daily_summary(conn: sqlite3.Connection, sold_date: str) -> dict:
     row = conn.execute(
         "SELECT COUNT(*) AS n, "

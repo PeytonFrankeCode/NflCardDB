@@ -19,7 +19,7 @@ from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
 from .ingest import import_files
-from .pipeline import reparse_titles, run_scrape, yesterday
+from .pipeline import reparse_titles, run_backfill, run_scrape, yesterday
 from .publish import publish
 from .search import PriceBand, build_url
 
@@ -54,6 +54,44 @@ def cmd_scrape(args) -> int:
     # already collected, so the reason has to travel back on the report.
     return {"blocked": 4, "network": 5, "signed_out": 8,
             "interrupted": 130}.get(report.reason, 1)
+
+
+def cmd_backfill(args) -> int:
+    """Collect several past days, newest first, skipping ones already done."""
+    config = load_config(args.config)
+
+    def announce(day, status, result):
+        if status == "skipped":
+            print(f"  {day}  already collected, skipping")
+        elif status == "ok":
+            print(f"  {day}  {result.new:>6} new sales  ({result.pages} pages)")
+        else:
+            print(f"  {day}  stopped: {status}", file=sys.stderr)
+
+    print(f"Collecting up to {args.days} day(s), newest first.")
+    print("eBay keeps sold listings about 90 days, so older days are gone for")
+    print("good once they age out. Expect roughly 10 minutes per day.\n")
+
+    report = run_backfill(
+        config, days=args.days, db_path=args.db, end_date=args.end_date,
+        force=args.force, page_budget_per_day=args.page_budget,
+        on_day=announce,
+    )
+
+    print()
+    print(json.dumps(report.as_dict(), indent=2))
+
+    if report.stopped_early == "signed_out":
+        print("\nThe session expired. Run login.bat, then run this again -- "
+              "the days already collected are kept.", file=sys.stderr)
+        return 8
+    if report.stopped_early == "blocked":
+        print("\neBay asked for a human check. Everything collected so far is "
+              "saved; try again in an hour or two.", file=sys.stderr)
+        return 4
+    if report.stopped_early:
+        return 1
+    return 0
 
 
 def cmd_parse(args) -> int:
@@ -560,6 +598,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="use your everyday, already-signed-in Chrome (close Chrome first)")
     p.add_argument("--dry-run", action="store_true", help="fetch and parse but do not write")
     p.set_defaults(func=cmd_scrape)
+
+    p = sub.add_parser("backfill", help="collect several past days at once")
+    p.add_argument("--days", type=int, default=30, help="how many days back (default 30)")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--end-date", help="newest day to collect (default: yesterday)")
+    p.add_argument("--force", action="store_true", help="re-collect days already done")
+    p.add_argument("--page-budget", type=int, help="max requests per day")
+    p.set_defaults(func=cmd_backfill)
 
     p = sub.add_parser("parse", help="(re)parse titles into the cards table")
     p.add_argument("--config", default="config/queries.yml")

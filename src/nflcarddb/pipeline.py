@@ -218,6 +218,89 @@ def run_scrape(
     return report
 
 
+class BackfillReport:
+    def __init__(self) -> None:
+        self.days_done: list[str] = []
+        self.days_skipped: list[str] = []
+        self.days_failed: list[tuple[str, str]] = []
+        self.sales_new = 0
+        self.pages = 0
+        self.stopped_early: Optional[str] = None
+
+    def as_dict(self) -> dict:
+        return {
+            "days_collected": self.days_done,
+            "days_skipped": self.days_skipped,
+            "days_failed": self.days_failed,
+            "sales_new": self.sales_new,
+            "pages_fetched": self.pages,
+            "stopped_early": self.stopped_early,
+        }
+
+
+def run_backfill(
+    config: Config,
+    days: int,
+    db_path: Optional[str] = None,
+    end_date: Optional[str] = None,
+    force: bool = False,
+    page_budget_per_day: Optional[int] = None,
+    on_day=None,
+) -> BackfillReport:
+    """Collect the last `days` days, most recent first.
+
+    Newest first on purpose: eBay drops sold listings after about 90 days, so if
+    a run is interrupted the days most likely to still be there next time are
+    the older ones. Days already collected are skipped, which makes this safe to
+    re-run and cheap to resume.
+
+    A block stops the whole thing rather than grinding through the remaining
+    days -- once eBay is refusing, further requests only deepen the hole.
+    """
+    report = BackfillReport()
+    last = date.fromisoformat(end_date) if end_date else date.today() - timedelta(days=1)
+
+    conn = store.connect(db_path or config.database)
+    already = set() if force else store.completed_days(conn)
+    conn.close()
+
+    for offset in range(days):
+        target = (last - timedelta(days=offset)).isoformat()
+
+        if target in already:
+            report.days_skipped.append(target)
+            log.info("%s already collected, skipping", target)
+            if on_day:
+                on_day(target, "skipped", None)
+            continue
+
+        log.info("collecting %s (%d of %d)", target, offset + 1, days)
+        result = run_scrape(
+            config, target_date=target, db_path=db_path,
+            page_budget_override=page_budget_per_day,
+        )
+        report.pages += result.pages
+        report.sales_new += result.new
+
+        if result.status == "ok":
+            report.days_done.append(target)
+            if on_day:
+                on_day(target, "ok", result)
+            continue
+
+        report.days_failed.append((target, result.reason or "failed"))
+        if on_day:
+            on_day(target, result.reason or "failed", result)
+
+        # Blocked or signed out means every later day fails the same way.
+        if result.reason in ("blocked", "signed_out", "interrupted"):
+            report.stopped_early = result.reason
+            log.error("stopping backfill: %s", result.reason)
+            break
+
+    return report
+
+
 def reparse_titles(
     db_path: str, roster_path: Optional[str] = None, all_rows: bool = False
 ) -> int:
