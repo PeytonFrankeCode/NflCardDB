@@ -127,14 +127,22 @@ Responses carry `X-Quota-Limit` / `X-Quota-Used`.
 
 **1. `price` is null on ~46% of rows, and that is correct.**
 
-Those are best-offer sales. eBay publishes the seller's *asking* price on them,
-not what the buyer paid, so there is no sale price to report. Storing null rather
-than the ask is deliberate: a null cannot be averaged into your figures by
-mistake, an asking price silently can.
+Those are best-offer sales. The card *did* sell — but eBay publishes the
+seller's *asking* price on them, not what the buyer paid, so there is no sale
+price to report. Storing null rather than the ask is deliberate: a null cannot
+be averaged into your figures by mistake, an asking price silently can.
 
-They are excluded from `/v1/sales` unless `include_offers=true`, and never
-appear in `/v1/prices` or the daily medians. Volume counts do include them —
-that is why `sales` and `priced_sales` differ.
+The ask is not thrown away. It lives in `ask_cents` (`ask` in the API), set
+**only** on those rows — so `ask IS NOT NULL` is exactly "we know it sold, not
+for how much". Treat it as an upper bound. Never add or average it with `price`.
+
+Best-offer rows are excluded from `/v1/sales` unless `include_offers=true`, and
+never appear in the headline `/v1/prices` figures or the daily medians —
+`/v1/prices` reports them separately under `asking`. Volume counts do include
+them, which is why `sales` and `priced_sales` differ.
+
+They also skew expensive: ~46% of sales overall, but ~56% of the highest-priced
+listings, because sellers enable offers more on pricier cards.
 
 **2. `image_url` is a link to eBay, not a copy.**
 

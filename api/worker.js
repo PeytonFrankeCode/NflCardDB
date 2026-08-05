@@ -108,6 +108,10 @@ function shapeSale(r) {
     title: r.title,
     // null, not 0, when eBay only published an asking price.
     price: r.price_cents == null ? null : r.price_cents / 100,
+    // What the seller wanted, on the rows where price is unknown. The card did
+    // sell -- for some amount below this that eBay does not publish. Never
+    // average it with `price`: it is a different measurement.
+    ask: r.ask_cents == null ? null : r.ask_cents / 100,
     shipping: r.shipping_cents == null ? null : r.shipping_cents / 100,
     currency: r.currency,
     best_offer: !!r.best_offer,
@@ -229,30 +233,55 @@ async function priceSummary(url, env) {
     extra += " AND grade = ?"; binds.push(Number(grade));
   }
 
-  // Median needs the values themselves; D1 has no percentile function.
+  // Median needs the values themselves; D1 has no percentile function. Both
+  // columns come back in one pass -- D1 bills by rows scanned, and a second
+  // query over the same predicate would double that to read a sibling column.
   const rows = await env.DB.prepare(
-    `SELECT price_cents FROM sales WHERE player LIKE ?${extra} ` +
-    `AND best_offer = 0 AND price_cents IS NOT NULL ORDER BY price_cents`
+    `SELECT price_cents, ask_cents FROM sales WHERE player LIKE ?${extra} ` +
+    `AND (price_cents IS NOT NULL OR ask_cents IS NOT NULL)`
   ).bind(...binds).all();
 
-  const prices = (rows.results || []).map((r) => r.price_cents);
-  if (!prices.length) {
-    return json({ player, matched: 0, median: null, mean: null, low: null, high: null });
+  const prices = [];
+  const asks = [];
+  for (const r of rows.results || []) {
+    if (r.price_cents != null) prices.push(r.price_cents);
+    else if (r.ask_cents != null) asks.push(r.ask_cents);
   }
+  prices.sort((a, b) => a - b);
+  asks.sort((a, b) => a - b);
 
-  const at = (p) => prices[Math.min(prices.length - 1, Math.floor((prices.length - 1) * p))];
-  const sum = prices.reduce((a, b) => a + b, 0);
+  const stats = (values) => {
+    if (!values.length) return { n: 0, median: null, mean: null, p10: null, p90: null, low: null, high: null };
+    const at = (p) => values[Math.min(values.length - 1, Math.floor((values.length - 1) * p))];
+    const sum = values.reduce((a, b) => a + b, 0);
+    return {
+      n: values.length,
+      median: at(0.5) / 100,
+      mean: Math.round(sum / values.length) / 100,
+      p10: at(0.1) / 100,
+      p90: at(0.9) / 100,
+      low: values[0] / 100,
+      high: values[values.length - 1] / 100,
+    };
+  };
+
+  const sold = stats(prices);
   return json({
     player,
     grader: grader || null,
     grade: grade ? Number(grade) : null,
-    matched: prices.length,
-    median: at(0.5) / 100,
-    mean: Math.round(sum / prices.length) / 100,
-    p10: at(0.1) / 100,
-    p90: at(0.9) / 100,
-    low: prices[0] / 100,
-    high: prices[prices.length - 1] / 100,
+    // Top level stays exactly what it always was: confirmed sale prices only.
+    matched: sold.n,
+    median: sold.median,
+    mean: sold.mean,
+    p10: sold.p10,
+    p90: sold.p90,
+    low: sold.low,
+    high: sold.high,
+    // Best-offer rows, kept apart on purpose. These are what sellers WANTED --
+    // each card sold for some unpublished amount below its ask, so treat this
+    // as an upper bound on those sales, never as a price.
+    asking: stats(asks),
   });
 }
 
@@ -316,9 +345,10 @@ async function summary(env) {
     first_day: totals.first_day,
     last_day: totals.last_day,
     updated_at: updated ? updated.v : null,
-    note: "Best-offer sales have no usable price: eBay publishes the seller's " +
-          "asking price on those, not what the buyer paid. They are excluded " +
-          "from price statistics unless include_offers=true.",
+    note: "Best-offer sales did happen, but eBay does not publish what the " +
+          "buyer paid -- only what the seller was asking. Those rows carry " +
+          "`ask` instead of `price`, are excluded from price statistics, and " +
+          "appear in /v1/sales only with include_offers=true.",
   });
 }
 

@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS sales (
     sold_date      TEXT NOT NULL,
     title          TEXT NOT NULL,
     price_cents    INTEGER,
+    -- What the seller was asking, populated ONLY on best-offer rows -- that is,
+    -- exactly where price_cents is NULL. The buyer paid some unknown amount
+    -- below it. Kept in its own column rather than filled into price_cents so
+    -- that "we know what this sold for" stays answerable by a NULL check.
+    ask_cents      INTEGER,
     shipping_cents INTEGER,
     currency       TEXT NOT NULL DEFAULT 'USD',
     best_offer     INTEGER NOT NULL DEFAULT 0,

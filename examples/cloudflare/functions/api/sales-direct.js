@@ -29,7 +29,8 @@ export async function onRequestGet({ request, env }) {
   // Bound parameters, never string concatenation -- the values come from the
   // public internet.
   const rows = await env.DB.prepare(
-    `SELECT item_id, sold_date, title, price_cents, player, grader, grade, image_url
+    `SELECT item_id, sold_date, title, price_cents, ask_cents, player, grader,
+            grade, image_url
      FROM sales WHERE ${where.join(" AND ")}
      ORDER BY sold_date DESC LIMIT ?`
   ).bind(...binds, limit).all();
@@ -39,7 +40,10 @@ export async function onRequestGet({ request, env }) {
       id: r.item_id,
       sold_date: r.sold_date,
       title: r.title,
-      price: r.price_cents / 100,
+      price: r.price_cents == null ? null : r.price_cents / 100,
+      // Set only where price is null: the card sold, for some unpublished
+      // amount below this. An upper bound, not a price -- never average them.
+      ask: r.ask_cents == null ? null : r.ask_cents / 100,
       player: r.player,
       // Straight into an <img>. Null on listings with no photo, and eBay
       // purges these ~90 days after the sale, so give it an onerror fallback.

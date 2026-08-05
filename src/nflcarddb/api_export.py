@@ -29,10 +29,10 @@ from . import db as store
 ROWS_PER_INSERT = 200
 
 EXPORT_COLUMNS = (
-    "item_id", "sold_date", "title", "price_cents", "shipping_cents", "currency",
-    "best_offer", "listing_format", "bids", "image_url", "player", "team", "year",
-    "brand", "set_name", "parallel", "card_number", "grader", "grade", "is_rookie",
-    "is_auto", "confidence",
+    "item_id", "sold_date", "title", "price_cents", "ask_cents", "shipping_cents",
+    "currency", "best_offer", "listing_format", "bids", "image_url", "player",
+    "team", "year", "brand", "set_name", "parallel", "card_number", "grader",
+    "grade", "is_rookie", "is_auto", "confidence",
 )
 
 
@@ -64,6 +64,9 @@ def _rows_to_export(conn: sqlite3.Connection, since: Optional[str]) -> list[sqli
         SELECT s.item_id, s.sold_date, s.title,
                -- A best offer has no published sale price; do not pretend it does.
                CASE WHEN s.best_offer = 1 THEN NULL ELSE s.price_cents END AS price_cents,
+               -- ...but the ask is real, observed, and worth having. Only on
+               -- best-offer rows, so `ask IS NOT NULL` means "price unknown".
+               CASE WHEN s.best_offer = 1 THEN s.price_cents ELSE NULL END AS ask_cents,
                s.shipping_cents, s.currency, s.best_offer, s.listing_format, s.bids,
                s.image_url,
                c.player, c.team, c.year, c.brand, c.set_name, c.parallel,

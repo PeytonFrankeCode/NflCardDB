@@ -38,6 +38,7 @@ MAX_BATCH_STATEMENTS = 40
 # column is there, which is why that one error is swallowed rather than raised.
 MIGRATIONS = (
     "ALTER TABLE sales ADD COLUMN image_url TEXT",
+    "ALTER TABLE sales ADD COLUMN ask_cents INTEGER",
 )
 
 ALREADY_APPLIED = ("duplicate column", "already exists")

@@ -122,6 +122,21 @@ curl -H "Authorization: Bearer KEY" \
   "https://YOUR-URL/v1/sales?player=Stroud&grader=PSA&grade=10&limit=20"
 ```
 
+**`price` vs `ask`.** Every row has exactly one of them:
+
+| | `price` | `ask` |
+|---|---|---|
+| Ordinary sale | what it sold for | `null` |
+| Best offer accepted | `null` | what the seller wanted |
+
+The card sold either way. On a best offer, eBay publishes only the asking price
+— the buyer paid some unpublished amount below it — so `ask` is an **upper
+bound**, not a price. Adding the two together, or averaging across both, silently
+inflates every figure you produce. That's why they're separate fields rather
+than one column with a flag.
+
+Best-offer rows appear only with `include_offers=true`.
+
 Each row carries an `image` field — the front photo of the listing, as a URL on
 eBay's own CDN, ready to drop into an `<img>`:
 
@@ -138,6 +153,22 @@ you show history. Only the URL is stored; the image itself is never copied.
 Median, mean, p10/p90, low and high for one player. Optional `grader` and
 `grade` to narrow it — `?player=CJ Stroud&grader=PSA&grade=10` is the common one.
 
+The top-level figures are confirmed sale prices only. Alongside them, `asking`
+carries the same statistics over the best-offer rows:
+
+```json
+{
+  "player": "CJ Stroud",
+  "matched": 412,
+  "median": 24.99,
+  "asking": { "n": 355, "median": 39.99, "p90": 180.0 }
+}
+```
+
+Read `asking.median` as "the median list price of the ones that took offers",
+never as a sale price — each of those went for less. If you show one number to
+a visitor, show `median`.
+
 ### `GET /v1/players?q=`
 Most-traded players with sale counts and averages.
 
@@ -151,13 +182,23 @@ Per-day totals — what the dashboard charts.
 About **46%** of football card sales close via an accepted offer. On those, eBay
 publishes the *seller's asking price*, not what the buyer paid.
 
-So the API stores `price: null` for them rather than the ask. A wrong number is
-worse than a missing one — a null cannot be averaged into your figures by
-mistake, an asking price can.
+So the API stores `price: null` for them, and puts the ask in its own `ask`
+field. A wrong number is worse than a missing one — a null cannot be averaged
+into your figures by mistake, an asking price sitting in a `price` column can.
 
-They are excluded from `/v1/sales` unless you pass `include_offers=true`, and
-they are never in `/v1/prices` or the daily medians. Volume counts include them,
-which is why `sales` and `priced_sales` differ in `/v1/summary`.
+The ask is genuine data and worth having: it tells you what the seller wanted,
+and it bounds the sale from above. It is simply a different measurement, so it
+gets a different field and its own `asking` block in `/v1/prices`.
+
+Best-offer rows are excluded from `/v1/sales` unless you pass
+`include_offers=true`, and never enter the headline price statistics or the
+daily medians. Volume counts include them, which is why `sales` and
+`priced_sales` differ in `/v1/summary`.
+
+One caveat if you use the asks analytically: best offers are not spread evenly
+across price. In the collected data they are ~46% of sales overall, but ~56% of
+the highest-priced listings — sellers enable offers more on expensive cards. So
+the rows with no sale price skew toward the top of the market.
 
 ---
 
