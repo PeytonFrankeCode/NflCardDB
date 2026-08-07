@@ -22,7 +22,9 @@ from .ingest import import_files
 from .images import DEFAULT_SIZE
 from .pipeline import (
     coverage_report,
+    find_thin_days,
     image_report,
+    mark_for_recollection,
     reparse_titles,
     run_backfill,
     run_scrape,
@@ -146,6 +148,32 @@ def cmd_coverage(args) -> int:
         print(f"\nYou also hold {report['outside_window']} day(s) older than "
               f"{args.days} days. eBay no longer serves those, so that data now "
               "exists only here.")
+    return 0
+
+
+def cmd_recheck(args) -> int:
+    """Find days that look truncated, and queue them for re-collection."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    thin = find_thin_days(db_path, ratio=args.ratio)
+    if not thin:
+        print("Every collected day looks complete.")
+        return 0
+
+    print(f"{len(thin)} day(s) hold far fewer sales than a normal day:\n")
+    for row in thin:
+        print(f"  {row['day']}  {row['sales']:>7,} sales  "
+              f"({row['fraction']:.0%} of a typical {row['expected']:,})")
+
+    if not args.fix:
+        print("\nThese were probably cut short by the page budget. Re-run with "
+              "--fix to collect them again (existing sales are kept).")
+        return 0
+
+    marked = mark_for_recollection(db_path, [r["day"] for r in thin])
+    print(f"\nMarked {marked} day(s) for re-collection. Run catchup.bat and they "
+          "will be picked up.")
     return 0
 
 
@@ -890,6 +918,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--roster")
     p.add_argument("--all", action="store_true", help="reparse every row, not just new ones")
     p.set_defaults(func=cmd_parse)
+
+    p = sub.add_parser("recheck", help="find days that were cut short and re-collect them")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--ratio", type=float, default=0.5,
+                   help="flag days below this fraction of a typical day (default 0.5)")
+    p.add_argument("--fix", action="store_true", help="queue the flagged days for re-collection")
+    p.set_defaults(func=cmd_recheck)
 
     p = sub.add_parser("images", help="report photo coverage, resize stored URLs")
     p.add_argument("--config", default="config/queries.yml")

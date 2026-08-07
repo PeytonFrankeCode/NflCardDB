@@ -35,6 +35,11 @@ class FetchConfig:
     items_per_page: int = 240
     max_pages_per_segment: int = 42
     max_subdivide_depth: int = 3
+    # For a day in the older half of eBay's window, try reaching it by sorting
+    # oldest-ended first, which is far fewer pages than paging back from today.
+    # Verified with one request per run before it is relied on; set false to
+    # force the old behaviour.
+    try_oldest_first: bool = True
     user_agent: Optional[str] = None
     # auto | requests | browser. "auto" tries the light HTTP client and switches
     # to a real browser if eBay refuses it.

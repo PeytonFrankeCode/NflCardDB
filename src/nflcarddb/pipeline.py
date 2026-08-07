@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import statistics
 import time
 from datetime import date, timedelta
 from typing import Optional
@@ -20,9 +21,20 @@ from .images import DEFAULT_SIZE, normalize_image_url
 from .models import Sale
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
 from .parse_title import load_roster, parse_title
-from .search import PriceBand, plan_bands, walk_query
+from .search import (
+    NEWEST_FIRST,
+    OLDEST_FIRST,
+    PriceBand,
+    plan_bands,
+    probe_oldest_first,
+    walk_query,
+)
 
 log = logging.getLogger(__name__)
+
+# How far back eBay keeps sold listings visible. The window a day must be
+# reached inside, and the reason older days are worth collecting first.
+WINDOW_DAYS = 90
 
 # Flush to SQLite this often so an interrupted run keeps what it already paid for.
 BATCH_SIZE = 200
@@ -152,11 +164,38 @@ def run_scrape(
         report.new += new
         buffer = []
 
+    incomplete: list[str] = []
+
     def on_segment(query_id, band: PriceBand, status, result, note) -> None:
+        if getattr(result, "ran_out", False):
+            incomplete.append(f"{query_id}:{band.label}")
         if not dry_run:
             store.record_segment(
                 conn, run_id, f"{query_id}:{band.label}", query_id,
                 band.lo, band.hi, status, result.pages, len(result.sales), note,
+            )
+
+    # eBay has no sold-date filter, so a day is reached by paging from one end
+    # of its ~90-day window. Approach from whichever end is nearer: day 85 is
+    # five days of paging from the old end and eighty-five from the new one.
+    direction = NEWEST_FIRST
+    days_back = (date.today() - date.fromisoformat(target_date)).days
+    if days_back > WINDOW_DAYS:
+        log.warning(
+            "%s is %d days back, past the ~%d days eBay keeps sold listings. "
+            "Expect little or nothing.", target_date, days_back, WINDOW_DAYS,
+        )
+    elif days_back > WINDOW_DAYS / 2 and config.fetch.try_oldest_first:
+        if probe_oldest_first(fetcher, queries[0].keywords, queries[0].category,
+                              queries[0].extra or None):
+            direction = OLDEST_FIRST
+            log.info("%s is %d days back; paging from the older end", target_date,
+                     days_back)
+        else:
+            log.warning(
+                "%s is %d days back and eBay will not sort oldest-first, so it "
+                "must be reached by paging through everything sold since. That "
+                "may exceed the page budget.", target_date, days_back,
             )
 
     try:
@@ -174,6 +213,7 @@ def run_scrape(
                 max_depth=config.fetch.max_subdivide_depth,
                 items_per_page=config.fetch.items_per_page,
                 extra=query.extra or None,
+                direction=direction,
                 on_segment=on_segment,
             ):
                 buffer.append(sale)
@@ -201,6 +241,20 @@ def run_scrape(
         report.reason = "interrupted"
         report.error = "interrupted"
         log.warning("interrupted; flushing what we have")
+    else:
+        # Nothing threw, but a walk that never reached the target date collected
+        # only part of the day. Recording that as 'ok' is what makes the gap
+        # permanent: completed_days would skip it and the backfill never returns.
+        if incomplete:
+            report.status = "partial"
+            report.reason = "incomplete"
+            report.error = (
+                f"{len(incomplete)} segment(s) never reached {target_date}: "
+                + ", ".join(incomplete[:5])
+                + ("..." if len(incomplete) > 5 else "")
+            )
+            log.warning("%s is incomplete -- %s", target_date, report.error)
+
     finally:
         flush()
         report.pages = fetcher.stats.requests
@@ -335,6 +389,67 @@ def reparse_titles(
     )
     conn.close()
     return count
+
+
+def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
+    """Days whose sale count is far below the busiest days: probably truncated.
+
+    A day cut short by the page budget still recorded status 'ok' before this
+    was fixed, so it looks collected and the backfill skips it forever. eBay's
+    daily volume is steady enough that a day holding a fraction of the best
+    day's total is a collection failure rather than a quiet Tuesday.
+
+    Compared against the median day rather than the busiest: one unusually big
+    day -- a card show weekend, a rookie debut -- would otherwise drag the bar
+    above every ordinary day and flag the lot.
+    """
+    conn = store.connect(db_path)
+    try:
+        rows = [
+            (r[0], r[1]) for r in conn.execute(
+                "SELECT sold_date, COUNT(*) FROM sales WHERE sold_date IS NOT NULL "
+                "GROUP BY sold_date ORDER BY sold_date"
+            )
+        ]
+    finally:
+        conn.close()
+
+    if len(rows) < 3:
+        return []
+
+    counts = sorted(n for _, n in rows)
+    reference = int(statistics.median(counts))
+    floor = reference * ratio
+
+    return [
+        {"day": day, "sales": n, "expected": reference,
+         "fraction": round(n / reference, 2)}
+        for day, n in rows if n < floor
+    ]
+
+
+def mark_for_recollection(db_path: str, days: list[str]) -> int:
+    """Clear the 'ok' runs for these days so the backfill collects them again.
+
+    The sales already stored are left alone -- item_id is the primary key, so
+    re-collecting merges rather than duplicates, and a day that turns out fine
+    loses nothing.
+    """
+    if not days:
+        return 0
+    conn = store.connect(db_path)
+    try:
+        placeholders = ",".join("?" * len(days))
+        cursor = conn.execute(
+            f"UPDATE scrape_runs SET status = 'partial', "
+            f"error = COALESCE(error, 'marked incomplete: too few sales') "
+            f"WHERE status = 'ok' AND target_date IN ({placeholders})",
+            days,
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
 
 
 def coverage_report(db_path: str, days: int = 90, minutes_per_day: float = 10.0) -> dict:

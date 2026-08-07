@@ -13,20 +13,33 @@ echo ==========================================================
 echo.
 nflcarddb coverage
 echo.
+nflcarddb recheck
+echo.
 echo eBay only keeps sold listings for about 90 days. Days that
 echo age out are gone for good, so the sooner these are
 echo collected the more of them still exist.
 echo.
 echo   1  Collect now, for a few hours
 echo   2  Collect now, until it is finished (may run all night)
-echo   3  Leave it to the daily schedule
-echo   4  Nothing, just close
+echo   3  Re-do the days above that came back too small
+echo   4  Leave it to the daily schedule
+echo   5  Nothing, just close
 echo.
 set /p PICK=Type a number and press Enter:
 
 if "!PICK!"=="1" goto HOURS
 if "!PICK!"=="2" goto ALL
-if "!PICK!"=="3" goto SCHEDULED
+if "!PICK!"=="3" goto REDO
+if "!PICK!"=="4" goto SCHEDULED
+goto END
+
+:REDO
+echo.
+nflcarddb recheck --fix
+echo.
+echo Those days will be collected again next time something
+echo runs - the daily schedule, or option 1 or 2 here. Sales
+echo already collected are kept, not duplicated.
 goto END
 
 :HOURS

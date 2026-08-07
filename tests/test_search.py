@@ -129,12 +129,14 @@ def test_capped_segment_gets_subdivided():
 
 
 def test_uncapped_query_is_not_subdivided():
-    html = _page_html([("100000000001", "a", "Jul 30, 2025")], count="42")
-    fetcher = FakeFetcher({1: html})
+    fetcher = FakeFetcher({
+        1: _page_html([("100000000001", "a", "Jul 30, 2025")], count="42"),
+        2: _page_html([]),          # eBay has no more: the segment is complete
+    })
     segments = []
     list(walk_query(
         fetcher, "q1", "football", None, [PriceBand(10, 25)],
-        target_date="2025-07-30", max_pages=1, max_depth=2, items_per_page=1,
+        target_date="2025-07-30", max_pages=3, max_depth=2, items_per_page=1,
         on_segment=lambda qid, band, status, res, note: segments.append((band.label, status)),
     ))
     assert segments == [("10-25", "done")]

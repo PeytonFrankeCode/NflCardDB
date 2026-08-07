@@ -147,6 +147,23 @@ The unavoidable part: the oldest days are disappearing while you collect. If you
 want the deepest history, run `catchup.bat` overnight a couple of times early on
 rather than leaving it entirely to the nightly window.
 
+### "It collected way fewer sales the further back it went"
+
+That was real, and it is fixed. eBay has no way to ask for one specific date, so
+the collector has to page through everything sold since the day it wants. A day
+three weeks back sits about 2,300 pages in — and the collector was allowed 600
+before giving up. It kept whatever it had reached, called the day done, and
+never went back.
+
+Two changes. Older days are now approached from the *far* end of eBay's 90-day
+window, so the oldest days are the **cheapest** to collect rather than the most
+expensive. And a day that gets cut short is now recorded as unfinished, so it
+gets collected again instead of being skipped forever.
+
+`catchup.bat` now shows any days that came back too small, with option **3** to
+re-do them. Sales already collected are kept, not duplicated — so re-doing a day
+costs time and nothing else.
+
 Three honest limits:
 
 - **The PC has to be on and you signed in.** Not just powered — actually logged

@@ -37,7 +37,11 @@ fetch:
   jitter: 1.0
   max_retries: 4
   timeout: 30
-  page_budget: 600        # hard ceiling on requests per run -- the safety valve
+  # Hard ceiling on requests per run -- the safety valve. Reaching an older day
+  # costs pages roughly in proportion to how far back it is, so a budget that
+  # comfortably collects yesterday silently truncates a day three weeks back.
+  # 3000 covers most of the window; `nflcarddb recheck` finds any day it didn't.
+  page_budget: 3000
   items_per_page: 240     # 60 | 120 | 240
   max_pages_per_segment: 42
   max_subdivide_depth: 3

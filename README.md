@@ -161,6 +161,31 @@ The workflow caches the SQLite file between runs and uploads it as an artifact.
 Once the database outgrows that comfortably (a few hundred MB), move it to S3/R2
 or a small Postgres instance and drop the cache steps.
 
+## Why older days cost more
+
+eBay has no "sold on date X" parameter. A day is reached by sorting on end time
+and paging until you arrive at it — which means reaching a day N days back
+requires paging through everything sold since. At ~25,000 football sales a day
+and 240 per page, that is ~208 pages for yesterday and ~2,300 for three weeks
+ago. Price-band subdivision does not help with this: the total volume between
+today and the target is the same however it is sliced, and subdivision exists
+only to get each query under eBay's 10,000-result cap.
+
+Two things follow.
+
+**Days are approached from the nearer end of the window.** For a target in the
+older half, the collector sorts oldest-ended first, so day 85 is five days of
+paging rather than eighty-five. Whether eBay honours an ascending sort on
+completed listings is checked with one request per run (`probe_oldest_first`)
+rather than assumed, because silently collecting the wrong end would be worse
+than the slow path.
+
+**A truncated day is recorded as `partial`, never `ok`.** A walk that exhausts
+its page budget before reaching the target collected part of the day, which is
+the dangerous case: it looks like success. Only days with no truncated segments
+count as complete, so `backfill` returns to the rest instead of skipping them
+forever. `nflcarddb recheck` finds days collected before this was enforced.
+
 ## How it gets a whole day
 
 Two problems, two solutions:
@@ -268,6 +293,7 @@ selectors.
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `images` | photo coverage; `--upgrade` resizes stored URLs without re-scraping |
 | `coverage` | which of the last 90 days you hold, and how long the rest will take |
+| `recheck` | find days that came back suspiciously small; `--fix` queues them again |
 | `schedule` | daily unattended run via Windows Task Scheduler (`--at`, `--status`, `--remove`, `--run-now`) |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
