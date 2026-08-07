@@ -142,13 +142,29 @@ def test_an_ordinary_quiet_day_is_not_flagged(tmp_path):
     assert find_thin_days(str(path)) == []
 
 
-def test_one_huge_day_does_not_condemn_the_rest(tmp_path):
-    """Comparing against the maximum would flag every normal day after a spike."""
+def test_a_busy_day_does_not_condemn_ordinary_ones(tmp_path):
+    """Real daily volume varies; a good Saturday is not a verdict on Tuesday."""
     path = tmp_path / "spike.db"
-    _seed(path, {"2026-08-03": 5000, "2026-08-02": 200, "2026-08-01": 195,
+    _seed(path, {"2026-08-03": 300, "2026-08-02": 200, "2026-08-01": 195,
                  "2026-07-31": 205, "2026-07-30": 190})
 
     assert find_thin_days(str(path)) == []
+
+
+def test_thin_days_are_found_even_when_most_days_are_thin(tmp_path):
+    """The case this exists for: a budget too small truncated nearly everything,
+    so the median day is itself truncated and cannot be the yardstick."""
+    path = tmp_path / "mostly.db"
+    _seed(path, {
+        "2026-08-05": 2380, "2026-08-04": 2330, "2026-08-03": 2060,   # complete
+        "2026-08-02": 1064, "2026-08-01": 620, "2026-07-31": 388,
+        "2026-07-30": 375, "2026-07-29": 170, "2026-07-28": 115,
+    })
+
+    flagged = [r["day"] for r in find_thin_days(str(path))]
+    assert "2026-08-05" not in flagged
+    assert "2026-08-03" not in flagged
+    assert len(flagged) == 6            # every truncated day, none of the good
 
 
 def test_marking_a_day_makes_the_backfill_collect_it_again(tmp_path):

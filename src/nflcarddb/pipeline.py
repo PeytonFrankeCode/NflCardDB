@@ -399,9 +399,11 @@ def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
     daily volume is steady enough that a day holding a fraction of the best
     day's total is a collection failure rather than a quiet Tuesday.
 
-    Compared against the median day rather than the busiest: one unusually big
-    day -- a card show weekend, a rookie debut -- would otherwise drag the bar
-    above every ordinary day and flag the lot.
+    The reference is the 90th-percentile day, not the median. That matters when
+    most days are truncated -- which is exactly the situation this exists to
+    clean up -- because then the median IS a truncated day and nothing gets
+    flagged. It leans on eBay's daily volume being steady, which it is: real
+    complete days here sit within about 15% of each other.
     """
     conn = store.connect(db_path)
     try:
@@ -418,7 +420,7 @@ def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
         return []
 
     counts = sorted(n for _, n in rows)
-    reference = int(statistics.median(counts))
+    reference = counts[min(len(counts) - 1, int(round((len(counts) - 1) * 0.9)))]
     floor = reference * ratio
 
     return [
