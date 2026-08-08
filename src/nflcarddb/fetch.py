@@ -51,6 +51,32 @@ def looks_signed_out(html: str) -> bool:
     return sum(m in head for m in SIGNED_OUT_MARKERS) >= 2
 
 
+def session_state(html: str) -> Optional[bool]:
+    """Whether an ordinary eBay page shows a signed-in header.
+
+    Different question from `looks_signed_out`, which recognises the sign-in
+    page itself. This reads the header of a normal page -- signed in, eBay
+    greets you and offers "My eBay"; signed out it offers "Sign in".
+
+    It matters because a signed-out session does not always get redirected to
+    sign-in. Ask for a deep, filtered sold search without one and eBay serves a
+    bot check instead, which reports as "blocked" and sends you looking for a
+    rate-limit problem you do not have. Returns None when the page is not an
+    ordinary eBay page at all -- a challenge, an error -- since then it says
+    nothing either way.
+    """
+    head = html[:200000].lower()
+    if any(m in head for m in CHALLENGE_MARKERS):
+        return None
+    if "ebay" not in head:
+        return None
+    if "my ebay" in head and "sign in" not in head:
+        return True
+    if "sign in" in head:
+        return False
+    return None
+
+
 class BlockedError(RuntimeError):
     """eBay served a challenge/interstitial instead of results."""
 
@@ -273,6 +299,11 @@ class AutoFetcher:
     @property
     def stats(self) -> FetchStats:
         return self._impl.stats
+
+    @property
+    def signed_in(self) -> Optional[bool]:
+        """Whatever the engine currently in use managed to observe."""
+        return getattr(self._impl, "signed_in", None)
 
     def budget_exhausted(self) -> bool:
         return self._impl.budget_exhausted()

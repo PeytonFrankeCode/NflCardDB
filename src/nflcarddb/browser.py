@@ -157,6 +157,8 @@ class BrowserFetcher:
         self._profile_dir = profile_dir
         self._warm_up = warm_up
         self._warmed = False
+        # None until the warm-up has seen an ordinary eBay page.
+        self.signed_in: Optional[bool] = None
         self._profile_directory = profile_directory
 
     def _is_real_chrome_profile(self) -> bool:
@@ -307,6 +309,18 @@ class BrowserFetcher:
                         break
                 except Exception:
                     pass
+            # The homepage is already loaded and it names the session state, so
+            # this is free. Worth knowing up front: without a session, a deep
+            # sold search comes back as a bot check rather than a sign-in page,
+            # and the run then reports "blocked" for the wrong reason.
+            from .fetch import session_state
+
+            self.signed_in = session_state(self._page.content())
+            if self.signed_in is False:
+                log.warning("not signed in to eBay -- sold listings will be "
+                            "refused past the first page or two. Run login.bat.")
+            elif self.signed_in:
+                log.info("signed in to eBay")
             log.debug("warm-up visit to ebay.com complete")
         except Exception as exc:
             log.debug("warm-up visit failed (%s); continuing anyway", exc)
