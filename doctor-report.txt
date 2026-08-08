@@ -23,11 +23,8 @@ URL: https://www.ebay.com/sch/i.html?_nkw=football&LH_Sold=1&LH_Complete=1&_sop=
 Which request gets refused (one browser session)
 ----------------------------------------------------------
   homepage      HTTP 200   BOT CHECK      challenge page (matched 'pardon our interruption')
-  plain search  -          ERROR          Error: Page.goto: net::ERR_ABORTED at https://www.ebay.com/sch/i.html?_nkw=football+cards
-Call log:
-  - navigating to "https://www.ebay.com/sch/i.html?_nkw=football+cards", waiting until "domcontentloaded"
-
-  sold search   HTTP 200   BOT CHECK      challenge page (matched 'captcha')
+  plain search  HTTP 200   OK             parsed 53 listing(s)
+  sold search   HTTP 200   OK             parsed 56 listing(s)
   signed in to eBay: no
 
 ----------------------------------------------------------
