@@ -50,6 +50,7 @@ class StageCheck:
     status: Optional[int] = None
     outcome: str = ""
     detail: str = ""
+    listings: int = 0
 
 
 @dataclass
@@ -220,7 +221,7 @@ def check_stages(save_dir: Optional[Path], timeout: float,
                 status = response.status if response else None
                 html = f._page.content()
                 outcome, n, detail = _classify(html, status)
-                results.append(StageCheck(name, url, status, outcome, detail))
+                results.append(StageCheck(name, url, status, outcome, detail, n))
                 _save(html, save_dir, f"stage_{name.replace(' ', '_')}")
                 if name == "homepage" and outcome != REFUSED:
                     # "Sign in" in the header means this session is anonymous.
@@ -308,11 +309,40 @@ def format_report(diag: Diagnosis) -> str:
             ]
 
     lines += ["", "-" * 58]
-    if diag.any_working:
+
+    # The staged run is evidence too. A cold request to a deep sold-search URL
+    # gets challenged where the same browser succeeds after visiting the site
+    # first -- so judging only the one-shot checks reports "nothing works" while
+    # the collector's actual path is fine.
+    staged_sold = next(
+        (s for s in (diag.stages or [])
+         if s.name == "sold search" and s.outcome == WORKING),
+        None,
+    )
+
+    if diag.signed_in is False and staged_sold:
+        lines += [
+            "  You are SIGNED OUT of eBay. That is the problem.",
+            "",
+            f"  The search itself works -- it read {staged_sold.listings} listings just now.",
+            "  But eBay only serves whole days of sold listings to a signed-in",
+            "  account: signed out you get the first page or two and then it",
+            "  stops, which looks like a block and is not one.",
+            "",
+            "  Fix: double-click  login.bat , sign in once, then collect again.",
+        ]
+    elif diag.any_working:
         best = next(c for c in diag.checks if c.outcome == WORKING)
         lines += [
             f"  GOOD: '{best.engine}' got through and read {best.listings} listings.",
             f"  Set  engine: {best.engine}  in config/queries.yml, then collect.",
+        ]
+    elif staged_sold:
+        lines += [
+            f"  The browser reached the sold search and read {staged_sold.listings} listings",
+            "  once it had visited eBay first. Cold one-off requests are being",
+            "  challenged, but that is not the path the collector takes -- it",
+            "  warms up the same way this test did. Try  collect.bat .",
         ]
     else:
         lines.append("  Nothing got through. Send the saved HTML files to Claude --")
