@@ -62,10 +62,13 @@ def _rows_to_export(conn: sqlite3.Connection, since: Optional[str]) -> list[sqli
     return conn.execute(
         f"""
         SELECT s.item_id, s.sold_date, s.title,
-               -- A best offer has no published sale price; do not pretend it does.
-               CASE WHEN s.best_offer = 1 THEN NULL ELSE s.price_cents END AS price_cents,
-               -- ...but the ask is real, observed, and worth having. Only on
-               -- best-offer rows, so `ask IS NOT NULL` means "price unknown".
+               -- Every row carries the price eBay published. On a best offer
+               -- that is the seller's ask and the buyer paid less, so this
+               -- column mixes two things by deliberate choice; `best_offer`
+               -- marks which is which.
+               s.price_cents,
+               -- Unchanged: set only on best-offer rows, so a caller who wants
+               -- accepted-offer prices out can still filter on it alone.
                CASE WHEN s.best_offer = 1 THEN s.price_cents ELSE NULL END AS ask_cents,
                s.shipping_cents, s.currency, s.best_offer, s.listing_format, s.bids,
                s.image_url,
@@ -95,7 +98,7 @@ def _daily_rollups(conn: sqlite3.Connection, since: Optional[str]) -> list[dict]
     prices: dict[str, list[int]] = {}
     for day, cents in conn.execute(
         f"SELECT sold_date, price_cents FROM sales {where} "
-        f"AND best_offer = 0 AND price_cents IS NOT NULL AND currency = 'USD'",
+        f"AND price_cents IS NOT NULL AND currency = 'USD'",
         params,
     ):
         prices.setdefault(day, []).append(cents)

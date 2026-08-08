@@ -5,12 +5,11 @@ page cannot query eBay directly (eBay sends no CORS headers). So the split is:
 the scraper runs wherever it can reach eBay, this module flattens the results
 into small JSON files, and the site reads those.
 
-Price statistics deliberately exclude two things:
-  * best-offer rows, where eBay shows the asking price rather than the accepted
-    one, so the number is not a sale price at all;
-  * non-USD listings, since there is no FX conversion in this project.
-Volume counts include everything, so the two never silently disagree -- the
-dashboard states which is which.
+Price statistics cover every listing with a published price in USD, best offers
+included. On a best offer eBay shows the seller's ask rather than the accepted
+amount, so those figures sit above what was actually paid; rows keep their
+`best_offer` flag and the dashboard labels them. Non-USD listings are still
+excluded, because there is no FX conversion in this project.
 """
 
 from __future__ import annotations
@@ -32,8 +31,13 @@ MAX_SETS = 60
 MAX_RECENT = 1500
 MAX_DAILY = 400
 
-# Rows usable as prices: a real accepted amount, in a single currency.
-PRICE_FILTER = "price_cents IS NOT NULL AND best_offer = 0 AND currency = 'USD'"
+# Rows counted in price statistics: any published price, in a single currency.
+#
+# Best offers are included by choice. On those, the number eBay publishes is the
+# seller's ask and the buyer paid less, so every figure here reads slightly high
+# -- knowingly. `best_offer` is still stored per row, so excluding them again is
+# a filter change rather than a re-collection.
+PRICE_FILTER = "price_cents IS NOT NULL AND currency = 'USD'"
 
 
 def _median(values: list[int]) -> Optional[float]:
@@ -167,6 +171,39 @@ def _recent(conn: sqlite3.Connection) -> list[dict]:
     return rows
 
 
+def _top(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
+    """The biggest sales across everything collected.
+
+    Includes best offers, whose price is the seller's ask rather than what was
+    paid -- so they rank higher than they earned. `bo` marks them, and the
+    dashboard labels them, because a leaderboard is exactly where an ask gets
+    read as a sale.
+    """
+    rows = []
+    for r in conn.execute(
+        f"SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.best_offer, "
+        f"       s.image_url, c.player, c.year, c.set_name, c.grader, c.grade "
+        f"FROM sales s LEFT JOIN cards c USING (item_id) "
+        f"WHERE s.sold_date IS NOT NULL AND {PRICE_FILTER} "
+        f"ORDER BY s.price_cents DESC LIMIT ?",
+        (limit,),
+    ):
+        rows.append({
+            "id": r["item_id"],
+            "d": r["sold_date"],
+            "t": r["title"],
+            "p": round(r["price_cents"] / 100.0, 2),
+            "bo": r["best_offer"],
+            "img": r["image_url"],
+            "player": r["player"],
+            "yr": r["year"],
+            "set": r["set_name"],
+            "g": (f"{r['grader']} {r['grade']:g}" if r["grader"] and r["grade"] is not None
+                  else (r["grader"] or None)),
+        })
+    return rows
+
+
 def _meta(conn: sqlite3.Connection, daily: list[dict]) -> dict:
     total = conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
     best_offers = conn.execute("SELECT COUNT(*) FROM sales WHERE best_offer = 1").fetchone()[0]
@@ -215,6 +252,11 @@ def publish(db_path: str | Path, out_dir: str | Path) -> dict:
             "sets.json": _sets(conn),
             "grades.json": _grades(conn),
             "recent.json": _recent(conn),
+            # recent.json is capped at MAX_RECENT rows ordered newest-first, and
+            # one day is ~23,000 sales -- so it never reaches beyond the latest
+            # day. The biggest sales of the window would be invisible without
+            # their own file.
+            "top.json": _top(conn),
         }
         meta = _meta(conn, daily)
         payloads["meta.json"] = meta

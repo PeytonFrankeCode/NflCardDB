@@ -296,12 +296,14 @@ function barList(rows, { label, value, display, sub }) {
 
 /* ---------- table ---------- */
 
-let tableState = { rows: [], usdOnly: false, query: "" };
+let tableState = { rows: [], confirmedOnly: false, query: "" };
 
 function renderTable() {
   const q = tableState.query.trim().toLowerCase();
   let rows = tableState.rows;
-  if (tableState.usdOnly) rows = rows.filter(r => r.bo === 0 && r.cur === "USD");
+  // Off by default: best offers count. Ticking it leaves only prices
+  // someone actually paid.
+  if (tableState.confirmedOnly) rows = rows.filter(r => r.bo === 0 && r.cur === "USD");
   if (q) rows = rows.filter(r =>
     (r.t || "").toLowerCase().includes(q) ||
     (r.player || "").toLowerCase().includes(q) ||
@@ -322,7 +324,7 @@ function renderTable() {
       <td>${esc(r.set || "—")}${r.par ? " · " + esc(r.par) : ""}</td>
       <td>${esc(r.g || "Raw")}</td>
       <td class="num">${r.cur === "USD" ? fmtUsd(r.p) : esc(r.cur) + " " + fmtUsd(r.p).slice(1)}${
-        r.bo ? '<span class="flag" title="eBay shows the asking price on accepted offers, not the amount paid">offer</span>' : ""}</td>
+        r.bo ? '<span class="flag" title="Asking price. eBay does not publish what the buyer paid on an accepted offer, so this is above the real sale price.">ask</span>' : ""}</td>
       <td class="title"><a href="https://www.ebay.com/itm/${esc(r.id)}" target="_blank" rel="noopener">${esc(r.t)}</a></td>
     </tr>`).join("") || `<tr><td colspan="7" style="color:var(--muted)">No rows match.</td></tr>`;
 }
@@ -367,10 +369,10 @@ async function main() {
       <div class="kpi"><div class="label">Latest day</div><div class="value">${fmtInt(meta.latest_day_sales)}</div>
         <div class="meta">${esc(fmtDay(meta.date_max))}</div></div>
       <div class="kpi"><div class="label">Median price</div><div class="value">${fmtUsd0(meta.median_price)}</div>
-        <div class="meta">${fmtInt(meta.priced_sales)} usable rows</div></div>
+        <div class="meta">${fmtInt(meta.priced_sales)} with a price</div></div>
       <div class="kpi"><div class="label">90th pct</div><div class="value">${fmtUsd0(meta.p90_price)}</div>
-        <div class="meta">USD, offers excluded</div></div>
-      <div class="kpi"><div class="label">Best-offer</div><div class="value">${boPct.toFixed(1)}%</div>
+        <div class="meta">USD, best offers included</div></div>
+      <div class="kpi"><div class="label">Priced as asks</div><div class="value">${boPct.toFixed(1)}%</div>
         <div class="meta">price is the ask</div></div>
     </div>
 
@@ -383,7 +385,7 @@ async function main() {
 
       <div class="card"><figure>
         <h2>Median sale price</h2>
-        <p class="note">USD only, best-offer rows excluded — a separate axis from volume, never overlaid.</p>
+        <p class="note">USD only, best offers included — their price is the ask, so this reads above true sale prices.</p>
         <div id="c-med">${lineChart({ rows: daily, x: r => r.d, y: r => r.median, format: (v, ax) => ax ? "$" + Math.round(v) : fmtUsd(v) })}</div>
       </figure></div>
     </div>
@@ -391,7 +393,7 @@ async function main() {
     <div class="charts">
       <div class="card"><figure>
         <h2>Most-traded players</h2>
-        <p class="note">By number of usable sales. Confident parses only.</p>
+        <p class="note">By number of priced sales. Confident parses only.</p>
         ${barList(players.slice(0, 12), {
           label: r => r.player, value: r => r.n,
           display: r => `${fmtInt(r.n)} · ${fmtUsd0(r.median)}`,
@@ -425,7 +427,7 @@ async function main() {
       <p class="note">The underlying rows. Search matches title, player, set, or team.</p>
       <div class="controls">
         <input type="search" id="q" placeholder="Search — e.g. Stroud, Prizm, PSA 10…" autocomplete="off">
-        <label class="chk"><input type="checkbox" id="usd"> Usable prices only</label>
+        <label class="chk"><input type="checkbox" id="usd"> Confirmed sale prices only (hide best offers)</label>
         <span class="note" id="rowcount" style="margin:0"></span>
       </div>
       <div class="scroll-x">
@@ -446,7 +448,7 @@ async function main() {
     if (e.target.tagName === "IMG") e.target.classList.add("gone");
   }, true);
   $("#q").addEventListener("input", e => { tableState.query = e.target.value; renderTable(); });
-  $("#usd").addEventListener("change", e => { tableState.usdOnly = e.target.checked; renderTable(); });
+  $("#usd").addEventListener("change", e => { tableState.confirmedOnly = e.target.checked; renderTable(); });
   renderTable();
 
   const lr = meta.last_run;
