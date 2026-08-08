@@ -194,3 +194,24 @@ def test_marking_nothing_is_harmless(tmp_path):
     path = tmp_path / "none.db"
     _seed(path, {"2026-08-03": 10})
     assert mark_for_recollection(str(path), []) == 0
+
+
+def test_a_signed_in_header_is_recognised():
+    from nflcarddb.fetch import session_state
+
+    assert session_state("<html><body>eBay ... My eBay ... Watchlist</body></html>") is True
+
+
+def test_a_signed_out_header_is_recognised():
+    from nflcarddb.fetch import session_state
+
+    assert session_state("<html><body>eBay ... Sign in or register</body></html>") is False
+
+
+def test_a_challenge_page_says_nothing_about_the_session():
+    """It is not an eBay page, so reading a session state off it would be a
+    guess -- and a guess that would blame the wrong thing."""
+    from nflcarddb.fetch import session_state
+
+    assert session_state("<html>Pardon Our Interruption ... eBay</html>") is None
+    assert session_state("<html>totally unrelated</html>") is None

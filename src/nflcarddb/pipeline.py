@@ -228,9 +228,23 @@ def run_scrape(
         log.error("stopping: %s", exc)
     except BlockedError as exc:
         report.status = "partial"
-        report.reason = "blocked"
-        report.error = str(exc)
-        log.error("stopping early: %s", exc)
+        # A bot check on a deep sold search is the usual *symptom* of having no
+        # session -- eBay challenges the request rather than redirecting to
+        # sign-in, so it never looks like being signed out. If the warm-up saw
+        # a signed-out homepage, say that instead: "wait an hour" is the wrong
+        # advice and costs a day.
+        if getattr(fetcher, "signed_in", None) is False:
+            report.reason = "signed_out"
+            report.error = (
+                "eBay served bot checks, and this session is not signed in. "
+                "That is almost certainly the cause: sold listings need an "
+                "account. Run login.bat, then collect again."
+            )
+            log.error("stopping: signed out (eBay answered with bot checks)")
+        else:
+            report.reason = "blocked"
+            report.error = str(exc)
+            log.error("stopping early: %s", exc)
     except FetchError as exc:
         report.status = "partial"
         report.reason = "network"
