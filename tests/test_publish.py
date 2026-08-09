@@ -1,8 +1,9 @@
 """The static export that feeds the GitHub Pages dashboard.
 
-The important guarantees are about which rows count as *prices*: best-offer
-listings show eBay's asking price rather than the accepted one, and non-USD
-listings are not FX-converted, so neither may reach a median.
+The guarantee here is about which rows count as *prices*. Best offers are
+included by choice, even though their number is the seller's ask rather than
+what was paid -- so the medians read high, knowingly, and the rows stay flagged.
+Non-USD listings are still excluded, because nothing converts them.
 """
 
 import json
@@ -31,7 +32,7 @@ def published(tmp_path):
         sale("100000000001", 1000),
         sale("100000000002", 2000),
         sale("100000000003", 3000),
-        sale("100000000004", 999_00, bo=True),           # ask, not a sale price
+        sale("100000000004", 999_00, bo=True),           # an ask, counted anyway
         sale("100000000005", 888_00, cur="CAD"),          # no FX conversion
         sale("100000000006", 5000, sold="2025-07-29",
              title="1998 Topps Chrome Peyton Manning Refractor #165 SGC 8.5"),
@@ -59,24 +60,33 @@ def test_volume_counts_everything(published):
     assert by_day["2025-07-30"]["n"] == 5  # includes best-offer and CAD rows
 
 
-def test_price_stats_exclude_best_offer_and_non_usd(published):
+def test_price_stats_include_asks_and_still_exclude_non_usd(published):
     meta, data = published
-    # Only 10.00 / 20.00 / 30.00 on the 30th are usable, so the median is 20.
+    # 10.00 / 20.00 / 30.00 plus the 999.00 ask -> median 25. The CAD row is
+    # still out: there is no FX conversion, so it is not comparable at all.
     by_day = {d["d"]: d for d in data["daily"]}
-    assert by_day["2025-07-30"]["median"] == 20.0
-    assert by_day["2025-07-30"]["priced"] == 3
+    assert by_day["2025-07-30"]["median"] == 25.0
+    assert by_day["2025-07-30"]["priced"] == 4
 
-    # The 999.00 ask and 888.00 CAD row must not drag the overall median up.
-    assert meta["priced_sales"] == 4
-    assert meta["median_price"] == 25.0
-    assert meta["best_offer_sales"] == 1
+    assert meta["priced_sales"] == 5
     assert meta["non_usd_sales"] == 1
+    # Still counted separately, so the effect of including them stays visible.
+    assert meta["best_offer_sales"] == 1
 
 
-def test_excluded_rows_still_appear_in_the_table(published):
+def test_the_ask_is_what_lifts_the_median(published):
+    """Guards the trade-off rather than assuming it: excluding the one ask
+    would put this back at 20.00, and that difference is the whole choice."""
+    _, data = published
+    by_day = {d["d"]: d for d in data["daily"]}
+    assert by_day["2025-07-30"]["median"] == 25.0     # with the 999.00 ask
+    assert by_day["2025-07-30"]["p90"] == 999.0
+
+
+def test_rows_stay_flagged_in_the_table(published):
     _, data = published
     ids = {r["id"] for r in data["recent"]}
-    assert "100000000004" in ids  # best offer, flagged rather than dropped
+    assert "100000000004" in ids  # best offer, counted AND flagged
     assert "100000000005" in ids  # CAD, currency carried through
 
     bo = next(r for r in data["recent"] if r["id"] == "100000000004")
@@ -85,12 +95,12 @@ def test_excluded_rows_still_appear_in_the_table(published):
     assert cad["cur"] == "CAD"
 
 
-def test_players_aggregate_only_usable_prices(published):
+def test_players_aggregate_every_priced_row(published):
     _, data = published
     stroud = next(r for r in data["players"] if r["player"] == "CJ Stroud")
-    assert stroud["n"] == 3          # the ask and the CAD row are excluded
-    assert stroud["median"] == 20.0
-    assert stroud["max"] == 30.0
+    assert stroud["n"] == 4          # the ask counts; the CAD row still does not
+    assert stroud["median"] == 25.0
+    assert stroud["max"] == 999.0
 
 
 def test_grades_and_sets_present(published):

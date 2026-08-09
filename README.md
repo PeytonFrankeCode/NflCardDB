@@ -70,17 +70,19 @@ If you get blocked, the fix is a longer `--delay` and a smaller `--page-budget`
 — not more concurrency, not proxy rotation. Keep the volume proportionate to
 personal price research and you are unlikely to have trouble.
 
-**Best-offer sales are recorded but not trustworthy as prices.** When a seller
-accepts an offer, eBay shows the *asking* price on the search page, not what
-the buyer actually paid. Those rows are flagged `best_offer = 1`. Exclude them
-from any pricing analysis:
+**Best-offer prices are asks, and they are included anyway.** When a seller
+accepts an offer, eBay shows the *asking* price on the search page, not what the
+buyer paid. Those rows are flagged `best_offer = 1` and counted in every price
+statistic here, so medians read above what buyers actually paid. That is a
+deliberate choice and a reversible one — for confirmed prices only:
 
 ```sql
 SELECT * FROM v_sales WHERE best_offer = 0;
 ```
 
-This is the single biggest quality caveat in the dataset and there is no fix
-available from search-page scraping alone.
+About 46% of rows are asks, and they skew expensive (~56% of the highest-priced
+listings), so the effect is largest at the top of the market. There is no way to
+recover the accepted amount from search-page scraping: eBay does not publish it.
 
 ## The API (Cloudflare Workers + D1)
 
@@ -99,8 +101,9 @@ both integration options, the endpoints, and the two data caveats that matter.
 all** — bind the D1 database straight to the Pages project and read it directly.
 No secret, no quota, no extra hop. See **[CLOUDFLARE.md](CLOUDFLARE.md)**.
 
-Best-offer sales carry `price: null` there rather than eBay's asking price — a
-missing number cannot be averaged by mistake, a wrong one can.
+Best-offer rows carry eBay's asking price as their `price` there, flagged by
+`best_offer` and repeated in `ask` — so `exclude_offers=true` gets you confirmed
+prices only.
 
 ## The dashboard (GitHub Pages)
 
@@ -132,11 +135,11 @@ To put it online:
 publish once, the page renders an empty state that tells you these commands —
 that is expected, not a failure.
 
-`publish` writes six small JSON files. Price statistics deliberately exclude
-best-offer rows and non-USD listings, while volume counts include everything, so
-"sales per day" and "median price" are computed over different row sets by
-design — the dashboard labels which is which. Those excluded rows still appear
-in the table, flagged, rather than being hidden.
+`publish` writes seven small JSON files. Price statistics cover every listing
+with a published USD price, best offers included, so the medians sit above true
+sale prices — the dashboard labels this and offers a checkbox to exclude them.
+Non-USD rows are still left out of prices, since nothing converts them, but they
+appear in the table with their currency.
 
 To preview locally:
 
@@ -305,7 +308,10 @@ selectors.
 
 ## Known limitations
 
-- **Best-offer prices are the ask, not the sale.** Flagged, not fixable here.
+- **Best-offer prices are the ask, not the sale.** They are included in price
+  statistics by choice, so every median reads above what buyers actually paid.
+  `best_offer` marks them and `ask_cents` repeats the number, so filtering them
+  back out is a query change, not a re-collection.
 - **Only what search pages expose.** No per-listing detail fetch, so no
   item-specifics, no full seller history, no bid-by-bid auction data.
 - **Non-USD listings are stored in their original currency** with a `currency`

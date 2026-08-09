@@ -106,11 +106,11 @@ function shapeSale(r) {
     id: r.item_id,
     sold_date: r.sold_date,
     title: r.title,
-    // null, not 0, when eBay only published an asking price.
+    // The price eBay published. On a best-offer row that is the seller's ask,
+    // and the buyer paid less -- `best_offer` below marks those.
     price: r.price_cents == null ? null : r.price_cents / 100,
-    // What the seller wanted, on the rows where price is unknown. The card did
-    // sell -- for some amount below this that eBay does not publish. Never
-    // average it with `price`: it is a different measurement.
+    // Set only on best-offer rows, repeating the same number. Kept so callers
+    // can find the asks without also carrying the best_offer flag around.
     ask: r.ask_cents == null ? null : r.ask_cents / 100,
     shipping: r.shipping_cents == null ? null : r.shipping_cents / 100,
     currency: r.currency,
@@ -189,10 +189,13 @@ async function listSales(url, env) {
   if (url.searchParams.get("rookie") === "true") where.push("is_rookie = 1");
   if (url.searchParams.get("auto") === "true") where.push("is_auto = 1");
 
-  // Default to prices that mean something. Callers who want the offer rows too
-  // can ask, but they have to ask.
-  if (url.searchParams.get("include_offers") !== "true") {
-    where.push("best_offer = 0 AND price_cents IS NOT NULL");
+  // Every listing with a published price, best offers included. On those the
+  // price is the seller's ask rather than what was paid -- `best_offer` says
+  // which, and exclude_offers=true drops them for callers who want only
+  // confirmed amounts.
+  where.push("price_cents IS NOT NULL");
+  if (url.searchParams.get("exclude_offers") === "true") {
+    where.push("best_offer = 0");
   }
 
   const minConf = url.searchParams.get("min_confidence");
@@ -238,14 +241,16 @@ async function priceSummary(url, env) {
   // query over the same predicate would double that to read a sibling column.
   const rows = await env.DB.prepare(
     `SELECT price_cents, ask_cents FROM sales WHERE player LIKE ?${extra} ` +
-    `AND (price_cents IS NOT NULL OR ask_cents IS NOT NULL)`
+    `AND price_cents IS NOT NULL`
   ).bind(...binds).all();
 
+  // Headline figures cover everything with a price. Asks are also reported on
+  // their own, so anyone who wants confirmed-only numbers can still get them.
   const prices = [];
   const asks = [];
   for (const r of rows.results || []) {
-    if (r.price_cents != null) prices.push(r.price_cents);
-    else if (r.ask_cents != null) asks.push(r.ask_cents);
+    prices.push(r.price_cents);
+    if (r.ask_cents != null) asks.push(r.ask_cents);
   }
   prices.sort((a, b) => a - b);
   asks.sort((a, b) => a - b);
@@ -270,7 +275,7 @@ async function priceSummary(url, env) {
     player,
     grader: grader || null,
     grade: grade ? Number(grade) : null,
-    // Top level stays exactly what it always was: confirmed sale prices only.
+    // Every priced row, asks included.
     matched: sold.n,
     median: sold.median,
     mean: sold.mean,
@@ -278,9 +283,9 @@ async function priceSummary(url, env) {
     p90: sold.p90,
     low: sold.low,
     high: sold.high,
-    // Best-offer rows, kept apart on purpose. These are what sellers WANTED --
-    // each card sold for some unpublished amount below its ask, so treat this
-    // as an upper bound on those sales, never as a price.
+    // The best-offer subset of the same rows, reported separately so the
+    // effect of including them is visible: these are asks, and each card went
+    // for some unpublished amount below its own.
     asking: stats(asks),
   });
 }
@@ -290,7 +295,7 @@ async function listPlayers(url, env) {
   const limit = intParam(url, "limit", 50, 200);
   const binds = [];
   let clause = "WHERE player IS NOT NULL AND confidence >= 0.5 " +
-               "AND best_offer = 0 AND price_cents IS NOT NULL";
+               "AND price_cents IS NOT NULL";
   if (q) { clause += " AND player LIKE ?"; binds.push(`%${q}%`); }
 
   const rows = await env.DB.prepare(
@@ -332,7 +337,7 @@ async function daily(url, env) {
 async function summary(env) {
   const totals = await env.DB.prepare(
     "SELECT COUNT(*) AS sales, " +
-    "SUM(CASE WHEN best_offer = 0 AND price_cents IS NOT NULL THEN 1 ELSE 0 END) AS priced, " +
+    "SUM(CASE WHEN price_cents IS NOT NULL THEN 1 ELSE 0 END) AS priced, " +
     "SUM(best_offer) AS best_offers, MIN(sold_date) AS first_day, MAX(sold_date) AS last_day " +
     "FROM sales"
   ).first();
@@ -345,10 +350,10 @@ async function summary(env) {
     first_day: totals.first_day,
     last_day: totals.last_day,
     updated_at: updated ? updated.v : null,
-    note: "Best-offer sales did happen, but eBay does not publish what the " +
-          "buyer paid -- only what the seller was asking. Those rows carry " +
-          "`ask` instead of `price`, are excluded from price statistics, and " +
-          "appear in /v1/sales only with include_offers=true.",
+    note: "Price statistics include best offers. eBay publishes the seller's " +
+          "ask on those, not what the buyer paid, so figures read slightly " +
+          "high; `best_offer` flags the rows and `ask` repeats the number. " +
+          "Pass exclude_offers=true to /v1/sales for confirmed prices only.",
   });
 }
 
@@ -361,7 +366,7 @@ function index() {
       "GET /v1/summary": "dataset totals and freshness",
       "GET /v1/sales": "sale rows; filters: player, set, team, year, grader, " +
         "grade, card_number, from, to, rookie, auto, min_confidence, " +
-        "include_offers, limit (max 500), offset",
+        "exclude_offers, limit (max 500), offset",
       "GET /v1/prices": "price stats for one player; ?player= plus optional grader, grade",
       "GET /v1/players": "most-traded players; ?q= to search",
       "GET /v1/daily": "per-day totals",

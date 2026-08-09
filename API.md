@@ -114,7 +114,7 @@ The sale rows.
 | `from`, `to` | `YYYY-MM-DD` |
 | `rookie=true`, `auto=true` | flags |
 | `min_confidence` | `0`–`1`; how sure the title parser was |
-| `include_offers=true` | include best-offer rows (see below) |
+| `exclude_offers=true` | drop best-offer rows, leaving confirmed prices only |
 | `limit`, `offset` | up to 500 per page |
 
 ```bash
@@ -122,20 +122,20 @@ curl -H "Authorization: Bearer KEY" \
   "https://YOUR-URL/v1/sales?player=Stroud&grader=PSA&grade=10&limit=20"
 ```
 
-**`price` vs `ask`.** Every row has exactly one of them:
+**`price` vs `ask`.** Every row with a published price has `price` set:
 
-| | `price` | `ask` |
-|---|---|---|
-| Ordinary sale | what it sold for | `null` |
-| Best offer accepted | `null` | what the seller wanted |
+| | `price` | `ask` | `best_offer` |
+|---|---|---|---|
+| Ordinary sale | what it sold for | `null` | `false` |
+| Best offer accepted | the seller's **ask** | same number | `true` |
 
-The card sold either way. On a best offer, eBay publishes only the asking price
-— the buyer paid some unpublished amount below it — so `ask` is an **upper
-bound**, not a price. Adding the two together, or averaging across both, silently
-inflates every figure you produce. That's why they're separate fields rather
-than one column with a flag.
+The card sold either way. On a best offer eBay publishes only the asking price —
+the buyer paid some unpublished amount below it — so those rows read **above**
+what was actually paid, and they are included in every price figure here.
 
-Best-offer rows appear only with `include_offers=true`.
+That is a deliberate choice, and a reversible one: pass `exclude_offers=true` to
+`/v1/sales`, or filter `ask IS NULL` anywhere else, for confirmed prices only.
+Roughly 46% of rows are asks, so the difference is not small.
 
 Each row carries an `image` field — the front photo of the listing, as a URL on
 eBay's own CDN, ready to drop into an `<img>`:
@@ -153,8 +153,9 @@ you show history. Only the URL is stored; the image itself is never copied.
 Median, mean, p10/p90, low and high for one player. Optional `grader` and
 `grade` to narrow it — `?player=CJ Stroud&grader=PSA&grade=10` is the common one.
 
-The top-level figures are confirmed sale prices only. Alongside them, `asking`
-carries the same statistics over the best-offer rows:
+The top-level figures cover every priced row, asks included. Alongside them,
+`asking` reports the best-offer subset on its own, so you can see how much of
+the number they account for:
 
 ```json
 {
@@ -165,9 +166,9 @@ carries the same statistics over the best-offer rows:
 }
 ```
 
-Read `asking.median` as "the median list price of the ones that took offers",
-never as a sale price — each of those went for less. If you show one number to
-a visitor, show `median`.
+`matched` counts everything; `asking.n` is how many of those were asks. If
+`asking.n` is most of `matched`, the headline is mostly list prices — worth
+knowing before quoting it as what a card is worth.
 
 ### `GET /v1/players?q=`
 Most-traded players with sale counts and averages.
@@ -182,23 +183,18 @@ Per-day totals — what the dashboard charts.
 About **46%** of football card sales close via an accepted offer. On those, eBay
 publishes the *seller's asking price*, not what the buyer paid.
 
-So the API stores `price: null` for them, and puts the ask in its own `ask`
-field. A wrong number is worse than a missing one — a null cannot be averaged
-into your figures by mistake, an asking price sitting in a `price` column can.
+The API serves that ask as the row's `price`, and repeats it in `ask` so the
+rows stay identifiable. Every price figure — `/v1/prices`, the daily medians,
+player averages — includes them, and therefore sits above true sale prices.
 
-The ask is genuine data and worth having: it tells you what the seller wanted,
-and it bounds the sale from above. It is simply a different measurement, so it
-gets a different field and its own `asking` block in `/v1/prices`.
+If you want confirmed amounts only: `exclude_offers=true` on `/v1/sales`, or
+`ask IS NULL` against the database directly. Nothing needs re-collecting; the
+distinction is preserved per row.
 
-Best-offer rows are excluded from `/v1/sales` unless you pass
-`include_offers=true`, and never enter the headline price statistics or the
-daily medians. Volume counts include them, which is why `sales` and
-`priced_sales` differ in `/v1/summary`.
-
-One caveat if you use the asks analytically: best offers are not spread evenly
-across price. In the collected data they are ~46% of sales overall, but ~56% of
-the highest-priced listings — sellers enable offers more on expensive cards. So
-the rows with no sale price skew toward the top of the market.
+One caveat: best offers are not spread evenly across price. In the collected
+data they are ~46% of sales overall, but ~56% of the highest-priced listings —
+sellers enable offers more on expensive cards. So including them lifts the top
+of the distribution more than the middle.
 
 ---
 

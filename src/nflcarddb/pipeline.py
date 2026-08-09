@@ -405,6 +405,64 @@ def reparse_titles(
     return count
 
 
+def top_sales(
+    db_path: str,
+    days: Optional[int] = 30,
+    limit: int = 20,
+    include_offers: bool = True,
+) -> list[dict]:
+    """The biggest sales in a window, highest first.
+
+    Best offers are included. Their price is the seller's ask rather than what
+    was paid, so they place higher than they earned; `is_ask` marks them, and
+    `include_offers=False` leaves them out for anyone who wants only confirmed
+    amounts.
+    """
+    where = ["s.sold_date IS NOT NULL", "s.price_cents IS NOT NULL"]
+    params: list = []
+    if not include_offers:
+        where.append("s.best_offer = 0")
+    if days:
+        where.append("s.sold_date >= ?")
+        params.append((date.today() - timedelta(days=days)).isoformat())
+
+    conn = store.connect(db_path)
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.currency,
+                   s.best_offer, s.image_url, c.player, c.year, c.set_name,
+                   c.grader, c.grade
+            FROM sales s LEFT JOIN cards c USING (item_id)
+            WHERE {' AND '.join(where)}
+            ORDER BY s.price_cents DESC LIMIT ?
+            """,
+            (*params, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        {
+            "id": r["item_id"],
+            "date": r["sold_date"],
+            "title": r["title"],
+            "price": round(r["price_cents"] / 100.0, 2),
+            "currency": r["currency"],
+            "is_ask": bool(r["best_offer"]),
+            "player": r["player"],
+            "year": r["year"],
+            "set": r["set_name"],
+            "grade": (f"{r['grader']} {r['grade']:g}"
+                      if r["grader"] and r["grade"] is not None
+                      else (r["grader"] or None)),
+            "image": r["image_url"],
+            "url": f"https://www.ebay.com/itm/{r['item_id']}",
+        }
+        for r in rows
+    ]
+
+
 def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
     """Days whose sale count is far below the busiest days: probably truncated.
 

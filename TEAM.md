@@ -61,7 +61,7 @@ export async function onRequestGet({ request, env }) {
   const rows = await env.DB.prepare(
     `SELECT title, price_cents, sold_date, grader, grade, image_url
      FROM sales
-     WHERE player LIKE ? AND best_offer = 0 AND price_cents IS NOT NULL
+     WHERE player LIKE ? AND price_cents IS NOT NULL
      ORDER BY sold_date DESC LIMIT 25`
   ).bind(`%${searchParams.get("player")}%`).all();
   return Response.json(rows.results);
@@ -116,7 +116,7 @@ All require `Authorization: Bearer <key>`. `/` and `/health` do not.
 
 `/v1/sales` filters: `player`, `set` (partial); `team`, `grader`, `card_number`
 (exact); `year`, `grade`; `from`, `to` (ISO dates); `rookie`, `auto`;
-`min_confidence`; `include_offers`; `limit` (≤500), `offset`.
+`min_confidence`; `exclude_offers`; `limit` (≤500), `offset`.
 
 Errors: `401` no key · `403` bad/revoked · `429` quota · `400` bad date.
 Responses carry `X-Quota-Limit` / `X-Quota-Used`.
@@ -125,24 +125,25 @@ Responses carry `X-Quota-Limit` / `X-Quota-Used`.
 
 ## Three things that will bite you if nobody says them
 
-**1. `price` is null on ~46% of rows, and that is correct.**
+**1. ~46% of your `price` values are asking prices, not sale prices.**
 
 Those are best-offer sales. The card *did* sell — but eBay publishes the
-seller's *asking* price on them, not what the buyer paid, so there is no sale
-price to report. Storing null rather than the ask is deliberate: a null cannot
-be averaged into your figures by mistake, an asking price silently can.
+seller's *asking* price on them, not what the buyer paid. Peyton chose to
+include them, so `price` carries the ask on those rows and every median, average
+and percentile in this dataset reads **above** what was actually paid.
 
-The ask is not thrown away. It lives in `ask_cents` (`ask` in the API), set
-**only** on those rows — so `ask IS NOT NULL` is exactly "we know it sold, not
-for how much". Treat it as an upper bound. Never add or average it with `price`.
+`best_offer` is true on exactly those rows, and `ask_cents` (`ask` in the API)
+repeats the number there and is null everywhere else. So the choice is
+reversible per query: `exclude_offers=true` on `/v1/sales`, or `ask_cents IS
+NULL` in SQL, gets you confirmed prices only.
 
-Best-offer rows are excluded from `/v1/sales` unless `include_offers=true`, and
-never appear in the headline `/v1/prices` figures or the daily medians —
-`/v1/prices` reports them separately under `asking`. Volume counts do include
-them, which is why `sales` and `priced_sales` differ.
+Which you want depends on the question. "What is this card worth?" wants
+confirmed prices. "What are people asking?" wants everything. Do not mix the two
+across a page without saying which is which.
 
 They also skew expensive: ~46% of sales overall, but ~56% of the highest-priced
-listings, because sellers enable offers more on pricier cards.
+listings, because sellers enable offers more on pricier cards. So including them
+lifts the top of the distribution more than the middle.
 
 **2. `image_url` is a link to eBay, not a copy.**
 

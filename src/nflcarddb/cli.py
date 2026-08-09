@@ -25,6 +25,7 @@ from .pipeline import (
     find_thin_days,
     image_report,
     mark_for_recollection,
+    top_sales,
     reparse_titles,
     run_backfill,
     run_scrape,
@@ -148,6 +149,34 @@ def cmd_coverage(args) -> int:
         print(f"\nYou also hold {report['outside_window']} day(s) older than "
               f"{args.days} days. eBay no longer serves those, so that data now "
               "exists only here.")
+    return 0
+
+
+def cmd_top(args) -> int:
+    """The biggest sales in a window."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    rows = top_sales(db_path, days=args.days, limit=args.limit,
+                     include_offers=args.include_offers)
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return 0
+
+    if not rows:
+        print("No priced sales in that window.")
+        return 1
+
+    window = f"the last {args.days} days" if args.days else "the whole dataset"
+    print(f"Biggest sales in {window}:\n")
+    for row in rows:
+        flag = "  (ASK, sold for less)" if row["is_ask"] else ""
+        print(f"  ${row['price']:>12,.2f}  {row['date']}  {(row['grade'] or 'Raw'):<9} "
+              f"{row['title'][:64]}{flag}")
+
+    if not args.include_offers:
+        print("\nBest offers are excluded: their price is the seller's ask, not "
+              "what was paid.\nAdd --include-offers to see them, labelled.")
     return 0
 
 
@@ -918,6 +947,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--roster")
     p.add_argument("--all", action="store_true", help="reparse every row, not just new ones")
     p.set_defaults(func=cmd_parse)
+
+    p = sub.add_parser("top", help="the biggest sales in a window")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--days", type=int, default=30,
+                   help="window in days; 0 for everything (default 30)")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--include-offers", action="store_true",
+                   help="include best offers, whose price is the ask")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_top)
 
     p = sub.add_parser("recheck", help="find days that were cut short and re-collect them")
     p.add_argument("--config", default="config/queries.yml")

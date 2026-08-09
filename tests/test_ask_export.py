@@ -1,9 +1,10 @@
 """The asking price on best-offer sales.
 
 Those sales are real -- a card changed hands -- but eBay publishes only what the
-seller wanted, not what the buyer paid. The ask is therefore worth exporting and
-dangerous to conflate, so the invariant these tests defend is that `price` and
-`ask` are never both set on one row, and never the same number.
+seller wanted, not what the buyer paid. That ask is now served as the row's
+price, by choice, so the invariant these tests defend is the one that keeps the
+choice reversible: `ask_cents` is set on exactly the best-offer rows and nowhere
+else, so "which of these figures is an ask" stays answerable.
 """
 
 import re
@@ -83,12 +84,12 @@ def test_ask_is_exported(tmp_path):
     assert "ask_cents" in sql
 
 
-def test_a_best_offer_row_carries_the_ask_and_no_price(tmp_path):
+def test_a_best_offer_row_carries_the_ask_as_its_price(tmp_path):
     sql, _ = build_sql(_db(tmp_path))
     row = next(r for r in _rows(sql) if r["item_id"] == "'2'")
 
-    assert row["price_cents"] == "NULL"      # what it sold for is unknown
-    assert row["ask_cents"] == "42000"       # what was wanted is not
+    assert row["price_cents"] == "42000"     # the ask, serving as the price
+    assert row["ask_cents"] == "42000"       # and marked as an ask
 
 
 def test_an_ordinary_sale_carries_the_price_and_no_ask(tmp_path):
@@ -108,21 +109,25 @@ def test_a_row_with_no_price_at_all_gets_neither(tmp_path):
     assert row["ask_cents"] == "NULL"
 
 
-def test_price_and_ask_are_never_both_set(tmp_path):
-    """The whole point: one number per row, and its meaning is unambiguous."""
+def test_ask_is_set_on_exactly_the_best_offer_rows(tmp_path):
+    """What makes including asks reversible: filter ask_cents IS NULL and you
+    are back to confirmed sale prices, without re-collecting anything."""
     sql, _ = build_sql(_db(tmp_path))
     for row in _rows(sql):
-        assert not (row["price_cents"] != "NULL" and row["ask_cents"] != "NULL"), row
+        has_ask = row["ask_cents"] != "NULL"
+        assert has_ask == (row["best_offer"] == "1"), row
+        if has_ask:
+            assert row["ask_cents"] == row["price_cents"], row
 
 
-def test_the_ask_never_lands_in_the_daily_medians(tmp_path):
-    """Daily rollups are the numbers a chart plots; an ask would inflate them."""
+def test_the_ask_reaches_the_daily_medians(tmp_path):
+    """Daily rollups are the numbers a chart plots, and asks now count toward
+    them -- which is exactly why they read above true sale prices."""
     sql, _ = build_sql(_db(tmp_path))
     daily = re.search(r"INSERT INTO daily .*?VALUES\n(.*?);", sql, re.S).group(1)
 
-    # Only the 8800 sale is priced, so every price statistic must be 8800.
-    assert "42000" not in daily
-    assert "8800" in daily
+    # 8800 and 42000 both priced; two rows, so the p90 is the ask.
+    assert "42000" in daily
 
 
 def test_the_migration_exists_for_databases_that_predate_the_column():

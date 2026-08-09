@@ -55,8 +55,9 @@ def test_export_loads_into_a_d1_shaped_database(tmp_path):
     conn.close()
 
 
-def test_best_offer_prices_are_exported_as_null(tmp_path):
-    """eBay publishes the ask on those, not the sale -- so there is no price."""
+def test_best_offer_prices_are_exported_with_the_ask(tmp_path):
+    """The ask is what eBay publishes on those, and it is now the price served.
+    `best_offer` and `ask_cents` are what mark it as an ask rather than a sale."""
     db = tmp_path / "bo.db"
     seed(db, [
         ("200000000001", 99900, "2026-08-03", True, "2023 Prizm Ask Only #1", "Someone"),
@@ -64,18 +65,21 @@ def test_best_offer_prices_are_exported_as_null(tmp_path):
     ])
     conn = load("api/schema.sql", build_sql(db)[0])
 
-    offer = conn.execute("SELECT price_cents, best_offer FROM sales "
+    offer = conn.execute("SELECT price_cents, ask_cents, best_offer FROM sales "
                          "WHERE item_id='200000000001'").fetchone()
     assert offer["best_offer"] == 1
-    assert offer["price_cents"] is None       # never the asking price
+    assert offer["price_cents"] == 99900      # the ask, served as the price
+    assert offer["ask_cents"] == 99900        # and still identifiable as one
 
-    real = conn.execute("SELECT price_cents FROM sales "
+    real = conn.execute("SELECT price_cents, ask_cents FROM sales "
                         "WHERE item_id='200000000002'").fetchone()
     assert real["price_cents"] == 5000
+    # Only best-offer rows carry an ask, so this stays a usable filter.
+    assert real["ask_cents"] is None
     conn.close()
 
 
-def test_daily_rollups_exclude_offers_from_prices_but_not_counts(tmp_path):
+def test_daily_rollups_count_asks_in_the_prices(tmp_path):
     db = tmp_path / "d.db"
     seed(db, [
         ("300000000001", 1000, "2026-08-03", False, "a", "P"),
@@ -85,8 +89,8 @@ def test_daily_rollups_exclude_offers_from_prices_but_not_counts(tmp_path):
     conn = load("api/schema.sql", build_sql(db)[0])
     day = conn.execute("SELECT * FROM daily WHERE sold_date='2026-08-03'").fetchone()
     assert day["sales"] == 3        # every sale counts as volume
-    assert day["priced"] == 2       # only two have usable prices
-    assert day["median_cents"] == 2000
+    assert day["priced"] == 3       # asks included, so all three are priced
+    assert day["median_cents"] == 3000
     conn.close()
 
 
