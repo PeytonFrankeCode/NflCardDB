@@ -1,0 +1,15 @@
+Which search parameter gets refused
+==========================================================
+  plain search       HTTP 200   BOT CHECK      challenge page (matched 'pardon our interruption')
+  + sold filter      HTTP 200   OK             parsed 60 listing(s)
+  + category         HTTP 200   OK             parsed 60 listing(s)
+  + sort by ended    HTTP 200   OK             parsed 54 listing(s)
+  + 60 per page      HTTP 200   OK             parsed 111 listing(s)
+  + 240 per page     HTTP 200   OK             parsed 236 listing(s)
+  + price band       HTTP 200   OK             parsed 240 listing(s)
+
+----------------------------------------------------------
+  Last one that worked:  + price band
+  First one refused:     plain search
+
+  So the trigger is what 'plain search' adds.
