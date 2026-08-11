@@ -355,10 +355,26 @@ def format_bisect(results: list[StageCheck]) -> str:
         ]
         return "\n".join(lines)
 
+    # Only a failure with nothing working after it implicates a parameter. A
+    # challenge followed by harder URLs succeeding says the opposite: the block
+    # is transient, and the rung it landed on is a coincidence.
+    order = [r.name for r in results]
+    last_good_index = max(order.index(r.name) for r in worked)
     first_bad = failed[0]
-    last_good = worked[-1]
+    if order.index(first_bad.name) < last_good_index:
+        lines += [
+            "  A rung was refused, but every harder rung after it worked --",
+            "  including the collector's own query. So no parameter is the",
+            "  problem; the refusal was transient.",
+            "",
+            "  eBay challenges the occasional request and lets the next one",
+            "  through. What matters is whether the collector retries after a",
+            "  bot check rather than giving up on the first one.",
+        ]
+        return "\n".join(lines)
+
     lines += [
-        f"  Last one that worked:  {last_good.name}",
+        f"  Last one that worked:  {worked[-1].name}",
         f"  First one refused:     {first_bad.name}",
         "",
         f"  So the trigger is what '{first_bad.name}' adds.",

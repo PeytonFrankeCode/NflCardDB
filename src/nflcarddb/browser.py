@@ -135,6 +135,7 @@ class BrowserFetcher:
         executable_path: Optional[str] = None,
         profile_dir: Optional[str] = "data/browser-profile",
         warm_up: bool = True,
+        challenge_retries: int = 4,
         profile_directory: Optional[str] = None,
     ) -> None:
         self.delay = delay
@@ -157,6 +158,8 @@ class BrowserFetcher:
         self._profile_dir = profile_dir
         self._warm_up = warm_up
         self._warmed = False
+        # How many bot checks on one request before calling it a real block.
+        self.challenge_retries = challenge_retries
         # None until the warm-up has seen an ordinary eBay page.
         self.signed_in: Optional[bool] = None
         self._profile_directory = profile_directory
@@ -315,6 +318,21 @@ class BrowserFetcher:
         except Exception as exc:
             log.debug("warm-up visit failed (%s); continuing anyway", exc)
 
+    def _reestablish(self) -> None:
+        """Return to ordinary browsing before retrying a challenged request.
+
+        Reloading the same filtered URL straight into a challenge tends to earn
+        another. Going back to the homepage is what a person does when a site
+        interrupts them, and it is the state the successful requests were made
+        from.
+        """
+        try:
+            self._page.goto("https://www.ebay.com/", timeout=self.timeout,
+                            wait_until="domcontentloaded")
+            self._page.wait_for_timeout(random.randint(2000, 4000))
+        except Exception as exc:
+            log.debug("could not return to the homepage (%s)", exc)
+
     def _check_signed_in(self) -> None:
         """Settle the session question by asking a page that requires one.
 
@@ -398,8 +416,9 @@ class BrowserFetcher:
         self._ensure_browser()
         self._warm_up_session()
         last_err: Optional[Exception] = None
+        challenges = 0
 
-        for attempt in range(self.max_retries + 1):
+        for attempt in range(self.max_retries + self.challenge_retries + 1):
             self._sleep_until_allowed()
             try:
                 response = self._page.goto(
@@ -432,11 +451,26 @@ class BrowserFetcher:
 
                 low = html[:6000].lower()
                 if any(marker in low for marker in CHALLENGE_MARKERS):
+                    # A challenge is usually a speed bump, not a verdict:
+                    # `nflcarddb bisect` gets one on a cold first navigation and
+                    # then loads six harder URLs in the same session, ending with
+                    # the collector's exact query returning 240 listings. Treating
+                    # the first one as fatal threw away runs that would have
+                    # finished, so back off, re-establish, and try again.
                     self.stats.blocked += 1
-                    raise BlockedError(
-                        "eBay served a bot-check page even through a real browser. "
-                        "Wait a while, then try again with a longer --delay."
-                    )
+                    challenges += 1
+                    if challenges > self.challenge_retries:
+                        raise BlockedError(
+                            f"eBay served a bot-check page {challenges} times in a "
+                            f"row for one request, so this is not a passing one. "
+                            f"Wait a while, then try again with a longer --delay."
+                        )
+                    backoff = min(90.0, 10.0 * (2 ** (challenges - 1))) + random.uniform(0, 4)
+                    log.warning("bot check (%d/%d); waiting %.0fs and retrying",
+                                challenges, self.challenge_retries, backoff)
+                    time.sleep(backoff)
+                    self._reestablish()
+                    continue
                 if status >= 400:
                     last_err = FetchError(f"HTTP {status}")
                     self.stats.retries += 1
