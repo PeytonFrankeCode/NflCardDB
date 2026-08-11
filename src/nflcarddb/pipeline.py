@@ -82,6 +82,7 @@ def run_scrape(
     page_budget_override: Optional[int] = None,
     engine_override: Optional[str] = None,
     chrome_profile: Optional[bool] = None,
+    items_per_page_override: Optional[int] = None,
     dry_run: bool = False,
 ) -> ScrapeReport:
     target_date = target_date or yesterday()
@@ -211,7 +212,8 @@ def run_scrape(
                 target_date=target_date,
                 max_pages=config.fetch.max_pages_per_segment,
                 max_depth=config.fetch.max_subdivide_depth,
-                items_per_page=config.fetch.items_per_page,
+                items_per_page=(items_per_page_override
+                                or config.fetch.items_per_page),
                 extra=query.extra or None,
                 direction=direction,
                 on_segment=on_segment,

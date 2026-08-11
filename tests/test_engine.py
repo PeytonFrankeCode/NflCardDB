@@ -310,13 +310,19 @@ def test_browser_warms_up_before_the_first_search(monkeypatch):
     monkeypatch.setattr(f, "_ensure_browser", lambda: None)
     f._page = FakePage()
 
-    f.get("https://www.ebay.com/sch/i.html?_nkw=football")
-    assert visited[0] == "https://www.ebay.com/"        # homepage first
-    assert "sch/i.html" in visited[1]                    # then the search
+    f.get("https://www.ebay.com/sch/i.html?_nkw=football&LH_Sold=1&_udlo=10")
+
+    # The escalation the doctor showed working: land on the site, confirm the
+    # session, run an ordinary search, and only then the filtered sold one.
+    assert visited[0] == "https://www.ebay.com/"
+    assert "myebay" in visited[1]
+    assert "_nkw=football+cards" in visited[2]           # plain search
+    assert "LH_Sold=1" in visited[3]                     # the real request
 
     # A second fetch must not warm up again.
     f.get("https://www.ebay.com/sch/i.html?_pgn=2")
     assert visited.count("https://www.ebay.com/") == 1
+    assert len(visited) == 5
 
 
 def test_warm_up_failure_does_not_stop_the_real_request(monkeypatch):
@@ -820,3 +826,79 @@ def test_escalating_to_the_browser_keeps_the_spent_budget(monkeypatch):
     auto = make_fetcher("auto", delay=0, jitter=0, page_budget=10)
     auto.get("https://www.ebay.com/x")
     assert auto.stats.requests == 4
+
+
+def test_a_signin_redirect_is_reported_as_signed_out(monkeypatch):
+    """String-matching eBay's header returned "don't know" in practice. A
+    redirect to signin.ebay.com is a fact, not a guess."""
+    from nflcarddb.browser import BrowserFetcher
+
+    class FakePage:
+        url = "https://signin.ebay.com/signin/s?ru=%2Fmye%2Fmyebay"
+
+        def goto(self, url, **kw):
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def query_selector(self, sel):
+            return None
+
+        def content(self):
+            return "<html>eBay</html>"
+
+    f = BrowserFetcher(delay=0, jitter=0, profile_dir=None)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    f._page = FakePage()
+    f._check_signed_in()
+
+    assert f.signed_in is False
+
+
+def test_landing_on_my_ebay_is_reported_as_signed_in(monkeypatch):
+    from nflcarddb.browser import BrowserFetcher
+
+    class FakePage:
+        url = "https://www.ebay.com/mye/myebay/summary"
+
+        def goto(self, url, **kw):
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def content(self):
+            return "<html>eBay</html>"
+
+    f = BrowserFetcher(delay=0, jitter=0, profile_dir=None)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    f._page = FakePage()
+    f._check_signed_in()
+
+    assert f.signed_in is True
+
+
+def test_an_unrecognised_landing_page_stays_unknown(monkeypatch):
+    """A challenge page proves nothing about the session; claiming otherwise
+    is how the wrong thing gets blamed."""
+    from nflcarddb.browser import BrowserFetcher
+
+    class FakePage:
+        url = "https://www.ebay.com/splashui/captcha"
+
+        def goto(self, url, **kw):
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def content(self):
+            return "<html>Pardon Our Interruption</html>"
+
+    f = BrowserFetcher(delay=0, jitter=0, profile_dir=None)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    f._page = FakePage()
+    f._check_signed_in()
+
+    assert f.signed_in is None

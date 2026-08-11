@@ -309,21 +309,58 @@ class BrowserFetcher:
                         break
                 except Exception:
                     pass
-            # The homepage is already loaded and it names the session state, so
-            # this is free. Worth knowing up front: without a session, a deep
-            # sold search comes back as a bot check rather than a sign-in page,
-            # and the run then reports "blocked" for the wrong reason.
-            from .fetch import session_state
-
-            self.signed_in = session_state(self._page.content())
-            if self.signed_in is False:
-                log.warning("not signed in to eBay -- sold listings will be "
-                            "refused past the first page or two. Run login.bat.")
-            elif self.signed_in:
-                log.info("signed in to eBay")
             log.debug("warm-up visit to ebay.com complete")
+            self._check_signed_in()
+            self._warm_up_search()
         except Exception as exc:
             log.debug("warm-up visit failed (%s); continuing anyway", exc)
+
+    def _check_signed_in(self) -> None:
+        """Settle the session question by asking a page that requires one.
+
+        Reading "Sign in" out of the homepage markup was a guess that returned
+        "don't know" in practice -- eBay's header contains that string either
+        way, and a challenge page contains neither. My eBay is different: signed
+        out, eBay redirects it to signin.ebay.com, and a redirect is a fact
+        rather than a string match.
+        """
+        try:
+            self._page.goto("https://www.ebay.com/mye/myebay/summary",
+                            timeout=self.timeout, wait_until="domcontentloaded")
+            self._page.wait_for_timeout(random.randint(600, 1400))
+            landed = (self._page.url or "").lower()
+        except Exception as exc:
+            log.debug("sign-in check failed (%s); continuing", exc)
+            return
+
+        if "signin.ebay.com" in landed or "/signin" in landed:
+            self.signed_in = False
+            log.warning("NOT SIGNED IN to eBay -- this is why sold listings are "
+                        "refused. Run login.bat and sign in, then try again.")
+        elif "myebay" in landed or "/mys/" in landed:
+            self.signed_in = True
+            log.info("signed in to eBay")
+        else:
+            # A challenge, or somewhere unexpected. Say so rather than guess.
+            log.warning("could not confirm sign-in (landed on %s)", landed[:80])
+
+    def _warm_up_search(self) -> None:
+        """Run an ordinary search before the filtered one the collector wants.
+
+        Measured, not assumed: `nflcarddb doctor` escalates homepage -> plain
+        search -> sold search in one session and gets results, while a cold
+        request straight to a deep sold-search URL is challenged. The collector
+        was jumping from the homepage to a filtered, price-banded, 240-per-page
+        sold search in one step -- the shape the challenge fires on. This adds
+        the middle step that demonstrably works.
+        """
+        try:
+            self._page.goto("https://www.ebay.com/sch/i.html?_nkw=football+cards",
+                            timeout=self.timeout, wait_until="domcontentloaded")
+            self._page.wait_for_timeout(random.randint(1400, 2800))
+            log.debug("warm-up search complete")
+        except Exception as exc:
+            log.debug("warm-up search failed (%s); continuing anyway", exc)
 
     def close(self) -> None:
         for attr in ("_context", "_browser", "_pw"):

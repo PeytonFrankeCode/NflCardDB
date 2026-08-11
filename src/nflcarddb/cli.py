@@ -55,6 +55,7 @@ def cmd_scrape(args) -> int:
         page_budget_override=args.page_budget,
         engine_override=args.engine,
         chrome_profile=args.chrome_profile or None,
+        items_per_page_override=args.items_per_page,
         dry_run=args.dry_run,
     )
     print(json.dumps(report.as_dict(), indent=2))
@@ -914,6 +915,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--query", help="run only this query id")
     p.add_argument("--delay", type=float, help="override seconds between requests")
     p.add_argument("--page-budget", type=int, help="override max requests for this run")
+    p.add_argument("--items-per-page", type=int, choices=[60, 120, 240],
+                   help="results per request; 60 is what a browser asks for by "
+                        "default and draws less attention than 240")
     p.add_argument("--save-html", help="directory to dump fetched pages into")
     p.add_argument("--engine", choices=["auto", "requests", "browser"],
                    help="how to fetch pages (default: from config, normally auto)")
