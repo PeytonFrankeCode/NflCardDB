@@ -263,6 +263,126 @@ def run_diagnosis(
     return diag
 
 
+def bisect_url(timeout: float = 30.0, headless: bool = True,
+               profile_dir: Optional[str] = None,
+               category: str = "261328",
+               keywords: str = "football") -> list[StageCheck]:
+    """Add one search parameter at a time until eBay refuses.
+
+    For when the session is confirmed good, the homepage loads, an ordinary
+    search returns results, and only the collector's own URL is challenged --
+    at which point the block is not about identity or reputation at all, it is
+    about the request. Something in the query string is the trigger, and each
+    of these is individually plausible: `_ipg=240` asks for four times what a
+    browser requests by default, `_sop=13` and the price band are filters a
+    person rarely combines.
+
+    One session, one request per rung, ordinary pacing. The first rung that
+    fails names the parameter to change.
+    """
+    base = "https://www.ebay.com/sch/i.html?_nkw=" + keywords.replace(" ", "+")
+    sold = f"{base}&LH_Sold=1&LH_Complete=1"
+    rungs = [
+        ("plain search", base),
+        ("+ sold filter", sold),
+        ("+ category", f"{sold}&_sacat={category}"),
+        ("+ sort by ended", f"{sold}&_sacat={category}&_sop=13"),
+        ("+ 60 per page", f"{sold}&_sacat={category}&_sop=13&_ipg=60&_pgn=1"),
+        ("+ 240 per page", f"{sold}&_sacat={category}&_sop=13&_ipg=240&_pgn=1"),
+        ("+ price band",
+         f"{sold}&_sacat={category}&_sop=13&_ipg=240&_pgn=1&_udlo=10&_udhi=25"),
+    ]
+
+    try:
+        importlib.import_module("playwright.sync_api")
+    except ImportError:
+        return []
+
+    from .browser import BrowserFetcher, BrowserUnavailable
+
+    # warm_up on purpose: this must reproduce the collector's own conditions,
+    # not a cleaner version of them.
+    f = BrowserFetcher(delay=2.5, jitter=1.0, max_retries=0, timeout=timeout,
+                       headless=headless, profile_dir=profile_dir)
+    results: list[StageCheck] = []
+    try:
+        f._ensure_browser()
+    except (BrowserUnavailable, Exception):
+        return []
+
+    try:
+        for name, url in rungs:
+            try:
+                response = f._page.goto(url, timeout=timeout * 1000,
+                                        wait_until="domcontentloaded")
+                status = response.status if response else None
+                outcome, n, detail = _classify(f._page.content(), status)
+                results.append(StageCheck(name, url, status, outcome, detail, n))
+                f._page.wait_for_timeout(2000)
+            except Exception as exc:
+                results.append(StageCheck(name, url, None, ERROR,
+                                          f"{type(exc).__name__}: {exc}"))
+    finally:
+        f.close()
+    return results
+
+
+def format_bisect(results: list[StageCheck]) -> str:
+    lines = ["Which search parameter gets refused", "=" * 58]
+    if not results:
+        return "\n".join(lines + ["", "  Could not start a browser."])
+
+    for r in results:
+        status = f"HTTP {r.status}" if r.status else "-"
+        lines.append(f"  {r.name:<18} {status:<10} {r.outcome:<14} {r.detail}")
+
+    worked = [r for r in results if r.outcome == WORKING]
+    failed = [r for r in results if r.outcome != WORKING]
+    lines += ["", "-" * 58]
+
+    if not failed:
+        lines += [
+            "  Every rung worked, including the collector's exact URL shape.",
+            "  Whatever refused the last run is not the URL -- try collecting",
+            "  again now, while this session is warm.",
+        ]
+        return "\n".join(lines)
+
+    if not worked:
+        lines += [
+            "  Even a plain search was refused, so this is not about the query",
+            "  string. Check doctor's staged output and the eBay session.",
+        ]
+        return "\n".join(lines)
+
+    first_bad = failed[0]
+    last_good = worked[-1]
+    lines += [
+        f"  Last one that worked:  {last_good.name}",
+        f"  First one refused:     {first_bad.name}",
+        "",
+        f"  So the trigger is what '{first_bad.name}' adds.",
+    ]
+    hint = {
+        "+ 240 per page": "  Fix: set  items_per_page: 60  in config/queries.yml,\n"
+                          "  or run  nflcarddb scrape --items-per-page 60 .\n"
+                          "  It costs four times the requests for the same data,\n"
+                          "  which is still infinitely better than being refused.",
+        "+ 60 per page": "  Fix: try  --items-per-page 120 , or drop _pgn by\n"
+                         "  collecting fewer pages per band.",
+        "+ price band": "  Fix: widen the bands in config/queries.yml so fewer\n"
+                        "  price-filtered requests are made.",
+        "+ category": "  The category id may be wrong or retired. Browse to the\n"
+                      "  category on eBay, filter to Sold, and copy _sacat= from\n"
+                      "  the URL into config/queries.yml.",
+        "+ sold filter": "  Sold listings are gated behind a signed-in account.\n"
+                         "  Run login.bat if doctor also reports signed out.",
+    }.get(first_bad.name)
+    if hint:
+        lines += ["", hint]
+    return "\n".join(lines)
+
+
 def format_report(diag: Diagnosis) -> str:
     lines = [
         "NflCardDB doctor",

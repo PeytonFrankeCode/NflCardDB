@@ -14,7 +14,7 @@ from typing import Optional
 from . import db as store
 from .browser import BrowserUnavailable
 from .config import load_config
-from .diagnose import format_report, run_diagnosis
+from .diagnose import bisect_url, format_bisect, format_report, run_diagnosis
 from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
 from .parse_title import parse_title
@@ -642,6 +642,30 @@ def cmd_doctor(args) -> int:
     return 0 if diag.any_working else 1
 
 
+def cmd_bisect(args) -> int:
+    """Add one search parameter at a time until eBay refuses one."""
+    config = load_config(args.config)
+    query = next((q for q in config.queries if q.id == args.query), None)
+    if query is None:
+        print(f"no query {args.query!r}; have: {[q.id for q in config.queries]}",
+              file=sys.stderr)
+        return 2
+
+    profile = _resolve_profile(args)
+    if profile is None:
+        return 2
+
+    print("Adding one search parameter at a time. Seven requests, ~30 seconds.\n")
+    results = bisect_url(headless=not args.headed, profile_dir=profile,
+                         category=query.category or "261328",
+                         keywords=query.keywords or "football")
+    report = format_bisect(results)
+    print(report)
+    Path("bisect-report.txt").write_text(report, encoding="utf-8")
+    print("\nSaved to bisect-report.txt")
+    return 0
+
+
 def cmd_import(args) -> int:
     """Load eBay pages you saved yourself, instead of fetching them."""
     config = load_config(args.config) if Path(args.config or "").exists() else None
@@ -1038,6 +1062,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--chrome-profile", action="store_true",
                    help="use your everyday Chrome profile (close Chrome first)")
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser("bisect", help="find which search parameter eBay refuses")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--query", default="football_singles")
+    p.add_argument("--headed", action="store_true", help="show the browser window")
+    p.add_argument("--profile", default="data/browser-profile")
+    p.add_argument("--chrome-profile", action="store_true",
+                   help="use your everyday Chrome profile (close Chrome first)")
+    p.set_defaults(func=cmd_bisect)
 
     p = sub.add_parser("import", help="load eBay pages you saved yourself")
     p.add_argument("paths", nargs="+", help="HTML files, folders, or a glob")

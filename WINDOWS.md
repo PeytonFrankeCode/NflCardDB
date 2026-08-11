@@ -231,8 +231,13 @@ are yours forever; the photos are borrowed.
 
 **"eBay showed a robot check partway through."** Whatever it collected before
 that point is saved — nothing is lost. Running `collect.bat` again later picks up
-where it left off. If it happens every time, tell Claude and the collector can be
-slowed down.
+where it left off.
+
+**If it happens every single time, double-click `bisect.bat`.** It asks eBay for
+the same search seven times, adding one setting each time, and reports the first
+one refused. That turns "eBay is blocking me" into "eBay objects to *this*",
+which is something that can actually be changed. It writes `bisect-report.txt` —
+send that to Claude.
 
 **You want more than yesterday.** That is what `catchup.bat` is for, and the
 daily schedule already works backwards on its own. eBay only keeps about 90

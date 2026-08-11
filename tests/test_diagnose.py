@@ -57,3 +57,52 @@ def test_genuine_total_failure_still_says_so():
     ))
 
     assert "Nothing got through" in report
+
+
+def _stage(name, outcome, n=0):
+    from nflcarddb.diagnose import StageCheck
+    return StageCheck(name, "u", 200, outcome, "d", n)
+
+
+def test_bisect_names_the_first_parameter_that_fails():
+    """The whole point: which rung broke, not merely that something did."""
+    from nflcarddb.diagnose import CHALLENGED, WORKING, format_bisect
+
+    report = format_bisect([
+        _stage("plain search", WORKING, 50),
+        _stage("+ sold filter", WORKING, 48),
+        _stage("+ category", WORKING, 47),
+        _stage("+ sort by ended", WORKING, 47),
+        _stage("+ 60 per page", WORKING, 60),
+        _stage("+ 240 per page", CHALLENGED),
+        _stage("+ price band", CHALLENGED),
+    ])
+
+    assert "Last one that worked:  + 60 per page" in report
+    assert "First one refused:     + 240 per page" in report
+    assert "items_per_page: 60" in report          # the actionable fix
+
+
+def test_bisect_says_so_when_nothing_fails():
+    from nflcarddb.diagnose import WORKING, format_bisect
+
+    report = format_bisect([_stage("plain search", WORKING, 50),
+                            _stage("+ price band", WORKING, 47)])
+    assert "Every rung worked" in report
+
+
+def test_bisect_distinguishes_a_blanket_refusal():
+    """If even a plain search fails the query string is not the problem, and
+    pointing at a parameter would send you down the wrong path."""
+    from nflcarddb.diagnose import REFUSED, format_bisect
+
+    report = format_bisect([_stage("plain search", REFUSED),
+                            _stage("+ sold filter", REFUSED)])
+    assert "not about the query" in report
+    assert "First one refused" not in report
+
+
+def test_bisect_handles_no_browser():
+    from nflcarddb.diagnose import format_bisect
+
+    assert "Could not start a browser" in format_bisect([])

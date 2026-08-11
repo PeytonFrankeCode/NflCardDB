@@ -293,6 +293,7 @@ selectors.
 | `backfill` | collect past days, newest first, skipping done ones (`--days`, `--max-minutes`, `--force`) |
 | `probe` | one live request against a configured query |
 | `calibrate` | parse a saved HTML file, report coverage — no network |
+| `bisect` | add one search parameter at a time until eBay refuses one |
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |
 | `images` | photo coverage; `--upgrade` resizes stored URLs without re-scraping |
 | `coverage` | which of the last 90 days you hold, and how long the rest will take |
