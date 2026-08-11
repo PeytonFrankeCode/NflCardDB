@@ -106,3 +106,37 @@ def test_bisect_handles_no_browser():
     from nflcarddb.diagnose import format_bisect
 
     assert "Could not start a browser" in format_bisect([])
+
+
+def test_bisect_does_not_blame_a_rung_that_later_rungs_contradict():
+    """Peyton's real report: the cold first navigation was challenged and every
+    harder URL after it worked, including the collector's own query. Reading
+    that as "the plain search is the trigger" is nonsense, and it was."""
+    from nflcarddb.diagnose import CHALLENGED, WORKING, format_bisect
+
+    report = format_bisect([
+        _stage("plain search", CHALLENGED),
+        _stage("+ sold filter", WORKING, 60),
+        _stage("+ category", WORKING, 60),
+        _stage("+ sort by ended", WORKING, 54),
+        _stage("+ 60 per page", WORKING, 111),
+        _stage("+ 240 per page", WORKING, 236),
+        _stage("+ price band", WORKING, 240),
+    ])
+
+    assert "transient" in report
+    assert "So the trigger is what" not in report
+    assert "retries after a" in report
+
+
+def test_bisect_still_blames_a_rung_when_nothing_after_it_works():
+    from nflcarddb.diagnose import CHALLENGED, WORKING, format_bisect
+
+    report = format_bisect([
+        _stage("plain search", WORKING, 50),
+        _stage("+ sold filter", WORKING, 48),
+        _stage("+ category", CHALLENGED),
+        _stage("+ sort by ended", CHALLENGED),
+    ])
+    assert "First one refused:     + category" in report
+    assert "transient" not in report

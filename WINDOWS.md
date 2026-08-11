@@ -233,7 +233,8 @@ are yours forever; the photos are borrowed.
 that point is saved — nothing is lost. Running `collect.bat` again later picks up
 where it left off.
 
-**If it happens every single time, double-click `bisect.bat`.** It asks eBay for
+**If it happens every single time, double-click `bisect.bat`.** It also tells
+the two cases apart: a passing interruption versus a genuine block. It asks eBay for
 the same search seven times, adding one setting each time, and reports the first
 one refused. That turns "eBay is blocking me" into "eBay objects to *this*",
 which is something that can actually be changed. It writes `bisect-report.txt` —

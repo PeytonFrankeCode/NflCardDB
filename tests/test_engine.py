@@ -902,3 +902,82 @@ def test_an_unrecognised_landing_page_stays_unknown(monkeypatch):
     f._check_signed_in()
 
     assert f.signed_in is None
+
+
+def _challenge_html():
+    return "<html><body>Pardon Our Interruption ...</body></html>"
+
+
+def _results_html():
+    return ("<html><ul class='srp-results'>"
+            "<li><a href='https://www.ebay.com/itm/123456789012'>x</a></li>"
+            "</ul></html>")
+
+
+def _fetcher_serving(monkeypatch, pages):
+    """A BrowserFetcher whose navigations return `pages` in order."""
+    from nflcarddb.browser import BrowserFetcher
+
+    seq = list(pages)
+    visited = []
+
+    class FakePage:
+        url = "https://www.ebay.com/sch/i.html"
+
+        def goto(self, url, **kw):
+            visited.append(url)
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def query_selector(self, sel):
+            return None
+
+        def content(self):
+            return seq.pop(0) if seq else _results_html()
+
+    f = BrowserFetcher(delay=0, jitter=0, max_retries=1, profile_dir=None,
+                       warm_up=False)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    monkeypatch.setattr("nflcarddb.browser.time.sleep", lambda s: None)
+    f._page = FakePage()
+    return f, visited
+
+
+def test_a_single_bot_check_is_retried_not_fatal(monkeypatch):
+    """bisect showed a challenged navigation followed by six successful ones,
+    so giving up on the first was throwing away runs that would have finished."""
+    f, visited = _fetcher_serving(monkeypatch, [_challenge_html(), _results_html()])
+
+    html = f.get("https://www.ebay.com/sch/i.html?LH_Sold=1")
+
+    assert "srp-results" in html
+    assert f.stats.blocked == 1            # it happened, and is still counted
+    # It went back to the homepage before retrying, rather than reloading
+    # straight into the same challenge.
+    assert "https://www.ebay.com/" in visited
+
+
+def test_repeated_bot_checks_on_one_request_do_give_up(monkeypatch):
+    """Retrying forever would hammer eBay through a real block."""
+    from nflcarddb.fetch import BlockedError
+
+    f, _ = _fetcher_serving(monkeypatch, [_challenge_html()] * 12)
+    f.challenge_retries = 3
+
+    with pytest.raises(BlockedError, match="times in a row"):
+        f.get("https://www.ebay.com/sch/i.html?LH_Sold=1")
+
+    assert f.stats.blocked == 4            # the retries, then the verdict
+
+
+def test_several_scattered_bot_checks_still_complete(monkeypatch):
+    """The realistic pattern: eBay challenges now and then across a long run."""
+    f, _ = _fetcher_serving(monkeypatch, [
+        _challenge_html(), _challenge_html(), _results_html(),
+    ])
+
+    html = f.get("https://www.ebay.com/sch/i.html?LH_Sold=1")
+    assert "srp-results" in html
+    assert f.stats.blocked == 2
