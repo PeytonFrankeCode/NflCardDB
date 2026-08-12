@@ -33,7 +33,9 @@ fetch:
   # login.bat instead -- that profile is written and read by the same launcher,
   # which is what makes it reusable.
   chrome_profile: false
-  delay: 2.5              # seconds between requests (floor; jitter is added)
+  # Seconds between the START of one request and the next (jitter is added).
+  # Page load time counts toward it, so this is the request rate eBay sees.
+  delay: 2.5
   jitter: 1.0
   max_retries: 4
   timeout: 30

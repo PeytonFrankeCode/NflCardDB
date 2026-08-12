@@ -136,6 +136,7 @@ class BrowserFetcher:
         profile_dir: Optional[str] = "data/browser-profile",
         warm_up: bool = True,
         challenge_retries: int = 4,
+        block_media: bool = True,
         profile_directory: Optional[str] = None,
     ) -> None:
         self.delay = delay
@@ -160,6 +161,7 @@ class BrowserFetcher:
         self._warmed = False
         # How many bot checks on one request before calling it a real block.
         self.challenge_retries = challenge_retries
+        self.block_media = block_media
         # None until the warm-up has seen an ordinary eBay page.
         self.signed_in: Optional[bool] = None
         self._profile_directory = profile_directory
@@ -234,6 +236,8 @@ class BrowserFetcher:
                     # context is the thing that has to be closed.
                     self._browser = context.browser
                     context.add_init_script(STEALTH_SCRIPT)
+                    if self.block_media:
+                        self._block_heavy_resources(context)
                     # A real profile restores its previous tabs, so pages[0] is
                     # some old tab rather than anything we control -- and the
                     # user watches a window we are not driving. Always open a
@@ -282,8 +286,39 @@ class BrowserFetcher:
 
         context = self._browser.new_context(**context_kwargs)
         context.add_init_script(STEALTH_SCRIPT)
+        if self.block_media:
+            self._block_heavy_resources(context)
         self._context = context
         self._page = context.new_page()
+
+    def _block_heavy_resources(self, context) -> None:
+        """Stop downloading things the parser never reads.
+
+        A sold-search page at 240 results per page pulls 240 thumbnails, plus
+        fonts, tracking pixels and video. All of it is fetched, decoded and
+        never looked at: the parser reads markup, and photo URLs come from the
+        `src` attribute, which is present whether or not the bytes arrive.
+        Skipping them is most of the page load.
+
+        Stylesheets and scripts are deliberately still fetched. They are cheap
+        next to images, and a browser that runs no JavaScript is a far stranger
+        thing than one that skips pictures -- which is just an ad blocker.
+        """
+        blocked = {"image", "media", "font"}
+
+        def route(handler):
+            try:
+                if handler.request.resource_type in blocked:
+                    handler.abort()
+                else:
+                    handler.continue_()
+            except Exception:            # the page moved on; nothing to do
+                pass
+
+        try:
+            context.route("**/*", route)
+        except Exception as exc:         # pragma: no cover - environment dependent
+            log.debug("could not install resource blocking (%s)", exc)
 
     def _warm_up_session(self) -> None:
         """Visit the homepage once before any search.
@@ -404,6 +439,14 @@ class BrowserFetcher:
         return self.page_budget is not None and self.stats.requests >= self.page_budget
 
     def _sleep_until_allowed(self) -> None:
+        """Hold one request per `delay` seconds, counting from request *start*.
+
+        Measuring from the end of the previous navigation made the real gap
+        `page load + delay` -- around 7s a page when the setting said 2.5. eBay
+        sees the same rate either way, because the rate is what the interval
+        between requests describes; the extra seconds bought nothing and made a
+        full day take three times as long as configured.
+        """
         elapsed = time.monotonic() - self._last_request
         wait = self.delay + random.uniform(0, self.jitter) - elapsed
         if wait > 0:
@@ -420,11 +463,13 @@ class BrowserFetcher:
 
         for attempt in range(self.max_retries + self.challenge_retries + 1):
             self._sleep_until_allowed()
+            # Stamped before the navigation, so the interval is request-to-
+            # request rather than request-to-finish.
+            self._last_request = time.monotonic()
             try:
                 response = self._page.goto(
                     url, timeout=self.timeout, wait_until="domcontentloaded"
                 )
-                self._last_request = time.monotonic()
                 self.stats.requests += 1
 
                 status = response.status if response else 0
@@ -465,7 +510,7 @@ class BrowserFetcher:
                             f"row for one request, so this is not a passing one. "
                             f"Wait a while, then try again with a longer --delay."
                         )
-                    backoff = min(90.0, 10.0 * (2 ** (challenges - 1))) + random.uniform(0, 4)
+                    backoff = min(60.0, 5.0 * (2 ** (challenges - 1))) + random.uniform(0, 3)
                     log.warning("bot check (%d/%d); waiting %.0fs and retrying",
                                 challenges, self.challenge_retries, backoff)
                     time.sleep(backoff)

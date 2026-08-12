@@ -139,6 +139,11 @@ Days already collected are skipped, so it walks steadily back through the window
 and then quietly becomes a no-op. It also fills in any day the schedule missed,
 which means a week away from the PC repairs itself.
 
+**How long a day takes.** Roughly 2-4 seconds a page, so a full day is 10-15
+minutes. If it feels slower than that, the log line `seconds_per_page` at the end
+of a run says exactly where you are. Bot checks add a pause each time — they are
+survivable now, but not free.
+
 **Double-click `catchup.bat`** to see a progress bar of how much of the 90 days
 you hold, and to push harder if you want — "collect for a few hours" or "collect
 until it's finished", right now, on top of whatever the schedule is doing.

@@ -981,3 +981,108 @@ def test_several_scattered_bot_checks_still_complete(monkeypatch):
     html = f.get("https://www.ebay.com/sch/i.html?LH_Sold=1")
     assert "srp-results" in html
     assert f.stats.blocked == 2
+
+
+def test_the_delay_is_measured_from_when_the_request_started(monkeypatch):
+    """Timing from the end of the previous page made the real gap `load +
+    delay` -- 7s a page where the setting said 2.5, for no benefit."""
+    from nflcarddb.browser import BrowserFetcher
+
+    slept = []
+    clock = {"t": 100.0}
+
+    class SlowPage:
+        url = "https://www.ebay.com/sch"
+
+        def goto(self, url, **kw):
+            clock["t"] += 4.0            # a page that takes 4s to load
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def content(self):
+            return _results_html()
+
+    f = BrowserFetcher(delay=2.5, jitter=0, profile_dir=None, warm_up=False)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    monkeypatch.setattr("nflcarddb.browser.time.monotonic", lambda: clock["t"])
+    monkeypatch.setattr("nflcarddb.browser.time.sleep",
+                        lambda s: (slept.append(s), clock.__setitem__("t", clock["t"] + s)))
+    f._page = SlowPage()
+
+    f.get("https://www.ebay.com/sch?a=1")
+    slept.clear()
+    f.get("https://www.ebay.com/sch?a=2")
+
+    # The 4s navigation already covered the 2.5s interval, so nothing to wait.
+    assert not [s for s in slept if s > 0]
+
+
+def test_a_fast_page_still_waits_the_full_interval(monkeypatch):
+    """The pacing floor still holds -- this is not a licence to sprint."""
+    from nflcarddb.browser import BrowserFetcher
+
+    slept = []
+    clock = {"t": 100.0}
+
+    class FastPage:
+        url = "https://www.ebay.com/sch"
+
+        def goto(self, url, **kw):
+            clock["t"] += 0.2
+            return type("R", (), {"status": 200})()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+        def content(self):
+            return _results_html()
+
+    f = BrowserFetcher(delay=2.5, jitter=0, profile_dir=None, warm_up=False)
+    monkeypatch.setattr(f, "_ensure_browser", lambda: None)
+    monkeypatch.setattr("nflcarddb.browser.time.monotonic", lambda: clock["t"])
+    monkeypatch.setattr("nflcarddb.browser.time.sleep",
+                        lambda s: (slept.append(s), clock.__setitem__("t", clock["t"] + s)))
+    f._page = FastPage()
+
+    f.get("https://www.ebay.com/sch?a=1")
+    slept.clear()
+    f.get("https://www.ebay.com/sch?a=2")
+
+    assert sum(slept) == pytest.approx(2.3, abs=0.05)   # 2.5 minus the 0.2 load
+
+
+def test_images_are_blocked_but_the_page_itself_is_not(monkeypatch):
+    """Photos still parse: the URL is an attribute, not a downloaded byte."""
+    from nflcarddb.browser import BrowserFetcher
+
+    verdicts = {}
+
+    class Route:
+        def __init__(self, kind):
+            self.request = type("Q", (), {"resource_type": kind})()
+            self.kind = kind
+
+        def abort(self):
+            verdicts[self.kind] = "abort"
+
+        def continue_(self):
+            verdicts[self.kind] = "continue"
+
+    class Context:
+        def route(self, pattern, handler):
+            for kind in ("image", "font", "media", "document", "script",
+                         "stylesheet", "xhr"):
+                handler(Route(kind))
+
+    f = BrowserFetcher(profile_dir=None)
+    f._block_heavy_resources(Context())
+
+    assert verdicts["image"] == "abort"
+    assert verdicts["font"] == "abort"
+    assert verdicts["media"] == "abort"
+    # A browser that runs no JavaScript is stranger than one that skips images.
+    assert verdicts["document"] == "continue"
+    assert verdicts["script"] == "continue"
+    assert verdicts["stylesheet"] == "continue"

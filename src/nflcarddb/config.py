@@ -40,6 +40,12 @@ class FetchConfig:
     # Verified with one request per run before it is relied on; set false to
     # force the old behaviour.
     try_oldest_first: bool = True
+    # Skip downloading images, fonts and video. The parser reads markup, and
+    # photo URLs live in the `src` attribute whether or not the bytes arrive --
+    # so this is most of the page load for nothing lost.
+    block_media: bool = True
+    # Bot checks in a row on one request before it counts as a real block.
+    challenge_retries: int = 4
     user_agent: Optional[str] = None
     # auto | requests | browser. "auto" tries the light HTTP client and switches
     # to a real browser if eBay refuses it.

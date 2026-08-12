@@ -57,6 +57,7 @@ class ScrapeReport:
         # "eBay blocked us" from "the network is down".
         self.reason: Optional[str] = None
         self.engine: Optional[str] = None
+        self.seconds = 0.0
 
     def as_dict(self) -> dict:
         return {
@@ -66,6 +67,9 @@ class ScrapeReport:
             "items_seen": self.seen,
             "items_new": self.new,
             "pages_fetched": self.pages,
+            "seconds": self.seconds,
+            "seconds_per_page": (round(self.seconds / self.pages, 1)
+                                 if self.pages else None),
             "status": self.status,
             "reason": self.reason,
             "error": self.error,
@@ -96,6 +100,7 @@ def run_scrape(
 
     run_id = store.start_run(conn, target_date)
     report = ScrapeReport(run_id, target_date)
+    started = time.monotonic()
 
     use_chrome = (
         config.fetch.chrome_profile if chrome_profile is None else chrome_profile
@@ -145,6 +150,8 @@ def run_scrape(
             else config.fetch.page_budget
         ),
         save_dir=save_html_dir,
+        block_media=config.fetch.block_media,
+        challenge_retries=config.fetch.challenge_retries,
     )
 
     roster = load_roster(config.roster) if config.roster else None
@@ -274,6 +281,7 @@ def run_scrape(
     finally:
         flush()
         report.pages = fetcher.stats.requests
+        report.seconds = round(time.monotonic() - started, 1)
         if getattr(fetcher, "switched", False):
             report.engine = "browser"
         # Chromium is a real process; it has to be shut down or it outlives the run.
