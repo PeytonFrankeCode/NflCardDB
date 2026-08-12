@@ -303,22 +303,31 @@ class BrowserFetcher:
         Stylesheets and scripts are deliberately still fetched. They are cheap
         next to images, and a browser that runs no JavaScript is a far stranger
         thing than one that skips pictures -- which is just an ad blocker.
-        """
-        blocked = {"image", "media", "font"}
 
-        def route(handler):
+        Only the patterns being blocked are routed. Routing `**/*` and calling
+        `continue_()` on the rest sends every subresource on the page out to
+        Python and back, which cost more than the images saved -- the first
+        version of this made pages slower, not faster. An unmatched request
+        never reaches this process.
+        """
+        patterns = (
+            "**/i.ebayimg.com/**",       # the thumbnails: 240 of them a page
+            "**/*.{png,jpg,jpeg,gif,webp,svg,ico,bmp}",
+            "**/*.{woff,woff2,ttf,otf,eot}",
+            "**/*.{mp4,webm,m4v,mp3,ogg}",
+        )
+
+        def abort(handler):
             try:
-                if handler.request.resource_type in blocked:
-                    handler.abort()
-                else:
-                    handler.continue_()
+                handler.abort()
             except Exception:            # the page moved on; nothing to do
                 pass
 
-        try:
-            context.route("**/*", route)
-        except Exception as exc:         # pragma: no cover - environment dependent
-            log.debug("could not install resource blocking (%s)", exc)
+        for pattern in patterns:
+            try:
+                context.route(pattern, abort)
+            except Exception as exc:     # pragma: no cover - environment dependent
+                log.debug("could not block %s (%s)", pattern, exc)
 
     def _warm_up_session(self) -> None:
         """Visit the homepage once before any search.
@@ -364,7 +373,7 @@ class BrowserFetcher:
         try:
             self._page.goto("https://www.ebay.com/", timeout=self.timeout,
                             wait_until="domcontentloaded")
-            self._page.wait_for_timeout(random.randint(2000, 4000))
+            self._page.wait_for_timeout(random.randint(1000, 2000))
         except Exception as exc:
             log.debug("could not return to the homepage (%s)", exc)
 
@@ -510,11 +519,17 @@ class BrowserFetcher:
                             f"row for one request, so this is not a passing one. "
                             f"Wait a while, then try again with a longer --delay."
                         )
-                    backoff = min(60.0, 5.0 * (2 ** (challenges - 1))) + random.uniform(0, 3)
+                    backoff = min(60.0, 3.0 * (2 ** (challenges - 1))) + random.uniform(0, 2)
                     log.warning("bot check (%d/%d); waiting %.0fs and retrying",
                                 challenges, self.challenge_retries, backoff)
+                    spent = time.monotonic()
                     time.sleep(backoff)
-                    self._reestablish()
+                    # The homepage detour is a whole extra navigation plus a
+                    # pause. Worth it once eBay is insisting, wasteful on the
+                    # first one -- which usually clears on a plain retry.
+                    if challenges > 1:
+                        self._reestablish()
+                    self.stats.challenge_seconds += time.monotonic() - spent
                     continue
                 if status >= 400:
                     last_err = FetchError(f"HTTP {status}")

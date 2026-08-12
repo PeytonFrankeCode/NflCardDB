@@ -954,9 +954,9 @@ def test_a_single_bot_check_is_retried_not_fatal(monkeypatch):
 
     assert "srp-results" in html
     assert f.stats.blocked == 1            # it happened, and is still counted
-    # It went back to the homepage before retrying, rather than reloading
-    # straight into the same challenge.
-    assert "https://www.ebay.com/" in visited
+    # The first one is retried directly. The homepage detour is a whole extra
+    # navigation, and at ~9s a page that overhead was the complaint.
+    assert "https://www.ebay.com/" not in visited
 
 
 def test_repeated_bot_checks_on_one_request_do_give_up(monkeypatch):
@@ -1053,36 +1053,45 @@ def test_a_fast_page_still_waits_the_full_interval(monkeypatch):
     assert sum(slept) == pytest.approx(2.3, abs=0.05)   # 2.5 minus the 0.2 load
 
 
-def test_images_are_blocked_but_the_page_itself_is_not(monkeypatch):
-    """Photos still parse: the URL is an attribute, not a downloaded byte."""
+def test_only_heavy_resources_are_routed_at_all():
+    """Routing `**/*` sends every subresource out to Python and back, which cost
+    more than the images saved. Only what gets aborted may be intercepted."""
     from nflcarddb.browser import BrowserFetcher
 
-    verdicts = {}
-
-    class Route:
-        def __init__(self, kind):
-            self.request = type("Q", (), {"resource_type": kind})()
-            self.kind = kind
-
-        def abort(self):
-            verdicts[self.kind] = "abort"
-
-        def continue_(self):
-            verdicts[self.kind] = "continue"
+    patterns = []
 
     class Context:
         def route(self, pattern, handler):
-            for kind in ("image", "font", "media", "document", "script",
-                         "stylesheet", "xhr"):
-                handler(Route(kind))
+            patterns.append(pattern)
 
     f = BrowserFetcher(profile_dir=None)
     f._block_heavy_resources(Context())
 
-    assert verdicts["image"] == "abort"
-    assert verdicts["font"] == "abort"
-    assert verdicts["media"] == "abort"
-    # A browser that runs no JavaScript is stranger than one that skips images.
-    assert verdicts["document"] == "continue"
-    assert verdicts["script"] == "continue"
-    assert verdicts["stylesheet"] == "continue"
+    assert "**/*" not in patterns
+    assert any("i.ebayimg.com" in p for p in patterns)     # the 240 thumbnails
+    assert any("jpg" in p and "webp" in p for p in patterns)
+    assert any("woff" in p for p in patterns)
+    # Nothing that would catch the page, its scripts or its stylesheets.
+    assert not any(p.endswith(("html", "js", "css")) for p in patterns)
+
+
+def test_a_routed_request_is_aborted_not_continued():
+    from nflcarddb.browser import BrowserFetcher
+
+    calls = []
+
+    class Route:
+        def abort(self):
+            calls.append("abort")
+
+        def continue_(self):
+            calls.append("continue")
+
+    class Context:
+        def route(self, pattern, handler):
+            handler(Route())
+
+    f = BrowserFetcher(profile_dir=None)
+    f._block_heavy_resources(Context())
+
+    assert set(calls) == {"abort"}

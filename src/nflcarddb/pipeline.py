@@ -58,6 +58,8 @@ class ScrapeReport:
         self.reason: Optional[str] = None
         self.engine: Optional[str] = None
         self.seconds = 0.0
+        self.blocked = 0
+        self.challenge_seconds = 0.0
 
     def as_dict(self) -> dict:
         return {
@@ -70,6 +72,8 @@ class ScrapeReport:
             "seconds": self.seconds,
             "seconds_per_page": (round(self.seconds / self.pages, 1)
                                  if self.pages else None),
+            "bot_checks": self.blocked,
+            "seconds_lost_to_bot_checks": self.challenge_seconds,
             "status": self.status,
             "reason": self.reason,
             "error": self.error,
@@ -282,6 +286,8 @@ def run_scrape(
         flush()
         report.pages = fetcher.stats.requests
         report.seconds = round(time.monotonic() - started, 1)
+        report.blocked = fetcher.stats.blocked
+        report.challenge_seconds = round(fetcher.stats.challenge_seconds, 1)
         if getattr(fetcher, "switched", False):
             report.engine = "browser"
         # Chromium is a real process; it has to be shut down or it outlives the run.
