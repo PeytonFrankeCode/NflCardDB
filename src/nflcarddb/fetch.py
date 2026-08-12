@@ -99,6 +99,10 @@ class FetchStats:
     retries: int = 0
     blocked: int = 0
     bytes: int = 0
+    # Wall clock spent waiting out bot checks. Separated from everything else
+    # because it is the one cost that is eBay's doing rather than a setting,
+    # and it is invisible in a plain "seconds per page" figure.
+    challenge_seconds: float = 0.0
 
 
 class Fetcher:
