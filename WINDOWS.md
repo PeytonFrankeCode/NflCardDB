@@ -232,6 +232,29 @@ are yours forever; the photos are borrowed.
 
 ---
 
+## If this PC is wiped, reset or replaced
+
+Your sales are not on GitHub — the database is working data, not a project file,
+so it is deliberately not committed. **They are on Cloudflare**, which is
+unaffected by anything that happens to this computer.
+
+To get them back on a fresh PC:
+
+1. Clone the project again in GitHub Desktop. If it refuses, saying the folder
+   must be empty, the old folder is still there — delete it, or type a different
+   name in the **Local path** box.
+2. `setup.bat`
+3. **`restore.bat`** — paste your Cloudflare token and Account ID, and it
+   downloads every sale you had uploaded back into a local database.
+4. `login.bat` to sign in to eBay again.
+
+What does not come back: the record of which run collected what, and anything
+that was collected but never uploaded to Cloudflare. Neither affects your prices.
+
+The lesson worth taking: **anything only on this PC is one accident from gone.**
+Run `d1-push.bat` (or let the schedule do it) rather than letting collected days
+pile up locally.
+
 ## Things that will happen eventually
 
 **"eBay showed a robot check partway through."** Whatever it collected before

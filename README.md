@@ -305,6 +305,7 @@ selectors.
 | `publish` | write `site/data/*.json` for the Pages dashboard |
 | `api-key` | mint a key for the hosted API (shown once) |
 | `export-api` | write SQL that loads the data into Cloudflare D1 |
+| `d1-pull` | rebuild the local database by downloading it back from D1 |
 | `url` | print the URLs a config would hit, fetch nothing |
 
 ## Known limitations

@@ -804,6 +804,51 @@ def cmd_d1_push(args) -> int:
         return 3
 
 
+def cmd_d1_pull(args) -> int:
+    """Rebuild the local database from Cloudflare D1."""
+    import os
+
+    from .d1_http import D1Error
+    from .d1_restore import count_rows, restore
+
+    token = args.token or os.environ.get("CLOUDFLARE_API_TOKEN")
+    if not token:
+        print("No API token.\n", file=sys.stderr)
+        print("Create one at https://dash.cloudflare.com/profile/api-tokens", file=sys.stderr)
+        print("  Create Token -> Custom token -> Account | D1 | Edit\n", file=sys.stderr)
+        print("Then pass --token, or set it first:", file=sys.stderr)
+        print("  set CLOUDFLARE_API_TOKEN=your_token_here", file=sys.stderr)
+        return 2
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+    roster = args.roster or (config.roster if config else None)
+
+    try:
+        total = count_rows(args.account_id, args.database_id, token)
+        if not total:
+            print("Cloudflare has no sales to restore.", file=sys.stderr)
+            return 1
+        print(f"Cloudflare holds {total:,} sales. Downloading...\n")
+
+        def progress(done):
+            print(f"  {done:,} / {total:,}", flush=True)
+
+        result = restore(args.account_id, args.database_id, token, db_path,
+                         roster_path=roster, since=args.since,
+                         on_progress=progress)
+    except D1Error as exc:
+        print(f"\nRestore failed: {exc}", file=sys.stderr)
+        return 3
+
+    print()
+    print(json.dumps(result, indent=2))
+    print(f"\nRebuilt {db_path}.")
+    print("Run  nflcarddb recheck  to find any day that was incomplete before,")
+    print("and  nflcarddb publish  to refresh the dashboard.")
+    return 0
+
+
 def cmd_setup_api(args) -> int:
     """Create the database, upload the data, deploy the API -- in one go."""
     from .cloud_setup import SetupError, setup
@@ -1092,6 +1137,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--verify-only", action="store_true",
                    help="just report what D1 already holds, upload nothing")
     p.set_defaults(func=cmd_d1_push)
+
+    p = sub.add_parser("d1-pull", help="rebuild the local database from Cloudflare D1")
+    p.add_argument("--account-id", required=True)
+    p.add_argument("--database-id", required=True)
+    p.add_argument("--token", help="or set CLOUDFLARE_API_TOKEN")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--roster")
+    p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
+    p.set_defaults(func=cmd_d1_pull)
 
     p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")
     p.add_argument("--db", default="data/nflcarddb.sqlite")
