@@ -1,4 +1,4 @@
-Obtaining file:///C:/Users/peyto/OneDrive/Documents/GitHub/NflCardDB
+Obtaining file:///C:/Users/peyto/OneDrive/Documents/GitHub/NflCardDB2
   Installing build dependencies: started
   Installing build dependencies: finished with status 'done'
   Checking if build backend supports build_editable: started
@@ -13,21 +13,21 @@ Requirement already satisfied: lxml>=5.0 in .\venv\Lib\site-packages (from nflca
 Requirement already satisfied: PyYAML>=6.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.0.3)
 Requirement already satisfied: playwright>=1.40 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (1.62.0)
 Requirement already satisfied: curl_cffi>=0.7 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (0.16.0)
-Requirement already satisfied: soupsieve>=1.6.1 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (2.9.1)
+Requirement already satisfied: soupsieve>=1.6.1 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (2.9.2)
 Requirement already satisfied: typing-extensions>=4.0.0 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (4.16.0)
-Requirement already satisfied: cffi>=2.0.0 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2.1.0)
+Requirement already satisfied: cffi>=2.0.0 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2.1.1)
 Requirement already satisfied: certifi>=2024.2.2 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2026.7.22)
 Requirement already satisfied: pycparser in .\venv\Lib\site-packages (from cffi>=2.0.0->curl_cffi>=0.7->nflcarddb==0.1.0) (3.0)
 Requirement already satisfied: pyee<14,>=13 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (13.0.1)
-Requirement already satisfied: greenlet<4.0.0,>=3.1.1 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (3.5.4)
-Requirement already satisfied: charset_normalizer<4,>=2 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.4.9)
+Requirement already satisfied: greenlet<4.0.0,>=3.1.1 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (3.5.5)
+Requirement already satisfied: charset_normalizer<4,>=2 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.5.0)
 Requirement already satisfied: idna<4,>=2.5 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.18)
 Requirement already satisfied: urllib3<3,>=1.26 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (2.7.0)
 Building wheels for collected packages: nflcarddb
   Building editable for nflcarddb (pyproject.toml): started
   Building editable for nflcarddb (pyproject.toml): finished with status 'done'
-  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1700 sha256=03c588fba5ddff75b6bbb01e586e586d9de26ccbd8c6da69f3444928b0f00eac
-  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-fcmr9b3i\wheels\ef\13\c0\13fd32622ec535717474479b24e1a00ff164cfaa43df71110e
+  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1704 sha256=b3410aa63b495fd139a39dd8ad535573e5543b1d7d01215e93daef64b8ad6caa
+  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-rwaajfq_\wheels\bd\3b\31\6ddead804799381f1cefd2ad9e4651ebea9ea519037a531eb3
 Successfully built nflcarddb
 Installing collected packages: nflcarddb
   Attempting uninstall: nflcarddb
