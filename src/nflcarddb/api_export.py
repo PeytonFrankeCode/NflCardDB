@@ -52,12 +52,27 @@ def _sql_literal(value) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def _rows_to_export(conn: sqlite3.Connection, since: Optional[str]) -> list[sqlite3.Row]:
+def _rows_to_export(
+    conn: sqlite3.Connection,
+    since: Optional[str],
+    changed_since: Optional[str] = None,
+) -> list[sqlite3.Row]:
+    """Rows for the export.
+
+    `since` filters by sale date -- "only recent days". `changed_since` filters
+    by when the row was last written, which is the one that makes an upload
+    incremental: it catches new sales and re-collected ones alike, and skips
+    everything already sent. Sending the whole table is fine at 20,000 rows and
+    unusable at a million.
+    """
     where = "WHERE s.sold_date IS NOT NULL"
     params: tuple = ()
     if since:
         where += " AND s.sold_date >= ?"
         params = (since,)
+    if changed_since:
+        where += " AND s.updated_at > ?"
+        params = (*params, changed_since)
 
     return conn.execute(
         f"""
@@ -123,13 +138,17 @@ def build_sql(
     db_path: str | Path,
     since: Optional[str] = None,
     key_hashes: Optional[Iterable[tuple[str, str]]] = None,
+    changed_since: Optional[str] = None,
 ) -> tuple[str, dict]:
     """Build the D1 import script. Returns (sql, stats)."""
     conn = store.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
-        rows = _rows_to_export(conn, since)
+        rows = _rows_to_export(conn, since, changed_since)
+        # Daily rollups are recomputed in full regardless: there is one row per
+        # day, so ~90 of them, and a partial day's medians would be wrong.
         rollups = _daily_rollups(conn, since)
+        watermark = store.max_updated_at(conn)
     finally:
         conn.close()
 
@@ -186,8 +205,12 @@ def build_sql(
         "rows": len(rows),
         "days": len(rollups),
         "since": since,
+        "changed_since": changed_since,
         "keys_added": len(list(key_hashes or [])),
         "generated_at": now,
+        # The highest sales.updated_at in the database, which becomes the next
+        # push's starting point once this one has actually landed.
+        "watermark": watermark,
     }
     return ("\n".join(lines) + "\n", stats)
 
@@ -197,8 +220,9 @@ def export_api_sql(
     out_path: str | Path,
     since: Optional[str] = None,
     key_hashes: Optional[Iterable[tuple[str, str]]] = None,
+    changed_since: Optional[str] = None,
 ) -> dict:
-    sql, stats = build_sql(db_path, since, list(key_hashes or []))
+    sql, stats = build_sql(db_path, since, list(key_hashes or []), changed_since)
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(sql, encoding="utf-8")

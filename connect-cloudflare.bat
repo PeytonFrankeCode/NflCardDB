@@ -43,6 +43,9 @@ if errorlevel 1 goto BADCREDS
 
 echo.
 echo Saving them for next time...
+if not exist data mkdir data
+> data\cloudflare.txt echo token=!TOK!
+>> data\cloudflare.txt echo account=!ACCT!
 setx CLOUDFLARE_API_TOKEN "!TOK!" >nul
 setx CF_ACCOUNT_ID "!ACCT!" >nul
 
@@ -53,8 +56,9 @@ echo ==========================================================
 echo.
 echo Uploads will not ask for these again.
 echo.
-echo Note: they are stored in your Windows user settings, in
-echo plain text, like most tools do. The token can only touch
+echo Note: they are stored in data\cloudflare.txt and in your
+echo Windows user settings, in plain text, like most tools do.
+echo git ignores that file, so it cannot be committed. The token can only touch
 echo Cloudflare databases - it cannot read your email, your
 echo domains, or anything else. To revoke it, delete it in the
 echo Cloudflare page above and run this again.

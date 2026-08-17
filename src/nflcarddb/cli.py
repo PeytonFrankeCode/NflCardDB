@@ -764,12 +764,30 @@ def cmd_d1_push(args) -> int:
                 print(f"Migrated: {statement}")
 
         if not args.schema_only:
+            # Only what changed since the last successful push to THIS database.
+            # Re-sending 150,000 rows to deliver one new day is the thing that
+            # stops working as the dataset grows.
+            conn = store.connect(args.db)
+            try:
+                mark = None if args.full else store.sync_watermark(
+                    conn, args.database_id)
+            finally:
+                conn.close()
+
+            if mark:
+                print(f"Sending only what changed since {mark}.")
+                print("  (use --full to re-send everything)\n")
+            else:
+                print("First upload to this database -- sending everything.\n")
+
             print("Building the upload from your local database...")
-            stats = export_api_sql(args.db, args.out, since=args.since)
+            stats = export_api_sql(args.db, args.out, since=args.since,
+                                   changed_since=mark)
             print(f"  {stats['rows']} rows, {stats['bytes'] // 1024} KB\n")
             if not stats["rows"]:
-                print("Nothing to upload -- collect some sales first.", file=sys.stderr)
-                return 1
+                print("Nothing new to upload -- Cloudflare already has "
+                      "everything collected.")
+                return 0
 
             print("Uploading...")
             sql = Path(args.out).read_text(encoding="utf-8")
@@ -777,6 +795,16 @@ def cmd_d1_push(args) -> int:
                               dry_run=args.dry_run, on_progress=progress)
             print()
             print(json.dumps(result.as_dict(), indent=2))
+
+            # Recorded only after the upload returned without raising, so a
+            # failed push is retried in full rather than silently skipped.
+            if not args.dry_run and stats.get("watermark"):
+                conn = store.connect(args.db)
+                try:
+                    store.record_sync(conn, args.database_id,
+                                      stats["watermark"], stats["rows"])
+                finally:
+                    conn.close()
 
         if args.dry_run:
             print("\nDry run -- nothing was sent.")
@@ -1133,6 +1161,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--schema", help="path to schema.sql, to create the tables first")
     p.add_argument("--schema-only", action="store_true", help="tables only, no data")
     p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
+    p.add_argument("--full", action="store_true",
+                   help="re-send every row, ignoring what was already uploaded")
     p.add_argument("--dry-run", action="store_true", help="show what would be sent")
     p.add_argument("--verify-only", action="store_true",
                    help="just report what D1 already holds, upload nothing")

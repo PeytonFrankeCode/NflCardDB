@@ -5,6 +5,7 @@ cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
+call "%~dp0_cloudflare.bat"
 
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 
@@ -18,21 +19,7 @@ echo affected by anything that happened to this PC. This
 echo downloads them back into a local database.
 echo.
 
-if "%CLOUDFLARE_API_TOKEN%"=="" (
-  echo You need a Cloudflare API token:
-  echo   https://dash.cloudflare.com/profile/api-tokens
-  echo   Create Token  -^>  Custom token  -^>  Account ^| D1 ^| Edit
-  echo.
-  set /p CFTOKEN=Paste your API token:
-  set "CLOUDFLARE_API_TOKEN=!CFTOKEN!"
-  echo.
-)
 
-if "%CF_ACCOUNT_ID%"=="" (
-  set /p CFACCT=Paste your Account ID:
-  set "CF_ACCOUNT_ID=!CFACCT!"
-  echo.
-)
 
 nflcarddb d1-pull --account-id "!CF_ACCOUNT_ID!" --database-id %DBID%
 if errorlevel 1 goto FAILED
