@@ -249,3 +249,29 @@ def daily_summary(conn: sqlite3.Connection, sold_date: str) -> dict:
         (sold_date,),
     ).fetchone()
     return dict(row) if row else {}
+
+
+def sync_watermark(conn: sqlite3.Connection, target: str) -> Optional[str]:
+    """The highest `sales.updated_at` already pushed to this target."""
+    row = conn.execute(
+        "SELECT pushed_at FROM sync_state WHERE target = ?", (target,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+def record_sync(conn: sqlite3.Connection, target: str, pushed_at: str,
+                rows_sent: int) -> None:
+    conn.execute(
+        "INSERT INTO sync_state (target, pushed_at, rows_sent, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(target) DO UPDATE SET pushed_at = excluded.pushed_at, "
+        "  rows_sent = sync_state.rows_sent + excluded.rows_sent, "
+        "  updated_at = excluded.updated_at",
+        (target, pushed_at, rows_sent, utcnow()),
+    )
+    conn.commit()
+
+
+def max_updated_at(conn: sqlite3.Connection) -> Optional[str]:
+    row = conn.execute("SELECT MAX(updated_at) FROM sales").fetchone()
+    return row[0] if row else None

@@ -128,3 +128,14 @@ SELECT s.item_id,
        s.url
 FROM sales s
 LEFT JOIN cards c USING (item_id);
+
+-- Where a sync last got to, so an upload can send only what changed.
+-- Rebuilding the whole export every push is fine at 20,000 rows and absurd at
+-- a million; `updated_at` on sales is the watermark, and it moves when a row is
+-- re-collected as well as when it is new.
+CREATE TABLE IF NOT EXISTS sync_state (
+    target     TEXT PRIMARY KEY,        -- e.g. the D1 database id
+    pushed_at  TEXT NOT NULL,           -- highest sales.updated_at sent
+    rows_sent  INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);

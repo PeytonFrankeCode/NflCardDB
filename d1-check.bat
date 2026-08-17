@@ -5,6 +5,7 @@ cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
+call "%~dp0_cloudflare.bat"
 
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 
@@ -14,17 +15,7 @@ echo    What is in your Cloudflare database
 echo ==========================================================
 echo.
 
-if "%CLOUDFLARE_API_TOKEN%"=="" (
-  set /p CFTOKEN=Paste your Cloudflare API token:
-  set "CLOUDFLARE_API_TOKEN=!CFTOKEN!"
-  echo.
-)
 
-if "%CF_ACCOUNT_ID%"=="" (
-  set /p CFACCT=Paste your Account ID:
-  set "CF_ACCOUNT_ID=!CFACCT!"
-  echo.
-)
 
 nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --verify-only
 if errorlevel 1 goto EMPTY

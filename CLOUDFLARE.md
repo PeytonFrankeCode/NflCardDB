@@ -16,6 +16,15 @@ to skip the prompts next time.
 Re-run it after any `collect.bat` — every write is an upsert, so repeats are
 harmless.
 
+**It only sends what changed.** The first upload carries everything; after that
+each one carries the days collected since, plus any day you re-collected. That
+keeps a push to seconds rather than growing with the dataset. `nflcarddb d1-push
+--full ...` re-sends everything if you ever need it — after rebuilding the
+Cloudflare database from scratch, say.
+
+You are asked for your token and Account ID once. They are saved in
+`data/cloudflare.txt` (git-ignored) and reused by every script that needs them.
+
 ### Better: stop running it at all
 
 `d1-push.bat` prompts for credentials, which is exactly what stops it happening

@@ -290,3 +290,85 @@ def test_real_export_survives_a_round_trip(tmp_path):
         assert statement.replace("''", "").count("'") % 2 == 0, statement[:200]
     assert any("Ja''Marr" in s for s in statements)
     assert any("Lot of 3; mixed rookies" in s for s in statements)
+
+
+def test_only_changed_rows_are_exported(tmp_path):
+    """Re-sending 150,000 rows to deliver one new day is what stops working."""
+    from nflcarddb import db as store
+    from nflcarddb.api_export import build_sql
+    from nflcarddb.models import CardAttrs, Sale
+
+    db = tmp_path / "delta.db"
+    conn = store.connect(db)
+    run = store.start_run(conn, "2026-08-03")
+    store.upsert_sales(conn, [
+        Sale(item_id="100000000001", title="old", price_cents=100,
+             sold_date="2026-08-03"),
+    ], run)
+    store.upsert_cards(conn, [("100000000001", CardAttrs(player="A"))], "t")
+    mark = store.max_updated_at(conn)
+
+    # A later collection writes a second row with a newer updated_at.
+    conn.execute("UPDATE sales SET updated_at = '2999-01-01T00:00:00+00:00' "
+                 "WHERE item_id = '100000000001'")
+    store.upsert_sales(conn, [
+        Sale(item_id="100000000002", title="new", price_cents=200,
+             sold_date="2026-08-04"),
+    ], run)
+    conn.execute("UPDATE sales SET updated_at = '3000-01-01T00:00:00+00:00' "
+                 "WHERE item_id = '100000000002'")
+    conn.commit()
+    conn.close()
+
+    everything, _ = build_sql(db)
+    assert "100000000001" in everything and "100000000002" in everything
+
+    delta, stats = build_sql(db, changed_since="2999-06-01T00:00:00+00:00")
+    assert "100000000002" in delta
+    assert "100000000001" not in delta
+    assert stats["rows"] == 1
+    # The watermark is the whole table's high-water mark, not the delta's.
+    assert stats["watermark"] == "3000-01-01T00:00:00+00:00"
+
+
+def test_the_watermark_only_advances_on_a_recorded_sync(tmp_path):
+    from nflcarddb import db as store
+
+    conn = store.connect(tmp_path / "wm.db")
+    assert store.sync_watermark(conn, "db-1") is None
+
+    store.record_sync(conn, "db-1", "2026-08-05T00:00:00+00:00", 500)
+    assert store.sync_watermark(conn, "db-1") == "2026-08-05T00:00:00+00:00"
+
+    # Per target: two databases track their own progress.
+    assert store.sync_watermark(conn, "db-2") is None
+
+    store.record_sync(conn, "db-1", "2026-08-06T00:00:00+00:00", 20)
+    assert store.sync_watermark(conn, "db-1") == "2026-08-06T00:00:00+00:00"
+    conn.close()
+
+
+def test_a_re_collected_day_is_sent_again(tmp_path):
+    """upsert_sales bumps updated_at, so fixing a thin day re-uploads it."""
+    from nflcarddb import db as store
+    from nflcarddb.api_export import build_sql
+    from nflcarddb.models import Sale
+
+    db = tmp_path / "recollect.db"
+    conn = store.connect(db)
+    run = store.start_run(conn, "2026-07-20")
+    sale = Sale(item_id="100000000001", title="thin day", price_cents=100,
+                sold_date="2026-07-20")
+    store.upsert_sales(conn, [sale], run)
+    mark = store.max_updated_at(conn)
+
+    # Nothing has changed, so nothing to send.
+    assert build_sql(db, changed_since=mark)[1]["rows"] == 0
+
+    # Re-collecting rewrites the row.
+    store.upsert_sales(conn, [sale], run)
+    conn.execute("UPDATE sales SET updated_at = '3000-01-01T00:00:00+00:00'")
+    conn.commit()
+    conn.close()
+
+    assert build_sql(db, changed_since=mark)[1]["rows"] == 1
