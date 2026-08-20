@@ -63,45 +63,41 @@ queries:
   # ---------------------------------------------------------------------------
   # COVERAGE. Each query is a separate eBay search, walked independently, and
   # item_id is the primary key -- so queries may overlap freely. A listing found
-  # twice is stored once. That means the cost of adding a query is time, never
-  # duplicate data, and the right instinct is to cover generously.
+  # twice is stored once. Adding a query costs time, never duplicate data.
   #
-  # `nflcarddb survey` asks eBay how big each of these actually is, one request
-  # each. `nflcarddb from-url "<url>"` turns a search you built in your browser
-  # into a block you can paste here -- much safer than guessing a category id.
+  # BUT: verify a new query returns anything before trusting a run to it.
+  #   nflcarddb url --query <id>      prints the URL; paste it in a browser
+  #   nflcarddb survey                asks eBay how big each one is
+  # An `extra:` filter that eBay does not accept in that form returns zero
+  # results rather than an error, which is exactly how a working query got
+  # replaced with an empty one here.
   # ---------------------------------------------------------------------------
 
-  # The main one. Category rather than keyword: `keywords: football` only
-  # returns what eBay can match to that word, so anything a seller mis-tagged
-  # is invisible. The Sport filter is eBay's own classification.
+  # The proven one: this collected ~23,000 sales a day for weeks. eBay matches
+  # far more than the title -- only ~5% of the results contain the word
+  # "football" -- so the keyword is reaching category and item-specifics too.
   - id: football_singles
-    category: "261328"
-    extra:
-      Sport: "Football"
-
-  # Kept as a safety net for listings eBay has NOT classified as football but
-  # which say so in the title -- the overlap with the above is large and
-  # harmless, and this catches the mis-tagged ones the first query cannot.
-  - id: football_by_keyword
-    keywords: football card
+    keywords: football
     category: "261328"
 
-  # Lots and sets live in their own category, so the singles search never sees
-  # them. Different kind of sale -- a lot price is not a card price -- but real
-  # volume, and the title parser marks them by their titles.
+  # Lots and sets are a different category, so the singles search never sees
+  # them. Same shape as the query above, which is why it is trusted here.
+  # A lot price is not a card price -- "50 cards for $30" is not a $30 card.
   - id: football_lots
     keywords: football
     category: "261329"
 
-  # Graded cards are the highest-signal slice: same card, known condition, so
-  # the prices are comparable. Worth its own query because it can be run alone
-  # (`--query football_graded`) for a fast daily pass when time is short.
+  # Graded cards: same card, known condition, comparable prices. Runs alone
+  # (`--query football_graded`) as a fast daily pass when time is short.
   - id: football_graded
-    keywords: football
+    keywords: football psa
     category: "261328"
-    extra:
-      Graded: "Yes"
     price_bands:
       - [null, 50]
       - [50, 250]
       - [250, null]
+
+  # Broader wording, for listings titled "NFL" rather than "football".
+  - id: nfl_singles
+    keywords: nfl card
+    category: "261328"

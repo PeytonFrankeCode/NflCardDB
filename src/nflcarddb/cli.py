@@ -59,6 +59,22 @@ def cmd_scrape(args) -> int:
         dry_run=args.dry_run,
     )
     print(json.dumps(report.as_dict(), indent=2))
+
+    # Loud, because a silent zero is what this exists to catch: eBay answers a
+    # filter it cannot use with no results rather than an error, so a broken
+    # query looks exactly like a quiet day.
+    if report.empty_queries:
+        print(file=sys.stderr)
+        print("=" * 62, file=sys.stderr)
+        for name in report.empty_queries:
+            print(f"  QUERY '{name}' RETURNED NOTHING", file=sys.stderr)
+        print("=" * 62, file=sys.stderr)
+        print("\nThat is a broken query, not a quiet day. Check it:", file=sys.stderr)
+        print(f"  nflcarddb url --query {report.empty_queries[0]}", file=sys.stderr)
+        print("and paste that URL into a browser. If eBay shows no results "
+              "there\neither, the filters in config/queries.yml are wrong.",
+              file=sys.stderr)
+
     if report.status == "ok":
         return 0
     # Same codes `probe` uses, so scripts can branch on the cause rather than

@@ -60,6 +60,8 @@ class ScrapeReport:
         self.seconds = 0.0
         self.blocked = 0
         self.challenge_seconds = 0.0
+        self.per_query: dict = {}
+        self.empty_queries: list = []
 
     def as_dict(self) -> dict:
         return {
@@ -72,6 +74,8 @@ class ScrapeReport:
             "seconds": self.seconds,
             "seconds_per_page": (round(self.seconds / self.pages, 1)
                                  if self.pages else None),
+            "sales_per_query": self.per_query,
+            "empty_queries": self.empty_queries,
             "bot_checks": self.blocked,
             "seconds_lost_to_bot_checks": self.challenge_seconds,
             "status": self.status,
@@ -177,6 +181,7 @@ def run_scrape(
         buffer = []
 
     incomplete: list[str] = []
+    per_query: dict[str, int] = {}
 
     def on_segment(query_id, band: PriceBand, status, result, note) -> None:
         if getattr(result, "ran_out", False):
@@ -213,6 +218,7 @@ def run_scrape(
     try:
         for query in queries:
             log.info("query %s -> %s", query.id, target_date)
+            before = report.seen
             bands = plan_bands([tuple(b) for b in config.bands_for(query)])
             for sale in walk_query(
                 fetcher=fetcher,
@@ -233,6 +239,19 @@ def run_scrape(
                 if len(buffer) >= BATCH_SIZE:
                     flush()
             flush()
+
+            # A configured query that returns nothing is a broken query, not a
+            # quiet day -- eBay answers an unusable filter with zero results
+            # rather than an error, so it fails silently and the run still
+            # reports "ok". That is how a query collecting 23,000 sales a day
+            # was replaced with an empty one and nobody noticed until the
+            # totals looked light.
+            per_query[query.id] = report.seen - before
+            if per_query[query.id] == 0:
+                log.error(
+                    "query %s returned NOTHING. Check its URL in a browser: "
+                    "nflcarddb url --query %s", query.id, query.id,
+                )
 
     except SignedOutError as exc:
         report.status = "partial"
@@ -286,6 +305,8 @@ def run_scrape(
         flush()
         report.pages = fetcher.stats.requests
         report.seconds = round(time.monotonic() - started, 1)
+        report.per_query = per_query
+        report.empty_queries = [q for q, n in per_query.items() if n == 0]
         report.blocked = fetcher.stats.blocked
         report.challenge_seconds = round(fetcher.stats.challenge_seconds, 1)
         if getattr(fetcher, "switched", False):

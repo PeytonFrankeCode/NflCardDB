@@ -195,3 +195,42 @@ def test_reparse_after_vocabulary_change(project, serve):
     conn = store.connect(db_path)
     assert conn.execute("SELECT player FROM cards").fetchone()[0] == "Rashee Rice"
     conn.close()
+
+
+def test_a_query_that_returns_nothing_is_reported(project, serve):
+    """eBay answers a filter it cannot use with zero results rather than an
+    error, so a broken query is indistinguishable from a quiet day unless the
+    run says so. This is how a working query was replaced with an empty one."""
+    import yaml
+
+    cfg_path, db_path = project
+    raw = yaml.safe_load(Path(cfg_path).read_text())
+    raw["queries"] = [
+        {"id": "works", "keywords": "football", "category": "261328"},
+        {"id": "broken", "keywords": "football", "category": "999999"},
+    ]
+    Path(cfg_path).write_text(yaml.safe_dump(raw))
+
+    def handler(params):
+        if params.get("_sacat") == ["999999"]:
+            return _page([])                       # eBay's empty answer
+        if params["_pgn"] == ["1"]:
+            return _page([_tile("940000000001",
+                                "2023 Prizm CJ Stroud RC #339", "Jul 30, 2025")])
+        return _page([])
+
+    serve(handler)
+    report = run_scrape(load_config(cfg_path), target_date="2025-07-30")
+
+    assert report.empty_queries == ["broken"]
+    assert report.per_query["works"] > 0
+    assert report.as_dict()["empty_queries"] == ["broken"]
+
+
+def test_every_query_producing_rows_reports_no_empties(project, serve):
+    serve(lambda params: _page([
+        _tile("950000000001", "2023 Prizm Bijan Robinson RC #301", "Jul 30, 2025")
+    ]) if params["_pgn"] == ["1"] else _page([]))
+
+    report = run_scrape(load_config(project[0]), target_date="2025-07-30")
+    assert report.empty_queries == []
