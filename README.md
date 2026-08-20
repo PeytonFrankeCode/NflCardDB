@@ -56,6 +56,20 @@ eBay is serving you results before you commit to hundreds of requests.
 
 ## Read this before your first real run
 
+**Coverage is a config question, and worth attention.** Each entry under
+`queries:` is a separate eBay search. They are walked independently and
+deduplicated on `item_id`, so overlapping queries cost time but never produce
+duplicate rows — the right instinct is to cover generously. `nflcarddb survey`
+asks eBay how big each one is; `nflcarddb from-url "<url>"` converts a search
+you built in a browser into a config block, which beats guessing at ids.
+
+One trap worth naming: a `keywords:` filter only returns what eBay can match to
+that word. `keywords: football` misses any listing a seller mis-tagged, and 95%
+of collected titles do not contain the word at all — they come back because
+eBay classifies them as football, not because the title says so. Prefer the
+category plus eBay's own `Sport` filter, and keep a keyword query alongside as a
+safety net rather than as the primary.
+
 **Verify the category ids in `config/queries.yml`.** eBay reshuffles its
 taxonomy and the shipped value (`261328`, Sports Trading Card Singles) is a
 starting point, not a guarantee. Browse to the category you want, filter to
@@ -292,6 +306,8 @@ selectors.
 | `scrape` | fetch and store one day (`--date`, `--query`, `--delay`, `--page-budget`, `--dry-run`, `--save-html`) |
 | `backfill` | collect past days, newest first, skipping done ones (`--days`, `--max-minutes`, `--force`) |
 | `probe` | one live request against a configured query |
+| `survey` | how much each query covers, one request each |
+| `from-url` | turn an eBay search URL into a config query block |
 | `calibrate` | parse a saved HTML file, report coverage — no network |
 | `bisect` | add one search parameter at a time until eBay refuses one |
 | `parse` | (re)parse titles into `cards` (`--all` to redo everything) |

@@ -315,6 +315,85 @@ def cmd_calibrate(args) -> int:
     return 0
 
 
+def cmd_from_url(args) -> int:
+    """Turn an eBay search URL into a query block for the config."""
+    from .from_url import NotAnEbaySearch, parse_search_url, to_yaml
+
+    try:
+        spec = parse_search_url(args.url, args.id)
+    except NotAnEbaySearch as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 2
+
+    block = to_yaml(spec)
+    print("Add this under `queries:` in config/queries.yml:\n")
+    print(block)
+    print()
+    if spec["extra"]:
+        print("The `extra` entries are eBay's own filters, carried over as-is --")
+        print("that is how a filter this project has never heard of still works.")
+    print(f"\nThen check what it holds:  nflcarddb survey --query {spec['id']}")
+    return 0
+
+
+def cmd_survey(args) -> int:
+    """One request per query: how much does each actually cover?"""
+    from .search import build_url
+
+    config = load_config(args.config)
+    queries = config.queries
+    if args.query:
+        queries = [q for q in queries if q.id in args.query]
+
+    candidates = [(q.id, build_url(q.keywords, q.category, page=1,
+                                   items_per_page=60, extra=q.extra or None))
+                  for q in queries]
+    for url in args.url or []:
+        candidates.append((f"url:{len(candidates)}", url))
+
+    if not candidates:
+        print("Nothing to survey.", file=sys.stderr)
+        return 2
+
+    fetcher = make_fetcher(
+        engine=args.engine or config.fetch.engine,
+        profile_dir="data/browser-profile",
+        delay=config.fetch.delay,
+        jitter=config.fetch.jitter,
+        max_retries=1,
+        timeout=config.fetch.timeout,
+        user_agent=config.fetch.user_agent or DEFAULT_UA,
+    )
+
+    print(f"Asking eBay how big each search is. {len(candidates)} request(s).\n")
+    rows = []
+    try:
+        for name, url in candidates:
+            try:
+                page = parse_search_page(fetcher.get(url, label=f"survey_{name}"))
+                total = page.total_results
+                rows.append((name, total, page.total_is_capped, len(page.sales)))
+                cap = "+" if page.total_is_capped else " "
+                print(f"  {name:<28} {total if total is not None else '?':>9}{cap}  "
+                      f"({len(page.sales)} on page 1)")
+            except (BlockedError, SignedOutError, FetchError) as exc:
+                rows.append((name, None, False, 0))
+                print(f"  {name:<28} {'failed':>9}   {str(exc).splitlines()[0][:40]}")
+    finally:
+        closer = getattr(fetcher, "close", None)
+        if closer:
+            closer()
+
+    print("\nThat count is every sold listing eBay still holds for the search --")
+    print("roughly 90 days' worth, not one day. Use it to compare searches:")
+    print("a candidate showing twice the total is covering twice as much.")
+    known = [r for r in rows if r[1]]
+    if len(known) > 1:
+        biggest = max(known, key=lambda r: r[1])
+        print(f"\nWidest here: {biggest[0]} ({biggest[1]:,}).")
+    return 0
+
+
 def cmd_probe(args) -> int:
     """Fetch a single live page and report what came back.
 
@@ -1091,6 +1170,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("html")
     p.add_argument("--limit", type=int, default=8)
     p.set_defaults(func=cmd_calibrate)
+
+    p = sub.add_parser("from-url", help="turn an eBay search URL into a config query")
+    p.add_argument("url", help="the address bar from an eBay search, in quotes")
+    p.add_argument("--id", help="name for the query (default: guessed)")
+    p.set_defaults(func=cmd_from_url)
+
+    p = sub.add_parser("survey", help="how much each query covers (one request each)")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--query", action="append", help="limit to these query ids")
+    p.add_argument("--url", action="append", help="also test this raw eBay URL")
+    p.add_argument("--engine", choices=["auto", "requests", "browser", "impersonate"])
+    p.set_defaults(func=cmd_survey)
 
     p = sub.add_parser("probe", help="fetch one live page to verify a query")
     p.add_argument("--config", default="config/queries.yml")
