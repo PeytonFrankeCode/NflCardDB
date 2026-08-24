@@ -308,3 +308,83 @@ def test_rated_rookie_still_sets_the_rookie_flag():
     a = parse_title("2024 Donruss Optic Caleb Williams Rated Rookie #201")
     assert a.player == "Caleb Williams"
     assert a.is_rookie is True
+
+
+def test_a_missing_card_number_is_measured_as_a_split(tmp_path):
+    """One physical card owns two keys -- numbered and un-numbered -- so sales
+    scatter between them by how much the seller bothered to type."""
+    from nflcarddb.audit import number_split_groups
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "split.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sales = [Sale(item_id=f"90000000000{i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(5)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player="Jayden Daniels", year=2024,
+                              set_name="Prizm", card_number=num, confidence=0.9))
+        for s, num in zip(sales, ["316", "316", "316", None, None])
+    ], "v1")
+    conn.close()
+
+    report = number_split_groups(str(path))
+    assert report["recoverable_sales"] == 2      # only one number ever seen
+    assert report["ambiguous_sales"] == 0
+    assert report["examples"][0]["number"] == "316"
+    assert report["examples"][0]["joined"] == 3
+
+
+def test_two_numbers_for_one_player_stays_ambiguous(tmp_path):
+    """A base card and an insert of the same player in the same set. An
+    un-numbered title does not say which, and guessing would invent a fact."""
+    from nflcarddb.audit import number_split_groups
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "ambig.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sales = [Sale(item_id=f"90000000000{i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(4)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player="Jayden Daniels", year=2024,
+                              set_name="Prizm", card_number=num, confidence=0.9))
+        for s, num in zip(sales, ["316", "12", None, None])
+    ], "v1")
+    conn.close()
+
+    report = number_split_groups(str(path))
+    assert report["recoverable_sales"] == 0
+    assert report["ambiguous_sales"] == 2
+
+
+def test_a_parallel_keeps_its_own_split_accounting(tmp_path):
+    """A Silver Prizm is a different card from the base, so its un-numbered
+    sales must not be rejoined to the base card's number."""
+    from nflcarddb.audit import number_split_groups
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "par.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sales = [Sale(item_id=f"90000000000{i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(3)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (sales[0].item_id, CardAttrs(player="Jayden Daniels", year=2024,
+                                     set_name="Prizm", card_number="316",
+                                     confidence=0.9)),
+        (sales[1].item_id, CardAttrs(player="Jayden Daniels", year=2024,
+                                     set_name="Prizm", parallel="Silver Prizm",
+                                     card_number="316", confidence=0.9)),
+        (sales[2].item_id, CardAttrs(player="Jayden Daniels", year=2024,
+                                     set_name="Prizm", parallel="Silver Prizm",
+                                     confidence=0.9)),
+    ], "v1")
+    conn.close()
+
+    report = number_split_groups(str(path))
+    assert report["recoverable_sales"] == 1
+    assert report["examples"][0]["joined"] == 1     # the Silver, not the base
