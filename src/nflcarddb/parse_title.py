@@ -155,7 +155,15 @@ GRADER_ONLY_RE = re.compile(r"\b(PSA|BGS|BVG|SGC|CGC|CSG|HGA|TAG|ISA|BECKETT)\b"
 YEAR_RE = re.compile(r"\b(19[5-9]\d|20[0-4]\d)(?:\s*[-/]\s*\d{2})?\b")
 SERIAL_RE = re.compile(r"\b(?P<num>\d{1,4})\s*/\s*(?P<run>\d{1,5})\b")
 PRINT_RUN_ONLY_RE = re.compile(r"(?<![\d/])/\s*(\d{1,5})\b")
-CARD_NUM_RE = re.compile(r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}[A-Z]?)\b", re.I)
+# The trailing `(?!/)` is load-bearing. Sellers write a one-of-one as "#1/1"
+# and a numbered parallel as "#8/10", and without it the numerator is claimed as
+# the card number -- so every 1-of-1 in a set collapsed onto `<year>-<set>-n1`
+# whoever was on it. Four different players shared 2025-prizm-n1.
+#
+# A slash *attached* to the digits means serial numbering. A detached one is a
+# print run belonging to a real card number, which is why "#301 /249" must keep
+# reading as card 301 and the lookahead deliberately does not span whitespace.
+CARD_NUM_RE = re.compile(r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}[A-Z]?)\b(?!/)", re.I)
 ROOKIE_RE = re.compile(r"\b(RC|RY|ROOKIE|ROOKIE\s+CARD|1ST\s+YEAR)\b", re.I)
 AUTO_RE = re.compile(r"\b(AUTO(?:GRAPH(?:ED)?)?|SIGNED|ON[-\s]CARD)\b", re.I)
 RELIC_RE = re.compile(r"\b(PATCH|RELIC|JERSEY|RPA|MEM(?:ORABILIA)?|SWATCH|GLOVE)\b", re.I)
@@ -299,11 +307,18 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         attrs.card_number = m.group("num").upper()
         hits += 1
 
-    # Serial numbering: "12/99" -> serial 12 of a 99 print run.
+    # Serial numbering: "12/99" -> serial 12 of a 99 print run. A numerator
+    # larger than the run is not a serial at all -- "202/99" is card 202 from a
+    # /99 parallel, written without the space that would have made it obvious.
     m = _take(work, SERIAL_RE)
     if m:
-        attrs.serial_number = int(m.group("num"))
-        attrs.print_run = int(m.group("run"))
+        num, run = int(m.group("num")), int(m.group("run"))
+        if num <= run:
+            attrs.serial_number, attrs.print_run = num, run
+        else:
+            attrs.print_run = run
+            if not attrs.card_number:
+                attrs.card_number = str(num)
         hits += 1
     else:
         m = _take(work, PRINT_RUN_ONLY_RE)

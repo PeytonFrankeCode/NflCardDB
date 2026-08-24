@@ -1,5 +1,6 @@
 import pytest
 
+from nflcarddb.card_key import card_key
 from nflcarddb.parse_title import parse_title
 
 
@@ -159,3 +160,46 @@ def test_city_colour_not_mistaken_for_parallel():
 )
 def test_year_variants(title, expected_year):
     assert parse_title(title).year == expected_year
+
+
+def test_a_one_of_one_is_not_card_number_one():
+    """From Peyton's audit: 2025-prizm-n1 held four different players, and
+    2024-contenders-n1 three. Sellers write a one-of-one as "#1/1", and the
+    numerator was being claimed as the card number -- so every 1/1 in a set
+    collapsed onto one key whoever was on the card."""
+    a = parse_title("2025 Panini Prizm Cam Ward Gold Vinyl #1/1 Rookie")
+    assert a.card_number is None
+    assert (a.serial_number, a.print_run) == (1, 1)
+
+    b = parse_title("2024 Panini Contenders Patrick Mahomes Auto #1/1")
+    assert card_key(a) != card_key(b)
+
+
+def test_an_attached_slash_is_serial_numbering():
+    a = parse_title("2025 Panini Phoenix Travis Hunter Orange #8/10 RC")
+    assert a.card_number is None
+    assert (a.serial_number, a.print_run) == (8, 10)
+
+
+def test_a_detached_slash_is_still_a_print_run():
+    """The case the original ordering existed to protect: "#301 /249" is card
+    301 from a 249-card run, not serial 301 of 249."""
+    a = parse_title("2024 Panini Prizm Caleb Williams #301 /249 Gold")
+    assert a.card_number == "301"
+    assert a.print_run == 249
+    assert a.serial_number is None
+
+
+def test_a_numerator_bigger_than_the_run_is_not_a_serial():
+    """"#202/99" is card 202 from a /99 parallel, written without the space
+    that would have made it obvious. Nobody owns copy 202 of 99."""
+    a = parse_title("2024 Panini Prizm Caleb Williams #202/99 Gold")
+    assert a.card_number == "202"
+    assert a.print_run == 99
+    assert a.serial_number is None
+
+
+def test_a_card_number_and_a_separate_serial_both_survive():
+    a = parse_title("2024 Donruss Jayden Daniels #389 12/99")
+    assert a.card_number == "389"
+    assert (a.serial_number, a.print_run) == (12, 99)
