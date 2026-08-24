@@ -30,6 +30,7 @@ pause
 echo.
 
 nflcarddb login
+if errorlevel 9 goto WINBLOCK
 set CODE=%errorlevel%
 echo.
 
@@ -62,6 +63,21 @@ goto END
 echo.
 echo Please double-click  setup.bat  first.
 echo.
+
+:WINBLOCK
+echo.
+echo ==========================================================
+echo    Windows blocked the browser engine
+echo ==========================================================
+echo.
+echo The message above explains it. Nothing is broken in this
+echo project and nothing needs reinstalling - Windows is
+echo refusing to load one of the browser's files.
+echo.
+echo The usual fix is moving this folder out of OneDrive, to
+echo somewhere like  C:\NflCardDB , then deleting the  venv
+echo folder and running  setup.bat  again.
+goto END
 
 :END
 echo.

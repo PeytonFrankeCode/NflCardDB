@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import db as store
-from .browser import BrowserUnavailable
+from .browser import BlockedByWindows, BrowserUnavailable, ProfileLocked
 from .config import load_config
 from .diagnose import bisect_url, format_bisect, format_report, run_diagnosis
 from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
@@ -609,7 +609,7 @@ def cmd_login(args) -> int:
     visible window. Nothing is bypassed; the session is simply established once
     and then reused.
     """
-    from .browser import BrowserFetcher, BrowserUnavailable
+    from .browser import BrowserFetcher
 
     profile = _resolve_profile(args)
     if profile is None:
@@ -622,6 +622,9 @@ def cmd_login(args) -> int:
     except ProfileLocked as exc:
         print(f"\n{exc}", file=sys.stderr)
         return 7
+    except BlockedByWindows as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 9
     except BrowserUnavailable as exc:
         print(f"browser engine unavailable: {exc}", file=sys.stderr)
         return 6
@@ -1328,6 +1331,9 @@ def main(argv: list[str] | None = None) -> int:
     except SignedOutError as exc:
         print(f"not signed in: {exc}", file=sys.stderr)
         return 8
+    except BlockedByWindows as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        return 9
     except BrowserUnavailable as exc:
         print(f"browser engine unavailable: {exc}", file=sys.stderr)
         return 6

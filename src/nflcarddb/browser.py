@@ -101,6 +101,52 @@ class ProfileLocked(RuntimeError):
     """Chrome is running and holding its profile open."""
 
 
+class BlockedByWindows(BrowserUnavailable):
+    """Windows security policy is refusing to load a required DLL."""
+
+
+# Windows Application Control / Smart App Control refuses to load unsigned
+# native libraries, and Playwright depends on one (`greenlet`). The import
+# fails with a DLL error rather than a missing-module error, so reporting
+# "Playwright is not installed" -- which it is -- sends you to reinstall a
+# package that is already there.
+POLICY_MARKERS = (
+    "application control policy",
+    "dll load failed",
+    "blocked this file",
+    "not a valid win32 application",
+)
+
+POLICY_HELP = r"""Windows is blocking part of the browser engine.
+
+  ImportError: DLL load failed ... An Application Control policy has
+  blocked this file
+
+Playwright IS installed. Windows is refusing to load one of its files,
+which is a security setting on this PC rather than anything missing.
+
+Two things to try, easiest first:
+
+1. MOVE THIS PROJECT OUT OF ONEDRIVE.
+   A folder like  C:\NflCardDB  rather than
+   C:\Users\you\OneDrive\Documents\GitHub\...
+   OneDrive marks synced files as coming from the internet, which is
+   what the policy blocks. It also stops OneDrive uploading several
+   hundred MB of browser files. Move the folder, delete the `venv`
+   folder inside it, and run setup.bat again.
+
+2. TURN OFF SMART APP CONTROL.
+   Windows Security -> App & browser control -> Smart App Control
+   settings -> Off.
+   Read this before doing it: once Smart App Control is turned off it
+   CANNOT be turned back on without reinstalling Windows. That is
+   Microsoft's design, not a bug. Try option 1 first.
+
+If neither is possible -- a work laptop with policies you do not
+control, say -- collecting can still be done by hand: see the grabber
+in tools/grabber.html, which needs no browser engine at all."""
+
+
 def default_chrome_profile() -> Optional[Path]:
     """Where this machine keeps its everyday Chrome profile, if it has one."""
     candidates = []
@@ -181,6 +227,8 @@ class BrowserFetcher:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:  # pragma: no cover - depends on environment
+            if any(m in str(exc).lower() for m in POLICY_MARKERS):
+                raise BlockedByWindows(POLICY_HELP) from exc
             raise BrowserUnavailable(f"Playwright is not installed.\n{INSTALL_HINT}") from exc
 
         self._pw = sync_playwright().start()

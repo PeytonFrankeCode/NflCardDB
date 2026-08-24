@@ -1095,3 +1095,67 @@ def test_a_routed_request_is_aborted_not_continued():
     f._block_heavy_resources(Context())
 
     assert set(calls) == {"abort"}
+
+
+def test_a_windows_policy_block_is_not_reported_as_missing_playwright(monkeypatch):
+    """Windows refuses to load greenlet's DLL and the import raises ImportError,
+    so the honest-looking message is "Playwright is not installed" -- which
+    sends you to reinstall a package that is already there."""
+    import builtins
+
+    from nflcarddb.browser import BlockedByWindows, BrowserFetcher
+
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name.startswith("playwright"):
+            raise ImportError(
+                "DLL load failed while importing _greenlet: An Application "
+                "Control policy has blocked this file."
+            )
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    f = BrowserFetcher(profile_dir=None)
+
+    with pytest.raises(BlockedByWindows) as caught:
+        f._ensure_browser()
+
+    message = str(caught.value)
+    assert "Playwright IS installed" in message
+    assert "OneDrive" in message              # the fix to try first
+    assert "reinstalling Windows" in message  # the cost of the other one
+
+
+def test_a_genuinely_missing_playwright_still_says_so(monkeypatch):
+    import builtins
+
+    from nflcarddb.browser import BlockedByWindows, BrowserFetcher, BrowserUnavailable
+
+    real_import = builtins.__import__
+
+    def missing(name, *args, **kwargs):
+        if name.startswith("playwright"):
+            raise ImportError("No module named 'playwright'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", missing)
+    f = BrowserFetcher(profile_dir=None)
+
+    with pytest.raises(BrowserUnavailable) as caught:
+        f._ensure_browser()
+    assert not isinstance(caught.value, BlockedByWindows)
+    assert "pip install playwright" in str(caught.value)
+
+
+def test_login_can_name_every_exception_it_catches():
+    """cmd_login caught ProfileLocked without importing it, so any other
+    failure raised NameError from the except clause and hid the real error."""
+    import inspect
+
+    from nflcarddb import cli
+
+    source = inspect.getsource(cli.cmd_login)
+    for name in ("ProfileLocked", "BlockedByWindows", "BrowserUnavailable"):
+        if f"except {name}" in source:
+            assert hasattr(cli, name), f"cmd_login catches {name} but cli cannot see it"

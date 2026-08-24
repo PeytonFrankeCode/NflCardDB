@@ -255,6 +255,31 @@ The lesson worth taking: **anything only on this PC is one accident from gone.**
 Run `d1-push.bat` (or let the schedule do it) rather than letting collected days
 pile up locally.
 
+## "An Application Control policy has blocked this file"
+
+Windows is refusing to load one of the browser engine's files. Nothing is broken
+in this project and nothing needs reinstalling — this is a security setting on
+the PC, and it usually appears after a Windows reset, because Smart App Control
+is switched on by default on a fresh install.
+
+**Try this first: move the project out of OneDrive.** Put it somewhere like
+`C:\NflCardDB` instead of `C:\Users\you\OneDrive\Documents\GitHub\...`,
+delete the `venv` folder inside it, and run `setup.bat` again. OneDrive marks
+synced files as having come from the internet, which is exactly what the policy
+blocks — and it also stops OneDrive trying to sync several hundred megabytes of
+browser files, which it should never have been doing.
+
+**If that does not fix it:** Windows Security → App & browser control → Smart App
+Control settings → Off.
+
+Know the cost before you do it: **once Smart App Control is off it cannot be
+turned back on without reinstalling Windows.** That is Microsoft's design. Try
+the OneDrive move first.
+
+**If neither is possible** — a work laptop with policies you do not control —
+collecting still works by hand. `tools/grabber.html` needs no browser engine at
+all: it reads listings off a page you already have open.
+
 ## Things that will happen eventually
 
 **"eBay showed a robot check partway through."** Whatever it collected before
