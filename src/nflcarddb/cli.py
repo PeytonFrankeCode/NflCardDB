@@ -289,10 +289,16 @@ def cmd_audit(args) -> int:
     print(f"  groups naming different players   {report['contradictory_groups']:>6,}")
     print(f"  groups with 20x+ price spread     {report['wide_spread_groups']:>6,}")
     print(f"  -> at least {report['known_bad_rate']:.2%} of keyed sales are grouped wrong")
+    print()
+    print(f"  grouped right, name spelled several ways  {report['messy_name_groups']:>6,}")
+    print("  (cosmetic: the price history is correct, the displayed name varies)")
 
     for row in report["examples"]["contradictory"]:
         print(f"\n  {row['card_key']}  ({row['sales']} sales)")
         print(f"    names: {', '.join(row['players'])}")
+    for row in report["examples"]["messy_names"]:
+        print(f"\n  {row['card_key']}  ({row['sales']} sales, grouped correctly)")
+        print(f"    name read as: {', '.join(row['variants'])}")
     for row in report["examples"]["wide_spread"]:
         print(f"\n  {row['card_key']}  {row['grade']}  ({row['sales']} sales)")
         print(f"    median ${row['median']:,.2f} but one at ${row['high']:,.2f} "

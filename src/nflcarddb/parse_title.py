@@ -78,6 +78,22 @@ GRADERS = {
     "CSG": "CSG", "HGA": "HGA", "TAG": "TAG", "BECKETT": "BGS", "ISA": "ISA",
 }
 
+# Subset and insert names that sit right beside the player in a title, so the
+# name scan absorbs them: "Caleb Williams Future Stars" and "University Chrome
+# Fernando Mendoza" were both read as players. Claimed before the scan, the
+# same way teams and parallels are.
+#
+# These are not parallels -- a Future Stars card is a different card from a base
+# card, but the distinction is carried by the card number, not by this. They are
+# claimed only to keep them out of the name.
+SUBSETS = (
+    "Future Stars", "Rated Rookie", "Rated Rookies", "University Chrome",
+    "University", "Star Rookies", "Rookie Card", "Rookie Ticket",
+    "Draft Picks", "All Pro", "All-Pro", "Pro Bowl", "Team Leaders",
+    "Record Breakers", "League Leaders", "Hall of Fame", "Legends",
+    "Franchise", "Phenoms", "Sensational", "Freshman", "Class of",
+)
+
 # Tokens that are never part of a player's name.
 NOISE = {
     "card", "cards", "football", "nfl", "ncaa", "rookie", "rookies", "rc", "ssp",
@@ -94,6 +110,11 @@ NOISE = {
     "die-cut", "1st", "first", "year", "debut", "prizm", "sale", "read", "look",
     "combined", "bundle", "you", "pick", "choice", "digital", "reprint", "custom",
     "gem-mt", "gemmt", "nm-mt", "nm", "ex", "vg",
+    # Finishes and qualifiers that trail a name: "Jaxson Dart Leather".
+    "future", "leather", "refractor", "refractors", "holo", "holofoil", "foil",
+    "chrome",
+    "wave", "shimmer", "sparkle", "glitter", "rr", "sr", "stars", "star",
+    "aqua", "lot", "bulk", "investment", "grail", "comp", "comps",
 }
 
 NAME_SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
@@ -152,6 +173,7 @@ BRAND_PAT = _vocab_pattern(BRANDS)
 SET_PAT = _vocab_pattern(SETS)
 PARALLEL_PAT = _vocab_pattern(PARALLELS)
 TEAM_PAT = _vocab_pattern(TEAMS)
+SUBSET_PAT = _vocab_pattern(SUBSETS)
 
 _CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS)}
 
@@ -298,6 +320,18 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     if m:
         attrs.team = _canonical_team(m.group(1))
         hits += 1
+
+    # Subsets sit right beside the player -- "Caleb Williams Future Stars" --
+    # so they are claimed before the name scan for the same reason teams are.
+    # Deliberately not recorded as a field: what distinguishes a Future Stars
+    # card from a base card is its card number, and storing the subset would
+    # invite it into the identity where the number already does the job.
+    subset_match = _take(work, SUBSET_PAT)
+    # "Rated Rookie" is a subset AND states the card is a rookie. Claiming the
+    # phrase consumes the word before the flag pass sees it, so the flag is
+    # read off the match rather than lost.
+    if subset_match and "rookie" in subset_match.group(1).lower():
+        attrs.is_rookie = True
 
     m = _take(work, SET_PAT)
     if m:

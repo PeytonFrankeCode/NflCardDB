@@ -234,3 +234,77 @@ def test_wrong_rows_come_back_so_they_can_be_fixed(tmp_path):
     result = _scored(tmp_path, ["y", "n", "y"])
     assert len(result["wrong_examples"]) == 1
     assert result["wrong_examples"][0]["title"] == "title 1"
+
+
+def test_a_name_wearing_extra_words_is_not_a_grouping_error(tmp_path):
+    """Peyton's real data flagged 454 groups this way. Every one was grouped
+    correctly -- the parser had swept a subset name into the player field, so
+    "Caleb Williams" and "Caleb Williams Future Stars" looked like two people."""
+    from nflcarddb.audit import messy_named_groups
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "messy.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sales = [Sale(item_id=f"90000000000{i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(4)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player=name, year=2025, set_name="Topps Chrome",
+                              card_number="NFS-1", confidence=0.9))
+        for s, name in zip(sales, ["Caleb Williams", "Caleb Williams Future Stars",
+                                   "Future Stars Caleb Williams", "Caleb Williams"])
+    ], "v1")
+    conn.close()
+
+    # Not a contradiction: same player, messy field.
+    assert contradictory_groups(str(path)) == []
+    # Reported separately, because a page showing that name looks broken.
+    messy = messy_named_groups(str(path))
+    assert len(messy) == 1
+    assert messy[0]["sales"] == 4
+
+
+def test_two_genuinely_different_players_are_still_caught(tmp_path):
+    """The containment rule must not swallow real errors."""
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "real.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sales = [Sale(item_id=f"90000000000{i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(4)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player=name, year=2021, set_name="Prizm",
+                              card_number="220", confidence=0.9))
+        for s, name in zip(sales, ["Ja'Marr Chase", "Ja'Marr Chase",
+                                   "Justin Herbert", "Justin Herbert"])
+    ], "v1")
+    conn.close()
+
+    assert len(contradictory_groups(str(path))) == 1
+
+
+def test_subset_names_no_longer_reach_the_player_field():
+    """The parse bug behind those 454 groups, fixed at the source."""
+    for title, expected in [
+        ("2025 Topps Chrome Caleb Williams Future Stars #NFS-1 Refractor",
+         "Caleb Williams"),
+        ("2025 Topps Chrome Future Stars Caleb Williams #NFS-1 Refractor",
+         "Caleb Williams"),
+        ("2025 Bowman University Chrome Fernando Mendoza #109",
+         "Fernando Mendoza"),
+        ("2024 Donruss Optic Caleb Williams Rated Rookie #201 Aqua",
+         "Caleb Williams"),
+        ("2025 Topps Chrome Jaxson Dart #306 Refractor Leather", "Jaxson Dart"),
+        ("1989 Score Deion Sanders #246 NM MINT", "Deion Sanders"),
+    ]:
+        assert parse_title(title).player == expected, title
+
+
+def test_rated_rookie_still_sets_the_rookie_flag():
+    """Claiming the phrase consumes the word before the flag pass sees it."""
+    a = parse_title("2024 Donruss Optic Caleb Williams Rated Rookie #201")
+    assert a.player == "Caleb Williams"
+    assert a.is_rookie is True

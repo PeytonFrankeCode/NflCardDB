@@ -83,11 +83,26 @@ def coverage(db_path: str) -> dict:
         conn.close()
 
 
+def _same_person(a: str, b: str) -> bool:
+    """Whether two folded names are one player written two ways.
+
+    "calebwilliams" and "calebwilliamsfuturestars" are the same player with a
+    subset name swept into the field -- a parsing wobble, not a bad group. The
+    card those sales belong to is identified by year, set and number, none of
+    which the name touches.
+
+    Treating containment as agreement is what stopped this reporting 454
+    correctly-grouped cards as grouping failures.
+    """
+    return a in b or b in a
+
+
 def contradictory_groups(db_path: str, limit: int = 25) -> list[dict]:
-    """Groups whose own sales disagree about who is on the card.
+    """Groups whose own sales name genuinely different people.
 
     Wrong without needing a catalogue: one key, two players, so at least one
-    sale is in the wrong group.
+    sale is in the wrong group. Names that merely differ by absorbed junk do
+    not count -- see `_same_person`.
     """
     conn = store.connect(db_path)
     try:
@@ -111,16 +126,21 @@ def contradictory_groups(db_path: str, limit: int = 25) -> list[dict]:
             continue
         ordered = sorted(players.items(), key=lambda kv: -kv[1])
         total = sum(players.values())
+        leader = ordered[0][0]
+
+        # Only names that are not the leading name wearing extra words.
+        dissenting = sum(n for name, n in ordered if not _same_person(name, leader))
+        if not dissenting:
+            continue
         # One odd spelling among fifty is a parser wobble, not a bad group.
         # A genuine split shows the minority holding a real share.
-        minority = total - ordered[0][1]
-        if minority / total < 0.1:
+        if dissenting / total < 0.1:
             continue
         bad.append({
             "card_key": key,
             "sales": total,
             "players": [name for name, _ in ordered[:4]],
-            "minority_share": round(minority / total, 2),
+            "minority_share": round(dissenting / total, 2),
         })
 
     bad.sort(key=lambda r: -r["sales"])
@@ -187,8 +207,10 @@ def audit(db_path: str) -> dict:
 
     contradictions = contradictory_groups(db_path, limit=1000)
     spreads = wide_spread_groups(db_path, limit=1000)
+    messy = messy_named_groups(db_path, limit=1000)
 
     suspect_sales = sum(r["sales"] for r in contradictions)
+    stats["messy_name_groups"] = len(messy)
     stats["contradictory_groups"] = len(contradictions)
     stats["wide_spread_groups"] = len(spreads)
     # The honest headline: a floor, not an accuracy figure.
@@ -198,5 +220,49 @@ def audit(db_path: str) -> dict:
     stats["examples"] = {
         "contradictory": contradictions[:5],
         "wide_spread": spreads[:5],
+        "messy_names": messy[:5],
     }
     return stats
+
+
+def messy_named_groups(db_path: str, limit: int = 25) -> list[dict]:
+    """Correctly grouped cards whose player field varies across their sales.
+
+    Reported apart from the contradictions because the consequence is
+    different: the grouping and therefore the price history are right, but a
+    page showing "Caleb Williams Future Stars" as a player name looks broken.
+    Filed as cosmetic, and a lead on what the title parser is over-reading.
+    """
+    conn = store.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT card_key, player FROM cards "
+            "WHERE card_key IS NOT NULL AND player IS NOT NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    by_key: dict[str, dict[str, int]] = {}
+    for key, player in rows:
+        folded = normalize_player(player)
+        if folded:
+            by_key.setdefault(key, {})
+            by_key[key][folded] = by_key[key].get(folded, 0) + 1
+
+    out = []
+    for key, players in by_key.items():
+        if len(players) < 2:
+            continue
+        ordered = sorted(players.items(), key=lambda kv: -kv[1])
+        leader = ordered[0][0]
+        # Variants of one name only -- a real disagreement belongs above.
+        if not all(_same_person(name, leader) for name, _ in ordered):
+            continue
+        out.append({
+            "card_key": key,
+            "sales": sum(players.values()),
+            "variants": [name for name, _ in ordered[:4]],
+        })
+
+    out.sort(key=lambda r: -r["sales"])
+    return out[:limit]
