@@ -1344,7 +1344,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_audit)
 
-    p = sub.add_parser("review", help="check a sample by hand for a real accuracy %")
+    p = sub.add_parser("review", help="check a sample by hand for a real accuracy percentage")
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
     p.add_argument("--sample", type=int, default=100, help="rows to draw (default 100)")

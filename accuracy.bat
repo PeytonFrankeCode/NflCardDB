@@ -16,9 +16,11 @@ echo on a large database it takes a minute or two.
 echo.
 
 nflcarddb parse --all
+if errorlevel 1 goto BROKEN
 echo.
 
 nflcarddb audit
+if errorlevel 1 goto END
 
 echo.
 echo ==========================================================
@@ -44,6 +46,18 @@ goto END
 :SCORE
 echo.
 nflcarddb review --score review-sample.csv
+goto END
+
+:BROKEN
+echo.
+echo ==========================================================
+echo    Something went wrong before we got started
+echo ==========================================================
+echo.
+echo The message above says what. Nothing was changed.
+echo.
+echo If it is a long Python traceback, that is a bug - send it
+echo to Claude rather than trying to read it.
 goto END
 
 :NOSETUP

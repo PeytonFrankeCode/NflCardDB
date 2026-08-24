@@ -4,6 +4,7 @@ A network outage or a bot check is a normal thing to hit when scraping; it must
 read as a clear message and a distinct exit code, not a Python traceback.
 """
 
+import argparse
 import json
 from pathlib import Path
 
@@ -135,3 +136,31 @@ def test_url_command_needs_no_network(cfg, capsys):
     assert main(["url", "--config", cfg]) == 0
     out = capsys.readouterr().out
     assert "LH_Sold=1" in out and "LH_Complete=1" in out
+
+
+def test_every_command_can_render_its_help():
+    """A literal % in a help string is a %-format placeholder to argparse.
+
+    Python 3.14 rejects it when the parser is built; 3.11 only fails when the
+    help is actually rendered -- so building the parser is not enough to catch
+    it, and a check that merely built one passed here while failing on the
+    user's machine. Rendering every subcommand's help is the version-proof
+    equivalent.
+    """
+    from nflcarddb.cli import build_parser
+
+    parser = build_parser()
+    parser.format_help()
+
+    subparsers = [action for action in parser._actions
+                  if isinstance(action, argparse._SubParsersAction)]
+    assert subparsers, "no subcommands found -- this test would prove nothing"
+
+    names = []
+    for action in subparsers:
+        for name, sub in action.choices.items():
+            names.append(name)
+            sub.format_help()          # raises on a badly formed help string
+
+    # Guard against the loop silently covering nothing.
+    assert "review" in names and "scrape" in names
