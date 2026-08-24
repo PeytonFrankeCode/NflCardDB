@@ -1,4 +1,4 @@
-Obtaining file:///C:/Users/peyto/OneDrive/Documents/GitHub/NflCardDB2
+Obtaining file:///C:/NflCardDB
   Installing build dependencies: started
   Installing build dependencies: finished with status 'done'
   Checking if build backend supports build_editable: started
@@ -7,31 +7,62 @@ Obtaining file:///C:/Users/peyto/OneDrive/Documents/GitHub/NflCardDB2
   Getting requirements to build editable: finished with status 'done'
   Preparing editable metadata (pyproject.toml): started
   Preparing editable metadata (pyproject.toml): finished with status 'done'
-Requirement already satisfied: requests>=2.31 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (2.34.2)
-Requirement already satisfied: beautifulsoup4>=4.12 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (4.15.0)
-Requirement already satisfied: lxml>=5.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.1.1)
-Requirement already satisfied: PyYAML>=6.0 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (6.0.3)
-Requirement already satisfied: playwright>=1.40 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (1.62.0)
-Requirement already satisfied: curl_cffi>=0.7 in .\venv\Lib\site-packages (from nflcarddb==0.1.0) (0.16.0)
-Requirement already satisfied: soupsieve>=1.6.1 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (2.9.2)
-Requirement already satisfied: typing-extensions>=4.0.0 in .\venv\Lib\site-packages (from beautifulsoup4>=4.12->nflcarddb==0.1.0) (4.16.0)
-Requirement already satisfied: cffi>=2.0.0 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2.1.1)
-Requirement already satisfied: certifi>=2024.2.2 in .\venv\Lib\site-packages (from curl_cffi>=0.7->nflcarddb==0.1.0) (2026.7.22)
-Requirement already satisfied: pycparser in .\venv\Lib\site-packages (from cffi>=2.0.0->curl_cffi>=0.7->nflcarddb==0.1.0) (3.0)
-Requirement already satisfied: pyee<14,>=13 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (13.0.1)
-Requirement already satisfied: greenlet<4.0.0,>=3.1.1 in .\venv\Lib\site-packages (from playwright>=1.40->nflcarddb==0.1.0) (3.5.5)
-Requirement already satisfied: charset_normalizer<4,>=2 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.5.0)
-Requirement already satisfied: idna<4,>=2.5 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (3.18)
-Requirement already satisfied: urllib3<3,>=1.26 in .\venv\Lib\site-packages (from requests>=2.31->nflcarddb==0.1.0) (2.7.0)
+Collecting requests>=2.31 (from nflcarddb==0.1.0)
+  Using cached requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
+Collecting beautifulsoup4>=4.12 (from nflcarddb==0.1.0)
+  Using cached beautifulsoup4-4.15.0-py3-none-any.whl.metadata (3.8 kB)
+Collecting lxml>=5.0 (from nflcarddb==0.1.0)
+  Downloading lxml-6.1.2-cp314-cp314-win_amd64.whl.metadata (3.4 kB)
+Collecting PyYAML>=6.0 (from nflcarddb==0.1.0)
+  Using cached pyyaml-6.0.3-cp314-cp314-win_amd64.whl.metadata (2.4 kB)
+Collecting playwright>=1.40 (from nflcarddb==0.1.0)
+  Using cached playwright-1.62.0-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting curl_cffi>=0.7 (from nflcarddb==0.1.0)
+  Downloading curl_cffi-0.16.1-cp310-abi3-win_amd64.whl.metadata (17 kB)
+Collecting soupsieve>=1.6.1 (from beautifulsoup4>=4.12->nflcarddb==0.1.0)
+  Using cached soupsieve-2.9.2-py3-none-any.whl.metadata (4.6 kB)
+Collecting typing-extensions>=4.0.0 (from beautifulsoup4>=4.12->nflcarddb==0.1.0)
+  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting cffi>=2.0.0 (from curl_cffi>=0.7->nflcarddb==0.1.0)
+  Using cached cffi-2.1.1-cp314-cp314-win_amd64.whl.metadata (2.6 kB)
+Collecting certifi>=2024.2.2 (from curl_cffi>=0.7->nflcarddb==0.1.0)
+  Using cached certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)
+Collecting pycparser (from cffi>=2.0.0->curl_cffi>=0.7->nflcarddb==0.1.0)
+  Using cached pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Collecting pyee<14,>=13 (from playwright>=1.40->nflcarddb==0.1.0)
+  Using cached pyee-13.0.1-py3-none-any.whl.metadata (3.0 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright>=1.40->nflcarddb==0.1.0)
+  Using cached greenlet-3.5.5-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+Collecting charset_normalizer<4,>=2 (from requests>=2.31->nflcarddb==0.1.0)
+  Downloading charset_normalizer-3.5.1-cp314-cp314-win_amd64.whl.metadata (46 kB)
+Collecting idna<4,>=2.5 (from requests>=2.31->nflcarddb==0.1.0)
+  Downloading idna-3.19-py3-none-any.whl.metadata (9.2 kB)
+Collecting urllib3<3,>=1.26 (from requests>=2.31->nflcarddb==0.1.0)
+  Using cached urllib3-2.7.0-py3-none-any.whl.metadata (6.9 kB)
+Using cached beautifulsoup4-4.15.0-py3-none-any.whl (109 kB)
+Downloading curl_cffi-0.16.1-cp310-abi3-win_amd64.whl (2.0 MB)
+   ---------------------------------------- 2.0/2.0 MB 25.5 MB/s  0:00:00
+Using cached certifi-2026.7.22-py3-none-any.whl (136 kB)
+Using cached cffi-2.1.1-cp314-cp314-win_amd64.whl (187 kB)
+Downloading lxml-6.1.2-cp314-cp314-win_amd64.whl (4.1 MB)
+   ---------------------------------------- 4.1/4.1 MB 30.8 MB/s  0:00:00
+Using cached playwright-1.62.0-py3-none-win_amd64.whl (38.2 MB)
+Using cached greenlet-3.5.5-cp314-cp314-win_amd64.whl (327 kB)
+Using cached pyee-13.0.1-py3-none-any.whl (15 kB)
+Using cached pyyaml-6.0.3-cp314-cp314-win_amd64.whl (156 kB)
+Using cached requests-2.34.2-py3-none-any.whl (73 kB)
+Downloading charset_normalizer-3.5.1-cp314-cp314-win_amd64.whl (204 kB)
+Downloading idna-3.19-py3-none-any.whl (68 kB)
+Using cached urllib3-2.7.0-py3-none-any.whl (131 kB)
+Using cached soupsieve-2.9.2-py3-none-any.whl (37 kB)
+Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Using cached pycparser-3.0-py3-none-any.whl (48 kB)
 Building wheels for collected packages: nflcarddb
   Building editable for nflcarddb (pyproject.toml): started
   Building editable for nflcarddb (pyproject.toml): finished with status 'done'
-  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1704 sha256=b3410aa63b495fd139a39dd8ad535573e5543b1d7d01215e93daef64b8ad6caa
-  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-rwaajfq_\wheels\bd\3b\31\6ddead804799381f1cefd2ad9e4651ebea9ea519037a531eb3
+  Created wheel for nflcarddb: filename=nflcarddb-0.1.0-0.editable-py3-none-any.whl size=1664 sha256=c8d88571cbf4f4f5dbada00a4fe0758e3e76022215f29addf8476439ca0ad929
+  Stored in directory: C:\Users\peyto\AppData\Local\Temp\pip-ephem-wheel-cache-d_b4q2jb\wheels\15\b9\3e\118277db9e463f8d9daf2ca7e5ef93487ccb9685a92bca8c2a
 Successfully built nflcarddb
-Installing collected packages: nflcarddb
-  Attempting uninstall: nflcarddb
-    Found existing installation: nflcarddb 0.1.0
-    Uninstalling nflcarddb-0.1.0:
-      Successfully uninstalled nflcarddb-0.1.0
-Successfully installed nflcarddb-0.1.0
+Installing collected packages: urllib3, typing-extensions, soupsieve, PyYAML, pycparser, lxml, idna, greenlet, charset_normalizer, certifi, requests, pyee, cffi, beautifulsoup4, playwright, nflcarddb, curl_cffi
+
+Successfully installed PyYAML-6.0.3 beautifulsoup4-4.15.0 certifi-2026.7.22 cffi-2.1.1 charset_normalizer-3.5.1 curl_cffi-0.16.1 greenlet-3.5.5 idna-3.19 lxml-6.1.2 nflcarddb-0.1.0 playwright-1.62.0 pycparser-3.0 pyee-13.0.1 requests-2.34.2 soupsieve-2.9.2 typing-extensions-4.16.0 urllib3-2.7.0
