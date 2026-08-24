@@ -38,16 +38,27 @@ MIN_SIGHTINGS = 8
 
 _WORD = re.compile(r"^[A-Za-z][A-Za-z'’.\-]*$")
 
+# "Patrick Mahomes II" yields the window "Mahomes II", which spans as many sets
+# as the real name does and so passes every breadth test. It is not a name, and
+# a title matching it would display "Mahomes Ii" as the player.
+_SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
+
 
 def _windows(name: str) -> list[str]:
     """Every two-word run inside a parsed name.
 
     Two words, because that is what almost every player name is; the three-word
     cases (Amon-Ra St. Brown) still match on their last two, which is enough to
-    anchor the scan.
+    anchor the scan. A window ending in a generational suffix is dropped -- it
+    travels with the player and would otherwise qualify alongside them.
     """
     words = [w for w in name.split() if _WORD.match(w)]
-    return [" ".join(words[i:i + 2]) for i in range(len(words) - 1)]
+    return [
+        " ".join(words[i:i + 2])
+        for i in range(len(words) - 1)
+        if words[i + 1].lower() not in _SUFFIXES
+        and words[i].lower() not in _SUFFIXES
+    ]
 
 
 def build(db_path: str, min_contexts: int = MIN_CONTEXTS,

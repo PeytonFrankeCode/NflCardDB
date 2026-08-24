@@ -208,8 +208,10 @@ def audit(db_path: str) -> dict:
     contradictions = contradictory_groups(db_path, limit=1000)
     spreads = wide_spread_groups(db_path, limit=1000)
     messy = messy_named_groups(db_path, limit=1000)
+    splits = number_split_groups(db_path)
 
     suspect_sales = sum(r["sales"] for r in contradictions)
+    stats["number_split"] = splits
     stats["messy_name_groups"] = len(messy)
     stats["contradictory_groups"] = len(contradictions)
     stats["wide_spread_groups"] = len(spreads)
@@ -223,6 +225,78 @@ def audit(db_path: str) -> dict:
         "messy_names": messy[:5],
     }
     return stats
+
+
+def number_split_groups(db_path: str, limit: int = 25) -> dict:
+    """Sales stranded because the seller did not type the card number.
+
+    `card_key` uses the number when it is there and the player's name when it is
+    not, so one physical card owns two possible keys and sales scatter between
+    them by nothing more than how much the seller bothered to type.
+
+    Whether that is fixable depends on what else sold from the same set:
+
+    * If (year, set, player, parallel) shows exactly **one** number across every
+      sale, an unnumbered sale can only be that card. Recoverable.
+    * If it shows several -- a base card and an insert of the same player in the
+      same set -- an unnumbered title genuinely does not say which. Merging
+      those would invent a fact, so they stay apart.
+
+    Counting the two separately is the point: the first is the size of the prize,
+    the second is the floor no amount of parsing gets under.
+    """
+    conn = store.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT card_key, year, set_name, player, parallel, card_number "
+            "FROM cards WHERE card_key IS NOT NULL AND player IS NOT NULL "
+            "AND year IS NOT NULL AND set_name IS NOT NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buckets: dict[tuple, dict] = {}
+    for key, year, set_name, player, parallel, number in rows:
+        folded = normalize_player(player)
+        if not folded:
+            continue
+        bucket = (year, set_name.lower(), folded, (parallel or "").lower())
+        entry = buckets.setdefault(
+            bucket, {"numbers": set(), "unnumbered": 0, "numbered": 0, "keys": set()}
+        )
+        entry["keys"].add(key)
+        if number:
+            entry["numbers"].add(str(number).upper())
+            entry["numbered"] += 1
+        else:
+            entry["unnumbered"] += 1
+
+    recoverable = ambiguous = 0
+    examples = []
+    for bucket, entry in buckets.items():
+        if not entry["unnumbered"] or not entry["numbers"]:
+            continue
+        if len(entry["numbers"]) == 1:
+            recoverable += entry["unnumbered"]
+            if len(examples) < limit:
+                year, set_name, folded, _ = bucket
+                examples.append({
+                    "year": year,
+                    "set_name": set_name,
+                    "player": folded,
+                    "number": next(iter(entry["numbers"])),
+                    "stranded": entry["unnumbered"],
+                    "joined": entry["numbered"],
+                })
+        else:
+            ambiguous += entry["unnumbered"]
+
+    examples.sort(key=lambda r: -r["stranded"])
+    return {
+        "recoverable_sales": recoverable,
+        "ambiguous_sales": ambiguous,
+        "examples": examples[:limit],
+    }
 
 
 def messy_named_groups(db_path: str, limit: int = 25) -> list[dict]:

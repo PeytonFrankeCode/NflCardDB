@@ -288,13 +288,25 @@ def cmd_roster(args) -> int:
     print("=" * 58)
     _delta("sales matched to a card", before.get("with_key", 0),
            after.get("with_key", 0))
-    _delta("distinct cards", before.get("groups", 0), after.get("groups", 0),
-           lower_is_better=True)
     _delta("cards seen more than once",
            before.get("groups", 0) - before.get("singleton_groups", 0),
            after.get("groups", 0) - after.get("singleton_groups", 0))
-    print("\nFewer distinct cards holding more sales each is the improvement:")
-    print("it means sales that were split apart are now one price history.")
+    _delta("sales sharing a card", before.get("grouped_sales", 0),
+           after.get("grouped_sales", 0))
+    _rate_delta("cards seen only once",
+                before.get("singleton_groups", 0), before.get("groups", 0),
+                after.get("singleton_groups", 0), after.get("groups", 0))
+
+    # Raw group count is NOT reported as better or worse, and that is deliberate.
+    # A run that matches previously-unmatched sales has to put them somewhere, so
+    # the count rises for a good reason and falls for a good reason, and the two
+    # are indistinguishable without knowing whether coverage moved. Labelling it
+    # "worse" once hid a genuine improvement behind a red number.
+    print(f"\n  (distinct cards {before.get('groups', 0):,} -> "
+          f"{after.get('groups', 0):,} -- neither good nor bad on its own, "
+          f"since\n   newly-matched sales create groups of their own)")
+    print("\nThe rate is the honest one: a smaller share of cards seen only once")
+    print("means sales that were split apart are now one price history.")
     return 0
 
 
@@ -306,6 +318,18 @@ def _delta(label: str, before: int, after: int, lower_is_better: bool = False) -
         good = (change < 0) if lower_is_better else (change > 0)
         note = f"{change:+,}  {'better' if good else 'worse'}"
     print(f"  {label:<28} {before:>9,} -> {after:>9,}   {note}")
+
+
+def _rate_delta(label: str, before_n: int, before_d: int,
+                after_n: int, after_d: int) -> None:
+    """A share rather than a count, for anything the population size distorts."""
+    if not before_d or not after_d:
+        return
+    before, after = before_n / before_d, after_n / after_d
+    change = after - before
+    note = "no change" if abs(change) < 0.0005 else \
+        f"{change * 100:+.1f} pts  {'better' if change < 0 else 'worse'}"
+    print(f"  {label:<28} {before:>8.1%} -> {after:>9.1%}   {note}")
 
 
 def enable_roster(config_path: Optional[str], roster_path) -> bool:
@@ -392,6 +416,21 @@ def cmd_audit(args) -> int:
     print()
     print(f"  grouped right, name spelled several ways  {report['messy_name_groups']:>6,}")
     print("  (cosmetic: the price history is correct, the displayed name varies)")
+
+    split = report.get("number_split") or {}
+    if split.get("recoverable_sales") or split.get("ambiguous_sales"):
+        print()
+        print("Sales split apart by a missing card number")
+        print("=" * 58)
+        print(f"  could be rejoined safely          {split['recoverable_sales']:>6,}")
+        print(f"  genuinely ambiguous               {split['ambiguous_sales']:>6,}")
+        print("  (one card owns two keys: numbered and un-numbered. Where only")
+        print("   one number ever appears for that player in that set, an")
+        print("   un-numbered sale can only be that card.)")
+        for row in split["examples"][:5]:
+            print(f"\n  {row['year']} {row['set_name']} {row['player']} #{row['number']}")
+            print(f"    {row['joined']} sales grouped, {row['stranded']} stranded "
+                  f"for want of the number")
 
     for row in report["examples"]["contradictory"]:
         print(f"\n  {row['card_key']}  ({row['sales']} sales)")

@@ -241,3 +241,28 @@ def test_an_empty_database_learns_nothing(tmp_path):
     conn = store.connect(tmp_path / "empty.db")
     conn.close()
     assert build(str(tmp_path / "empty.db")) == []
+
+
+def test_a_generational_suffix_is_not_a_surname(tmp_path):
+    """"Patrick Mahomes II" yields the window "Mahomes II", which travels with
+    the player across every set and so passes breadth on his coattails. It is
+    not a name, and a title matching it would display "Mahomes Ii"."""
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "suffix.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    sets = [(2024, "Prizm"), (2023, "Mosaic"), (2022, "Select"), (2021, "Optic")]
+    sales = [Sale(item_id=f"{920000000000 + i}", title="x", price_cents=1000,
+                  sold_date="2026-08-03") for i in range(len(sets))]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player="Patrick Mahomes II", year=y, set_name=n,
+                              card_number=str(i), confidence=0.9))
+        for i, (s, (y, n)) in enumerate(zip(sales, sets))
+    ], "v1")
+    conn.close()
+
+    names = {n for n, _, _ in build(str(path), min_contexts=3, min_sightings=3)}
+    assert "patrick mahomes" in names
+    assert "mahomes ii" not in names
