@@ -313,6 +313,47 @@ the OneDrive move first.
 collecting still works by hand. `tools/grabber.html` needs no browser engine at
 all: it reads listings off a page you already have open.
 
+## Grouping sales of the same card together
+
+For a price chart to mean anything, every sale of one card has to land in one
+place. That depends on reading the player's name off the title correctly, and
+titles fight back:
+
+```
+2024 PANINI DONRUSS BOMB SQUAD #29 JAYDEN DANIELS ROOKIE RC PSA 9
+2024 Jayden Daniels Donruss Optic Preview Emoji Prizm Rookie PSA 9 #389
+```
+
+"Bomb Squad" and "Preview" are the insert, not the player — but nothing about
+the words says so, and no rule about position works either: one of those wants
+the last two words and the other the first two. Read wrong, `Bomb Squad Jayden
+Daniels` and `Jayden Daniels Preview` become different players, and when a title
+has no card number the name *is* the identity, so one card splits several ways.
+
+**Double-click `names.bat`.** It works out which phrases are players from your
+own collected titles, using breadth rather than repetition: a player appears in
+Prizm and Mosaic and Donruss, across years, while an insert lives in one set of
+one year. Then it re-reads every title you have.
+
+It prints your own before-and-after, so the improvement is measured rather than
+claimed. The shape of it:
+
+```
+  sales matched to a card          17,126 ->    19,880   +2,754  better
+  distinct cards                   14,906 ->    11,240   -3,666  better
+  cards seen more than once         1,248 ->     3,910   +2,662  better
+```
+
+(Those figures are an illustration. Yours will differ — the left column is the
+real starting point from your last audit.)
+
+Fewer distinct cards holding more sales each is the whole point: sales that were
+split apart are now one price history.
+
+Worth re-running every few weeks. The list is learned from your data, not
+shipped, so it improves as you collect and it never goes stale on rookies —
+which a hand-written list does every draft.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this

@@ -240,6 +240,106 @@ def cmd_card(args) -> int:
     return 0
 
 
+def cmd_roster(args) -> int:
+    """Learn player names from the titles already collected."""
+    from .roster import build, write
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    names = build(db_path, min_contexts=args.min_contexts,
+                  min_sightings=args.min_sightings)
+    if not names:
+        print("Not enough collected data to learn names from yet.", file=sys.stderr)
+        return 1
+
+    path = write(names, args.out)
+    print(f"Learned {len(names)} player names -> {path}\n")
+    print("Most confident (seen across the most different sets):")
+    for name, sightings, contexts in names[:12]:
+        print(f"  {name:<28} {sightings:>6,} listings, {contexts:>3} sets")
+    print(f"\n  ...and {max(0, len(names) - 12)} more")
+
+    if args.no_apply:
+        print(f"\nNot applied. To use it, add this line to {args.config}:")
+        print(f"  roster: {path}")
+        print("then run:  nflcarddb parse --all")
+        return 0
+
+    if enable_roster(args.config, path):
+        print(f"\nTurned on in {args.config}.")
+    else:
+        print(f"\nCould not edit {args.config}. Add this line yourself:")
+        print(f"  roster: {path}")
+        return 1
+
+    from .audit import coverage
+
+    before = coverage(db_path)
+    print("\nRe-reading every title with the roster. This takes a minute.")
+    reparse_titles(db_path, str(path), all_rows=True)
+    after = coverage(db_path)
+
+    # The point of the roster is fewer, bigger groups over the same sales: a
+    # name that stopped varying stops splitting one card into several. Printing
+    # both ends is the difference between a measured improvement and a claimed
+    # one.
+    print("\nWhat changed")
+    print("=" * 58)
+    _delta("sales matched to a card", before.get("with_key", 0),
+           after.get("with_key", 0))
+    _delta("distinct cards", before.get("groups", 0), after.get("groups", 0),
+           lower_is_better=True)
+    _delta("cards seen more than once",
+           before.get("groups", 0) - before.get("singleton_groups", 0),
+           after.get("groups", 0) - after.get("singleton_groups", 0))
+    print("\nFewer distinct cards holding more sales each is the improvement:")
+    print("it means sales that were split apart are now one price history.")
+    return 0
+
+
+def _delta(label: str, before: int, after: int, lower_is_better: bool = False) -> None:
+    change = after - before
+    if change == 0:
+        note = "no change"
+    else:
+        good = (change < 0) if lower_is_better else (change > 0)
+        note = f"{change:+,}  {'better' if good else 'worse'}"
+    print(f"  {label:<28} {before:>9,} -> {after:>9,}   {note}")
+
+
+def enable_roster(config_path: Optional[str], roster_path) -> bool:
+    """Point the config at the roster just built, editing the file in place.
+
+    A file the user has to remember to edit is a file that stays unedited, and
+    then the roster exists while nothing reads it -- which looks exactly like
+    the roster not working. The line is written as one comment-free assignment
+    so re-running this is idempotent rather than additive.
+    """
+    path = Path(config_path or "")
+    if not path.exists():
+        return False
+
+    line = f"roster: {Path(roster_path).as_posix()}"
+    try:
+        original = path.read_text(encoding="utf-8")
+        out, replaced = [], False
+        for raw in original.splitlines():
+            stripped = raw.lstrip("# ").rstrip()
+            # Both the shipped commented example and a previous run's line.
+            if stripped.startswith("roster:") and not replaced:
+                out.append(line)
+                replaced = True
+            else:
+                out.append(raw)
+        if not replaced:
+            return False
+        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
 def cmd_audit(args) -> int:
     """What can be measured about parsing quality without labelling anything."""
     from .audit import audit
@@ -1343,6 +1443,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=25)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_card)
+
+    p = sub.add_parser("roster", help="learn player names from collected titles")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--out", default="config/nfl_players.txt")
+    p.add_argument("--min-contexts", type=int, default=3,
+                   help="different set-and-year combinations a name must span")
+    p.add_argument("--min-sightings", type=int, default=8)
+    p.add_argument("--no-apply", action="store_true",
+                   help="write the list but do not switch it on or reparse")
+    p.set_defaults(func=cmd_roster)
 
     p = sub.add_parser("audit", help="parsing quality that needs no human review")
     p.add_argument("--config", default="config/queries.yml")
