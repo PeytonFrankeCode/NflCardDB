@@ -1,3 +1,5 @@
+import sqlite3
+
 from nflcarddb import db as store
 from nflcarddb.models import CardAttrs, Sale
 
@@ -134,3 +136,89 @@ def test_daily_summary(tmp_path):
     assert summary["avg_price"] == 20.0
     assert summary["max_price"] == 30.0
     conn.close()
+
+
+def _old_format_database(path):
+    """A database from before card_key and image_url existed."""
+    import sqlite3
+
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE sales (
+            item_id TEXT PRIMARY KEY, title TEXT NOT NULL, price_cents INTEGER,
+            currency TEXT NOT NULL DEFAULT 'USD', shipping_cents INTEGER,
+            sold_date TEXT, listing_format TEXT NOT NULL DEFAULT 'unknown',
+            bids INTEGER, best_offer INTEGER NOT NULL DEFAULT 0,
+            condition TEXT, seller TEXT, url TEXT, query_id TEXT, run_id TEXT,
+            first_seen_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+        CREATE TABLE cards (
+            item_id TEXT PRIMARY KEY, player TEXT, team TEXT, year INTEGER,
+            brand TEXT, set_name TEXT, parallel TEXT, card_number TEXT,
+            serial_number INTEGER, print_run INTEGER, grader TEXT, grade REAL,
+            is_graded INTEGER NOT NULL DEFAULT 0,
+            is_rookie INTEGER NOT NULL DEFAULT 0,
+            is_auto INTEGER NOT NULL DEFAULT 0,
+            is_relic INTEGER NOT NULL DEFAULT 0,
+            confidence REAL NOT NULL DEFAULT 0,
+            parser_version TEXT, parsed_at TEXT);
+        INSERT INTO sales VALUES ('900000000001', 'a card', 9000, 'USD', 0,
+            '2026-08-03', 'fixed', NULL, 0, NULL, NULL, NULL, NULL, NULL,
+            '2026-08-03T00:00:00+00:00', '2026-08-03T00:00:00+00:00');
+        INSERT INTO cards (item_id, player, confidence)
+            VALUES ('900000000001', 'Someone', 0.9);
+    """)
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_an_older_database_gains_new_columns_on_open(tmp_path):
+    """CREATE TABLE IF NOT EXISTS never alters an existing table, so a column
+    added to schema.sql never reached a database made before it -- and the
+    schema then failed on the first index over it. This is the exact failure
+    users hit as `no such column: card_key`."""
+    path = _old_format_database(tmp_path / "old.db")
+
+    conn = store.connect(path)          # must not raise
+    cards = {r[1] for r in conn.execute("PRAGMA table_info(cards)")}
+    sales = {r[1] for r in conn.execute("PRAGMA table_info(sales)")}
+    conn.close()
+
+    assert {"card_key", "card_name"} <= cards
+    assert "image_url" in sales
+
+
+def test_upgrading_keeps_the_rows_that_were_already_there(tmp_path):
+    path = _old_format_database(tmp_path / "keep.db")
+
+    conn = store.connect(path)
+    row = conn.execute(
+        "SELECT title, price_cents, card_key FROM sales JOIN cards USING (item_id)"
+    ).fetchone()
+    conn.close()
+
+    assert row["title"] == "a card"
+    assert row["price_cents"] == 9000
+    assert row["card_key"] is None      # not yet parsed, but the column exists
+
+
+def test_opening_an_up_to_date_database_changes_nothing(tmp_path):
+    path = tmp_path / "current.db"
+    store.connect(path).close()
+
+    conn = sqlite3.connect(path)
+    added = store._add_missing_columns(conn)
+    conn.close()
+    assert added == []
+
+
+def test_every_declared_column_is_discovered():
+    """The migration reads schema.sql rather than a hand-kept list, so a future
+    column needs no second edit. That only holds if the parse actually works."""
+    declared = store._declared_columns()
+
+    assert {"sales", "cards", "scrape_runs"} <= set(declared)
+    cards = dict(declared["cards"])
+    assert "card_key" in cards and "card_name" in cards
+    # Constraint lines are not columns.
+    assert "PRIMARY" not in cards and "FOREIGN" not in cards

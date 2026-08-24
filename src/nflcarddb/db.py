@@ -6,6 +6,8 @@ updates rows in place instead of duplicating them.
 
 from __future__ import annotations
 
+import logging
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +18,8 @@ from .models import CardAttrs, Sale
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
+log = logging.getLogger(__name__)
+
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -23,6 +27,70 @@ def utcnow() -> str:
 
 def new_run_id() -> str:
     return f"run_{datetime.now(timezone.utc):%Y%m%dT%H%M%S}_{uuid.uuid4().hex[:6]}"
+
+
+_TABLE_RE = re.compile(
+    r"CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*?)\n\);", re.S | re.I
+)
+# Lines inside a CREATE TABLE that declare a constraint rather than a column.
+_NOT_A_COLUMN = re.compile(
+    r"^\s*(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)\b", re.I
+)
+
+
+def _declared_columns() -> dict[str, list[tuple[str, str]]]:
+    """Every column the shipped schema declares, per table."""
+    schema = SCHEMA_PATH.read_text()
+    out: dict[str, list[tuple[str, str]]] = {}
+    for table, body in _TABLE_RE.findall(schema):
+        columns = []
+        for line in body.splitlines():
+            line = line.split("--", 1)[0].strip().rstrip(",")
+            if not line or _NOT_A_COLUMN.match(line):
+                continue
+            name, _, decl = line.partition(" ")
+            if name and decl.strip():
+                columns.append((name, decl.strip()))
+        out[table] = columns
+    return out
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> list[str]:
+    """Bring an existing database up to the current schema.
+
+    `CREATE TABLE IF NOT EXISTS` is a no-op on a table that already exists, so
+    a column added to schema.sql never reaches a database made before it. The
+    script then fails on the first index over the missing column -- which is
+    how a working install broke on `no such column: card_key`.
+
+    Exactly the same trap as the D1 side, where it is handled by MIGRATIONS.
+    Here the wanted columns are read from schema.sql rather than listed by
+    hand, so a future addition needs no second edit to be picked up.
+    """
+    added = []
+    for table, columns in _declared_columns().items():
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if not existing:
+            continue                    # new table; the schema will create it
+        for name, decl in columns:
+            if name in existing:
+                continue
+            # A generated column cannot always be added to a populated table,
+            # and never needs to be: it is computed, not stored.
+            if "GENERATED" in decl.upper():
+                continue
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                added.append(f"{table}.{name}")
+            except sqlite3.OperationalError as exc:
+                # NOT NULL without a default cannot be added to existing rows.
+                # Skipping is right: the schema will not have changed under a
+                # database that has data in that table.
+                log.debug("could not add %s.%s (%s)", table, name, exc)
+    if added:
+        conn.commit()
+        log.info("database upgraded: added %s", ", ".join(added))
+    return added
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
@@ -34,6 +102,9 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
+    # Before the schema script, not after: it ends with indexes over columns
+    # that may not exist yet, and the whole script fails on the first one.
+    _add_missing_columns(conn)
     conn.executescript(SCHEMA_PATH.read_text())
     conn.commit()
     return conn
