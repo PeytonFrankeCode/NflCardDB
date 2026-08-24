@@ -170,6 +170,45 @@ the number they account for:
 `asking.n` is most of `matched`, the headline is mostly list prices — worth
 knowing before quoting it as what a card is worth.
 
+### `GET /v1/cards`
+The cards that are actually trading, most sales first. `q` matches the card
+name, `from` limits the window, `limit` caps the list.
+
+```json
+{"cards": [
+  {"card_key": "2021-prizm-n220", "card_name": "2021 Prizm Ja'Marr Chase #220",
+   "sales": 47, "average": 91.4, "high": 260.0, "last_sold": "2026-08-09"}
+]}
+```
+
+### `GET /v1/card?key=...`
+**One card's price history — the endpoint behind a trend chart.**
+
+Every sale that shares a `card_key`, oldest first, split by grade. Optional
+`grade` narrows it to one, e.g. `&grade=PSA%2010`.
+
+```json
+{
+  "card_key": "2021-prizm-n220",
+  "card_name": "2021 Prizm Ja'Marr Chase #220",
+  "image": "https://i.ebayimg.com/images/g/.../s-l500.jpg",
+  "sales": 47,
+  "by_grade": {
+    "PSA 10": {"n": 22, "median": 95.0, "low": 78.0, "high": 260.0,
+               "first": "2026-07-19", "last": "2026-08-09",
+               "points": [{"date": "2026-07-19", "price": 78.0, "is_ask": false,
+                           "id": "127967084745"}]}
+  }
+}
+```
+
+**Grades are separate series on purpose.** A PSA 10 and a raw copy of the same
+card trade at different prices, so one line through both would describe neither.
+Plot each `by_grade` entry as its own line.
+
+`is_ask` marks best-offer points — the seller's asking price rather than what
+was paid. Worth styling differently, or filtering out, on a chart.
+
 ### `GET /v1/players?q=`
 Most-traded players with sale counts and averages.
 

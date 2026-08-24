@@ -46,9 +46,18 @@ CREATE TABLE IF NOT EXISTS cards (
     is_auto       INTEGER NOT NULL DEFAULT 0,
     is_relic      INTEGER NOT NULL DEFAULT 0,
     confidence    REAL NOT NULL DEFAULT 0,
+    -- Shared by every sale of the same physical card, whatever the seller
+    -- called it. NULL when the parse was too thin to identify one: a wrong
+    -- grouping silently averages two different cards into one price history,
+    -- which is worse than no grouping.
+    card_key      TEXT,
+    card_name     TEXT,
     parser_version TEXT,
     parsed_at     TEXT
 );
+
+-- The query behind a price history: one card, oldest sale to newest.
+CREATE INDEX IF NOT EXISTS idx_cards_key ON cards (card_key);
 
 CREATE INDEX IF NOT EXISTS idx_cards_player ON cards (player);
 CREATE INDEX IF NOT EXISTS idx_cards_lookup ON cards (player, year, set_name, parallel);

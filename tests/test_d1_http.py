@@ -201,7 +201,9 @@ def test_the_shipped_migrations_cover_every_exported_column():
     create = re.search(r"CREATE TABLE IF NOT EXISTS sales \((.*?)\n\);", schema,
                        re.S).group(1)
     in_schema = set(re.findall(r"^\s{4}(\w+)", create, re.M))
-    added = {re.search(r"ADD COLUMN (\w+)", m).group(1) for m in MIGRATIONS}
+    # Not every migration adds a column -- indexes are migrations too.
+    added = {m.group(1) for m in
+             (re.search(r"ADD COLUMN (\w+)", s) for s in MIGRATIONS) if m}
 
     missing = set(EXPORT_COLUMNS) - in_schema
     assert not missing, f"exported but not in api/schema.sql: {missing}"

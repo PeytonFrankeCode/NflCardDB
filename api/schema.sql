@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS sales (
     card_number    TEXT,
     grader         TEXT,
     grade          REAL,
+    -- Shared by every sale of the same physical card. Group on this for price
+    -- history; add grader/grade to it for a single market unit. NULL when the
+    -- parse was too thin to identify a card.
+    card_key       TEXT,
+    card_name      TEXT,
     is_rookie      INTEGER NOT NULL DEFAULT 0,
     is_auto        INTEGER NOT NULL DEFAULT 0,
     confidence     REAL NOT NULL DEFAULT 0
@@ -46,6 +51,8 @@ CREATE INDEX IF NOT EXISTS idx_sales_date   ON sales (sold_date DESC);
 CREATE INDEX IF NOT EXISTS idx_sales_player ON sales (player, sold_date DESC);
 CREATE INDEX IF NOT EXISTS idx_sales_set    ON sales (set_name, sold_date DESC);
 CREATE INDEX IF NOT EXISTS idx_sales_grade  ON sales (grader, grade);
+-- The price-history query: one card, in date order.
+CREATE INDEX IF NOT EXISTS idx_sales_card   ON sales (card_key, sold_date);
 
 -- Precomputed daily rollups: cheap to serve, and the common dashboard call.
 CREATE TABLE IF NOT EXISTS daily (

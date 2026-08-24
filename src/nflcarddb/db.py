@@ -101,7 +101,7 @@ def upsert_sales(conn: sqlite3.Connection, sales: Iterable[Sale], run_id: str) -
 _CARD_COLS = (
     "player", "team", "year", "brand", "set_name", "parallel", "card_number",
     "serial_number", "print_run", "grader", "grade", "is_graded", "is_rookie",
-    "is_auto", "is_relic", "confidence",
+    "is_auto", "is_relic", "confidence", "card_key", "card_name",
 )
 
 
@@ -114,11 +114,18 @@ def upsert_cards(
     if not parsed:
         return 0
 
+    from .card_key import card_key, card_name
+
     now = utcnow()
     rows = []
     for item_id, attrs in parsed:
         row = attrs.as_row()
         row["item_id"] = item_id
+        # Derived here rather than in the parser: identity is a decision about
+        # which parsed fields are trustworthy enough to group on, which is a
+        # different question from what the title says.
+        row["card_key"] = card_key(attrs)
+        row["card_name"] = card_name(attrs)
         row["parser_version"] = parser_version
         row["parsed_at"] = now
         rows.append(row)

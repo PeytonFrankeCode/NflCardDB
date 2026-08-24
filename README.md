@@ -315,6 +315,7 @@ selectors.
 | `coverage` | which of the last 90 days you hold, and how long the rest will take |
 | `recheck` | find days that came back suspiciously small; `--fix` queues them again |
 | `schedule` | daily unattended run via Windows Task Scheduler (`--at`, `--status`, `--remove`, `--run-now`) |
+| `card` | one card's price history, or the cards actually trading |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
 | `import` | load eBay pages you saved by hand — no network, cannot be blocked |

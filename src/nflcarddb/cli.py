@@ -26,6 +26,8 @@ from .pipeline import (
     image_report,
     mark_for_recollection,
     top_sales,
+    top_cards,
+    card_history,
     reparse_titles,
     run_backfill,
     run_scrape,
@@ -194,6 +196,47 @@ def cmd_top(args) -> int:
     if not args.include_offers:
         print("\nBest offers are excluded: their price is the seller's ask, not "
               "what was paid.\nAdd --include-offers to see them, labelled.")
+    return 0
+
+
+def cmd_card(args) -> int:
+    """One card's sales over time, or the cards that are actually trading."""
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    if not args.key:
+        rows = top_cards(db_path, days=args.days, limit=args.limit)
+        if args.json:
+            print(json.dumps(rows, indent=2))
+            return 0
+        if not rows:
+            print("No cards identified yet. Collect some sales, then run "
+                  "`nflcarddb parse --all`.", file=sys.stderr)
+            return 1
+        window = f"the last {args.days} days" if args.days else "everything"
+        print(f"Most-traded cards in {window}:\n")
+        for r in rows:
+            print(f"  {r['sales']:>4} sales  avg ${r['average']:>9,.2f}  "
+                  f"{(r['card_name'] or r['card_key'])[:52]}")
+            print(f"        {r['card_key']}")
+        print("\nPrice history for one:  nflcarddb card --key <card_key>")
+        return 0
+
+    history = card_history(db_path, args.key, grade=args.grade)
+    if args.json:
+        print(json.dumps(history, indent=2))
+        return 0
+    if not history["sales"]:
+        print(f"No sales found for {args.key}", file=sys.stderr)
+        return 1
+
+    print(f"{history['card_name'] or args.key}")
+    print(f"{history['card_key']}  --  {history['sales']} sale(s)\n")
+    for label, block in history["by_grade"].items():
+        print(f"  {label:<10} {block['n']:>4} sales   "
+              f"median ${block['median']:>9,.2f}   "
+              f"${block['low']:,.2f} - ${block['high']:,.2f}   "
+              f"{block['first']} to {block['last']}")
     return 0
 
 
@@ -1157,6 +1200,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="include best offers, whose price is the ask")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_top)
+
+    p = sub.add_parser("card", help="one card's price history, or what is trading")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--key", help="card_key; omit to list the most-traded cards")
+    p.add_argument("--grade", help="limit to one grade, e.g. 'PSA 10'")
+    p.add_argument("--days", type=int, default=30, help="window when listing (0 = all)")
+    p.add_argument("--limit", type=int, default=25)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_card)
 
     p = sub.add_parser("recheck", help="find days that were cut short and re-collect them")
     p.add_argument("--config", default="config/queries.yml")

@@ -39,6 +39,9 @@ MAX_BATCH_STATEMENTS = 40
 MIGRATIONS = (
     "ALTER TABLE sales ADD COLUMN image_url TEXT",
     "ALTER TABLE sales ADD COLUMN ask_cents INTEGER",
+    "ALTER TABLE sales ADD COLUMN card_key TEXT",
+    "ALTER TABLE sales ADD COLUMN card_name TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_sales_card ON sales (card_key, sold_date)",
 )
 
 ALREADY_APPLIED = ("duplicate column", "already exists")

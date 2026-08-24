@@ -129,6 +129,10 @@ function shapeSale(r) {
     card_number: r.card_number,
     grader: r.grader,
     grade: r.grade,
+    // Shared by every sale of the same physical card, whatever the seller
+    // titled it. Group on this for price history.
+    card_key: r.card_key,
+    card_name: r.card_name,
     rookie: !!r.is_rookie,
     auto: !!r.is_auto,
     confidence: r.confidence,
@@ -290,6 +294,115 @@ async function priceSummary(url, env) {
   });
 }
 
+/**
+ * GET /v1/card?key=...  -- one card's sales over time.
+ *
+ * Split by grade rather than pooled: a PSA 10 and a raw copy of the same card
+ * trade at different prices, so a single line through both describes neither.
+ */
+async function cardHistory(url, env) {
+  const key = url.searchParams.get("key");
+  if (!key) return fail(400, "missing_key", "Pass ?key=<card_key>");
+
+  const rows = await env.DB.prepare(
+    `SELECT sold_date, price_cents, best_offer, item_id, title, image_url,
+            card_name, grader, grade
+     FROM sales WHERE card_key = ? AND price_cents IS NOT NULL
+       AND sold_date IS NOT NULL
+     ORDER BY sold_date LIMIT 2000`
+  ).bind(key).all();
+
+  const wanted = url.searchParams.get("grade");
+  const series = new Map();
+  let name = null;
+  let image = null;
+
+  for (const r of rows.results || []) {
+    const label = r.grader
+      ? (r.grade == null ? r.grader : `${r.grader} ${r.grade}`)
+      : "Raw";
+    if (wanted && label !== wanted) continue;
+    name = name || r.card_name;
+    image = image || r.image_url;
+    if (!series.has(label)) series.set(label, []);
+    series.get(label).push({
+      date: r.sold_date,
+      price: r.price_cents / 100,
+      is_ask: !!r.best_offer,
+      id: r.item_id,
+    });
+  }
+
+  if (!series.size) {
+    return fail(404, "no_such_card", `No sales found for card_key ${key}`);
+  }
+
+  const summarise = (points) => {
+    const prices = points.map((p) => p.price).sort((a, b) => a - b);
+    const mid = Math.floor(prices.length / 2);
+    return {
+      n: points.length,
+      first: points[0].date,
+      last: points[points.length - 1].date,
+      low: prices[0],
+      high: prices[prices.length - 1],
+      median: prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2,
+      points,
+    };
+  };
+
+  const by_grade = {};
+  for (const [label, points] of [...series.entries()].sort(
+         (a, b) => b[1].length - a[1].length)) {
+    by_grade[label] = summarise(points);
+  }
+
+  return json({
+    card_key: key,
+    card_name: name,
+    image,
+    sales: [...series.values()].reduce((n, p) => n + p.length, 0),
+    by_grade,
+  });
+}
+
+/** GET /v1/cards -- the cards actually trading, most sales first. */
+async function listCards(url, env) {
+  const limit = intParam(url, "limit", 25, 200);
+  const binds = [];
+  let clause = "WHERE card_key IS NOT NULL AND price_cents IS NOT NULL";
+
+  const q = url.searchParams.get("q");
+  if (q) { clause += " AND card_name LIKE ?"; binds.push(`%${q}%`); }
+
+  const from = url.searchParams.get("from");
+  if (from) {
+    if (!ISO_DATE.test(from)) {
+      return fail(400, "bad_date", "from must look like 2026-08-03");
+    }
+    clause += " AND sold_date >= ?"; binds.push(from);
+  }
+
+  const rows = await env.DB.prepare(
+    `SELECT card_key, MAX(card_name) AS card_name, COUNT(*) AS n,
+            CAST(AVG(price_cents) AS INTEGER) AS avg_cents,
+            MAX(price_cents) AS high_cents, MAX(sold_date) AS last_sold
+     FROM sales ${clause}
+     GROUP BY card_key ORDER BY n DESC, high_cents DESC LIMIT ?`
+  ).bind(...binds, limit).all();
+
+  return json({
+    cards: (rows.results || []).map((r) => ({
+      card_key: r.card_key,
+      card_name: r.card_name,
+      sales: r.n,
+      average: r.avg_cents / 100,
+      high: r.high_cents / 100,
+      last_sold: r.last_sold,
+    })),
+  });
+}
+
 async function listPlayers(url, env) {
   const q = url.searchParams.get("q");
   const limit = intParam(url, "limit", 50, 200);
@@ -410,6 +523,8 @@ export default {
         case "/v1/prices":  response = await priceSummary(url, env); break;
         case "/v1/players": response = await listPlayers(url, env); break;
         case "/v1/daily":   response = await daily(url, env); break;
+        case "/v1/cards":   response = await listCards(url, env); break;
+        case "/v1/card":    response = await cardHistory(url, env); break;
         default:
           return fail(404, "not_found", `No endpoint ${url.pathname}. See / for the list.`);
       }

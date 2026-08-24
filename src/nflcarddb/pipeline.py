@@ -442,6 +442,113 @@ def reparse_titles(
     return count
 
 
+def card_history(
+    db_path: str,
+    key: str,
+    grade: Optional[str] = None,
+    include_offers: bool = True,
+) -> dict:
+    """Every sale of one card, oldest first -- the shape a trend line needs.
+
+    Split by grade rather than pooled: a PSA 10 and a raw copy of the same card
+    trade at different prices, so one line through both would describe neither.
+    """
+    where = ["c.card_key = ?", "s.sold_date IS NOT NULL", "s.price_cents IS NOT NULL"]
+    params: list = [key]
+    if not include_offers:
+        where.append("s.best_offer = 0")
+
+    conn = store.connect(db_path)
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT s.sold_date, s.price_cents, s.best_offer, s.item_id, s.title,
+                   s.image_url, c.card_name, c.grader, c.grade
+            FROM sales s JOIN cards c USING (item_id)
+            WHERE {' AND '.join(where)}
+            ORDER BY s.sold_date
+            """,
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    series: dict[str, list[dict]] = {}
+    name = None
+    image = None
+    for r in rows:
+        label = (f"{r['grader']} {r['grade']:g}" if r["grader"] and r["grade"] is not None
+                 else (r["grader"] or "Raw"))
+        if grade and label != grade:
+            continue
+        name = name or r["card_name"]
+        image = image or r["image_url"]
+        series.setdefault(label, []).append({
+            "date": r["sold_date"],
+            "price": round(r["price_cents"] / 100.0, 2),
+            "is_ask": bool(r["best_offer"]),
+            "id": r["item_id"],
+        })
+
+    return {
+        "card_key": key,
+        "card_name": name,
+        "image": image,
+        "sales": sum(len(v) for v in series.values()),
+        "by_grade": {
+            label: {
+                "n": len(points),
+                "first": points[0]["date"],
+                "last": points[-1]["date"],
+                "low": min(p["price"] for p in points),
+                "high": max(p["price"] for p in points),
+                "median": round(statistics.median(p["price"] for p in points), 2),
+                "points": points,
+            }
+            for label, points in sorted(series.items(),
+                                        key=lambda kv: -len(kv[1]))
+        },
+    }
+
+
+def top_cards(db_path: str, days: Optional[int] = 30, limit: int = 25) -> list[dict]:
+    """Cards with the most sales in a window -- what is actually trading."""
+    where = ["c.card_key IS NOT NULL", "s.sold_date IS NOT NULL",
+             "s.price_cents IS NOT NULL"]
+    params: list = []
+    if days:
+        where.append("s.sold_date >= ?")
+        params.append((date.today() - timedelta(days=days)).isoformat())
+
+    conn = store.connect(db_path)
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT c.card_key, COUNT(*) AS n,
+                   -- The name sellers agree on most often, not whichever row
+                   -- happens to sort first.
+                   (SELECT c2.card_name FROM cards c2
+                     WHERE c2.card_key = c.card_key AND c2.card_name IS NOT NULL
+                     GROUP BY c2.card_name ORDER BY COUNT(*) DESC LIMIT 1) AS name,
+                   CAST(AVG(s.price_cents) AS INTEGER) AS avg_cents,
+                   MAX(s.price_cents) AS high_cents
+            FROM sales s JOIN cards c USING (item_id)
+            WHERE {' AND '.join(where)}
+            GROUP BY c.card_key ORDER BY n DESC, high_cents DESC LIMIT ?
+            """,
+            (*params, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        {"card_key": r["card_key"], "card_name": r["name"], "sales": r["n"],
+         "average": round(r["avg_cents"] / 100.0, 2),
+         "high": round(r["high_cents"] / 100.0, 2)}
+        for r in rows
+    ]
+
+
 def top_sales(
     db_path: str,
     days: Optional[int] = 30,

@@ -113,6 +113,8 @@ All require `Authorization: Bearer <key>`. `/` and `/health` do not.
 | `GET /v1/prices?player=` | median, mean, p10/p90, low, high |
 | `GET /v1/players?q=` | most-traded, counts and averages |
 | `GET /v1/daily` | per-day totals |
+| `GET /v1/cards` | cards actually trading, most sales first |
+| `GET /v1/card?key=` | one card's price history, split by grade |
 
 `/v1/sales` filters: `player`, `set` (partial); `team`, `grader`, `card_number`
 (exact); `year`, `grade`; `from`, `to` (ISO dates); `rookie`, `auto`;
@@ -123,7 +125,7 @@ Responses carry `X-Quota-Limit` / `X-Quota-Used`.
 
 ---
 
-## Three things that will bite you if nobody says them
+## Four things that will bite you if nobody says them
 
 **1. ~46% of your `price` values are asking prices, not sale prices.**
 
@@ -145,7 +147,25 @@ They also skew expensive: ~46% of sales overall, but ~56% of the highest-priced
 listings, because sellers enable offers more on pricier cards. So including them
 lifts the top of the distribution more than the middle.
 
-**2. `image_url` is a link to eBay, not a copy.**
+**2. `card_key` is what makes a trend chart possible.**
+
+Every sale of the same physical card carries the same `card_key`, however the
+seller titled it — "2021 Panini Prizm Ja'Marr Chase RC #220" and "JAMARR CHASE
+2021 PRIZM #220 ROOKIE" group together. `card_name` is a consistent display
+name built from the parsed fields, so it reads the same for every sale in a
+group. `GET /v1/card?key=...` returns the history ready to plot.
+
+**Grade is deliberately NOT part of the key.** A PSA 10 and a PSA 9 of one card
+share a `card_key` and are different market items, so group by `card_key` plus
+`grader`/`grade` for prices, and by `card_key` alone for "how many of this card
+sold". `/v1/card` already splits its output that way.
+
+`card_key` is null when the title was too thin to identify a card — roughly the
+same rows that fail the confidence filter below. A wrong grouping silently
+averages two different cards into one price history, so no key is issued rather
+than a guessed one.
+
+**3. `image_url` is a link to eBay, not a copy.**
 
 The front photo of each listing, on eBay's CDN, sized for display (500px longest
 edge). Nothing is downloaded — 20,000 photos a day is a storage bill nobody
@@ -159,7 +179,7 @@ can be built, but it is a deliberate cost, not a default.
 
 It is `null` on listings with no usable photo. Served as `image` by the API.
 
-**3. Filter on `confidence` for anything player-driven.**
+**4. Filter on `confidence` for anything player-driven.**
 
 Sellers write titles freely. `confidence` (0–1) is how much of a title the parser
 explained. `>= 0.5` is a sensible floor; about 86% of rows clear it. Below that,

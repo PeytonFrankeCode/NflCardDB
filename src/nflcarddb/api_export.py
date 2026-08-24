@@ -32,7 +32,7 @@ EXPORT_COLUMNS = (
     "item_id", "sold_date", "title", "price_cents", "ask_cents", "shipping_cents",
     "currency", "best_offer", "listing_format", "bids", "image_url", "player",
     "team", "year", "brand", "set_name", "parallel", "card_number", "grader",
-    "grade", "is_rookie", "is_auto", "confidence",
+    "grade", "is_rookie", "is_auto", "confidence", "card_key", "card_name",
 )
 
 
@@ -89,7 +89,8 @@ def _rows_to_export(
                s.image_url,
                c.player, c.team, c.year, c.brand, c.set_name, c.parallel,
                c.card_number, c.grader, c.grade, c.is_rookie, c.is_auto,
-               COALESCE(c.confidence, 0) AS confidence
+               COALESCE(c.confidence, 0) AS confidence,
+               c.card_key, c.card_name
         FROM sales s LEFT JOIN cards c USING (item_id)
         {where}
         ORDER BY s.sold_date
