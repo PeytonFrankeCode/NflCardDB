@@ -15,6 +15,32 @@ REM is not shown at all. So look in the places Python actually installs to,
 REM instead of insisting the box was ticked.
 REM Every branch resolves to one full path in PYEXE, quoted only at the call
 REM site -- a variable that carries its own quotes gets mangled by batch.
+REM OneDrive marks synced files as internet-sourced, which Windows Application
+REM Control then refuses to load -- and the failure lands on a browser DLL with
+REM a message about Playwright, miles from the cause. Worth saying up front.
+echo %~dp0 | find /i "OneDrive" >nul
+if not errorlevel 1 (
+  echo ==========================================================
+  echo    WARNING: this folder is inside OneDrive
+  echo ==========================================================
+  echo.
+  echo   %~dp0
+  echo.
+  echo Windows may refuse to run the browser engine from here,
+  echo with a message about "An Application Control policy". It
+  echo also means OneDrive keeps syncing several hundred MB of
+  echo browser files, which is a waste of your storage.
+  echo.
+  echo Recommended: put this project somewhere like  C:\NflCardDB
+  echo instead. WINDOWS.md has the steps.
+  echo.
+  echo Setup will carry on - it may work fine. This is a warning,
+  echo not a refusal.
+  echo.
+  pause
+  echo.
+)
+
 set "PYEXE="
 
 REM The py launcher ships with Python and stays on PATH even when python.exe

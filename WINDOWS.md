@@ -262,12 +262,45 @@ in this project and nothing needs reinstalling — this is a security setting on
 the PC, and it usually appears after a Windows reset, because Smart App Control
 is switched on by default on a fresh install.
 
-**Try this first: move the project out of OneDrive.** Put it somewhere like
-`C:\NflCardDB` instead of `C:\Users\you\OneDrive\Documents\GitHub\...`,
-delete the `venv` folder inside it, and run `setup.bat` again. OneDrive marks
-synced files as having come from the internet, which is exactly what the policy
-blocks — and it also stops OneDrive trying to sync several hundred megabytes of
-browser files, which it should never have been doing.
+**Try this first: move the project out of OneDrive.** OneDrive marks synced
+files as having come from the internet, which is exactly what the policy blocks
+— and it also stops OneDrive trying to sync several hundred megabytes of browser
+files, which it should never have been doing.
+
+### How to move it
+
+Don't drag the folder. A Python `venv` has the old path written inside it, so a
+moved copy is broken anyway. Cloning fresh is quicker and cleaner.
+
+**1. Close everything** — any black collector windows, and GitHub Desktop.
+
+**2. Save your data folder.** Open the current project folder and copy the
+`data` folder to your Desktop. That's your sales database and your saved
+Cloudflare details. (If you skip this, `restore.bat` can download the sales back
+from Cloudflare later — but copying takes a second.)
+
+**3. Clone to the new place.** Open GitHub Desktop → **File** → **Clone
+repository** → **PeytonFrankeCode/NflCardDB**. Before clicking Clone, change
+**Local path** so it reads `C:\NflCardDB`.
+
+The only thing that matters is that the path does **not** contain the word
+OneDrive. GitHub Desktop defaults to your Documents folder, which on this PC is
+inside OneDrive, so you have to change it deliberately.
+
+**4. Put your data back.** Copy the `data` folder from your Desktop into
+`C:\NflCardDB`, replacing what's there.
+
+**5. Double-click `setup.bat`** in `C:\NflCardDB`. This rebuilds the workspace
+and re-downloads the browser engine — a few minutes.
+
+**6. Double-click `login.bat`** and sign in to eBay again.
+
+**7. Delete the old folder** in OneDrive once collecting works from the new one.
+Leaving it costs you OneDrive storage and invites confusion about which copy is
+real.
+
+`setup.bat` now warns you if it's run from inside OneDrive, so this can't be
+stumbled into twice.
 
 **If that does not fix it:** Windows Security → App & browser control → Smart App
 Control settings → Off.
