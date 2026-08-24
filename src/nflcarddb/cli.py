@@ -256,6 +256,19 @@ def cmd_audit(args) -> int:
         print("No parsed cards yet.", file=sys.stderr)
         return 1
 
+    if not report["with_key"]:
+        # Sales collected before card identity existed have no key until the
+        # parser is re-run over them. Say which command, rather than reporting
+        # 0% and letting it read as "the matching does not work".
+        print("None of your sales have been matched to a card yet.\n",
+              file=sys.stderr)
+        print("That is a one-off backfill, not a fault -- these were collected "
+              "before\ncard matching existed. Run:\n", file=sys.stderr)
+        print("  nflcarddb parse --all\n", file=sys.stderr)
+        print("or just double-click accuracy.bat, which does it for you.",
+              file=sys.stderr)
+        return 1
+
     print("How much of the data is identified")
     print("=" * 58)
     print(f"  sales parsed          {report['cards']:>9,}")

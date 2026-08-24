@@ -10,6 +10,13 @@ echo ==========================================================
 echo    How accurate is the card matching?
 echo ==========================================================
 echo.
+echo Making sure every sale has been matched to a card first.
+echo Sales collected before this feature existed need one pass;
+echo on a large database it takes a minute or two.
+echo.
+
+nflcarddb parse --all
+echo.
 
 nflcarddb audit
 

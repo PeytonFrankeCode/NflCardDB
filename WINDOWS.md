@@ -315,8 +315,8 @@ all: it reads listings off a page you already have open.
 
 ## How accurate is it?
 
-**Double-click `accuracy.bat`.** It reports two different things, and the
-difference matters.
+**Double-click `accuracy.bat`.** It matches up any sales collected before this
+feature existed, then reports two different things — and the difference matters.
 
 **What it can work out on its own** — how many sales got matched to a card at
 all, how confident the reading was, and which groups contradict themselves (one
