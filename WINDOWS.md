@@ -313,6 +313,99 @@ the OneDrive move first.
 collecting still works by hand. `tools/grabber.html` needs no browser engine at
 all: it reads listings off a page you already have open.
 
+## Grouping sales of the same card together
+
+For a price chart to mean anything, every sale of one card has to land in one
+place. That depends on reading the player's name off the title correctly, and
+titles fight back:
+
+```
+2024 PANINI DONRUSS BOMB SQUAD #29 JAYDEN DANIELS ROOKIE RC PSA 9
+2024 Jayden Daniels Donruss Optic Preview Emoji Prizm Rookie PSA 9 #389
+```
+
+"Bomb Squad" and "Preview" are the insert, not the player — but nothing about
+the words says so, and no rule about position works either: one of those wants
+the last two words and the other the first two. Read wrong, `Bomb Squad Jayden
+Daniels` and `Jayden Daniels Preview` become different players, and when a title
+has no card number the name *is* the identity, so one card splits several ways.
+
+**Double-click `names.bat`.** It works out which phrases are players from your
+own collected titles, using breadth rather than repetition: a player appears in
+Prizm and Mosaic and Donruss, across years, while an insert lives in one set of
+one year. Then it re-reads every title you have.
+
+It prints your own before-and-after, so the improvement is measured rather than
+claimed. The shape of it:
+
+```
+  sales matched to a card          17,126 ->    19,880   +2,754  better
+  distinct cards                   14,906 ->    11,240   -3,666  better
+  cards seen more than once         1,248 ->     3,910   +2,662  better
+```
+
+(Those figures are an illustration. Yours will differ — the left column is the
+real starting point from your last audit.)
+
+Fewer distinct cards holding more sales each is the whole point: sales that were
+split apart are now one price history.
+
+Worth re-running every few weeks. The list is learned from your data, not
+shipped, so it improves as you collect and it never goes stale on rookies —
+which a hand-written list does every draft.
+
+## Reading the card off its photo (started, not switched on)
+
+The title is what a seller typed. The card is what it is. When a title says
+`HUGE FOOTBALL CARD LOT MUST SEE!!!` there is nothing to read — but the photo
+often shows a graded slab, and a slab has a label printed on it *by the grader*:
+
+```
+2024 PANINI PRIZM
+JAYDEN DANIELS
+#316 ROOKIE                          MINT 9      94612385
+```
+
+That is a title written by someone holding the card. Reading it gives a full
+identity where the seller's words gave none.
+
+**Double-click `read-photos.bat`.** It offers the one-time engine download
+(~200MB), reads 50 photos, and reports how often the photo and the title agree.
+**Nothing is saved** — this measures whether the idea works before it goes
+anywhere near your data.
+
+### What's actually built
+
+Working: fetching the photo at full size, reading the label, and merging the two
+readings. The merge has rules worth knowing:
+
+- **The photo wins on the player's name, and only there.** The label was printed
+  by a grader looking at the card; the name is the one field sellers pad with
+  insert names and hype.
+- **Everywhere else the title wins**, because it carries parallels, serial
+  numbers and autographs that no slab label mentions. The photo only fills
+  blanks.
+- **Disagreements are reported, never hidden.** Two independent readings that
+  contradict each other mean one is wrong — that's a free accuracy signal, and
+  the same reasoning behind the "errors the data admits to" figure in
+  `accuracy.bat`.
+
+It leans on `names.bat`: text recognition returns `JAYDENDANIELS` with the
+spaces gone, and the learned roster is what splits it back into a name. Without
+a roster it reads the year, set and number but not the player.
+
+### What is honestly untested
+
+The engine was tested against slab labels rendered on this end, not against real
+eBay photos. Real ones are angled, glared, and often show the slab small in
+frame. **I do not know the hit rate yet, and I'm not going to guess at one** —
+that's what `read-photos.bat` is for. Run it and send me the three numbers it
+prints.
+
+Two limits that won't go away: an **ungraded** card has no label at all, so this
+only ever helps graded sales; and eBay deletes listing photos after about 90
+days, so it only works on recent ones.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this

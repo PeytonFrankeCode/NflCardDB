@@ -250,7 +250,10 @@ def _extract_player(remaining: str, roster: Optional[set[str]] = None) -> tuple[
                 for i in range(len(run) - size + 1):
                     candidate = " ".join(run[i:i + size])
                     if candidate.lower() in roster:
-                        return (candidate, True)
+                        # Sellers SHOUT. Normalise so every sale of one card
+                        # displays the same name, not one per typing style.
+                        return (candidate.title() if candidate.isupper()
+                                else candidate, True)
 
     # Prefer 2-3 token runs (First Last / First Middle Last); fall back to longest.
     scored = [r for r in runs if 2 <= len(r) <= 4]

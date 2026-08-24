@@ -17,7 +17,7 @@ from .config import load_config
 from .diagnose import bisect_url, format_bisect, format_report, run_diagnosis
 from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
-from .parse_title import parse_title
+from .parse_title import load_roster, parse_title
 from .ingest import import_files
 from .images import DEFAULT_SIZE
 from .pipeline import (
@@ -240,6 +240,106 @@ def cmd_card(args) -> int:
     return 0
 
 
+def cmd_roster(args) -> int:
+    """Learn player names from the titles already collected."""
+    from .roster import build, write
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    names = build(db_path, min_contexts=args.min_contexts,
+                  min_sightings=args.min_sightings)
+    if not names:
+        print("Not enough collected data to learn names from yet.", file=sys.stderr)
+        return 1
+
+    path = write(names, args.out)
+    print(f"Learned {len(names)} player names -> {path}\n")
+    print("Most confident (seen across the most different sets):")
+    for name, sightings, contexts in names[:12]:
+        print(f"  {name:<28} {sightings:>6,} listings, {contexts:>3} sets")
+    print(f"\n  ...and {max(0, len(names) - 12)} more")
+
+    if args.no_apply:
+        print(f"\nNot applied. To use it, add this line to {args.config}:")
+        print(f"  roster: {path}")
+        print("then run:  nflcarddb parse --all")
+        return 0
+
+    if enable_roster(args.config, path):
+        print(f"\nTurned on in {args.config}.")
+    else:
+        print(f"\nCould not edit {args.config}. Add this line yourself:")
+        print(f"  roster: {path}")
+        return 1
+
+    from .audit import coverage
+
+    before = coverage(db_path)
+    print("\nRe-reading every title with the roster. This takes a minute.")
+    reparse_titles(db_path, str(path), all_rows=True)
+    after = coverage(db_path)
+
+    # The point of the roster is fewer, bigger groups over the same sales: a
+    # name that stopped varying stops splitting one card into several. Printing
+    # both ends is the difference between a measured improvement and a claimed
+    # one.
+    print("\nWhat changed")
+    print("=" * 58)
+    _delta("sales matched to a card", before.get("with_key", 0),
+           after.get("with_key", 0))
+    _delta("distinct cards", before.get("groups", 0), after.get("groups", 0),
+           lower_is_better=True)
+    _delta("cards seen more than once",
+           before.get("groups", 0) - before.get("singleton_groups", 0),
+           after.get("groups", 0) - after.get("singleton_groups", 0))
+    print("\nFewer distinct cards holding more sales each is the improvement:")
+    print("it means sales that were split apart are now one price history.")
+    return 0
+
+
+def _delta(label: str, before: int, after: int, lower_is_better: bool = False) -> None:
+    change = after - before
+    if change == 0:
+        note = "no change"
+    else:
+        good = (change < 0) if lower_is_better else (change > 0)
+        note = f"{change:+,}  {'better' if good else 'worse'}"
+    print(f"  {label:<28} {before:>9,} -> {after:>9,}   {note}")
+
+
+def enable_roster(config_path: Optional[str], roster_path) -> bool:
+    """Point the config at the roster just built, editing the file in place.
+
+    A file the user has to remember to edit is a file that stays unedited, and
+    then the roster exists while nothing reads it -- which looks exactly like
+    the roster not working. The line is written as one comment-free assignment
+    so re-running this is idempotent rather than additive.
+    """
+    path = Path(config_path or "")
+    if not path.exists():
+        return False
+
+    line = f"roster: {Path(roster_path).as_posix()}"
+    try:
+        original = path.read_text(encoding="utf-8")
+        out, replaced = [], False
+        for raw in original.splitlines():
+            stripped = raw.lstrip("# ").rstrip()
+            # Both the shipped commented example and a previous run's line.
+            if stripped.startswith("roster:") and not replaced:
+                out.append(line)
+                replaced = True
+            else:
+                out.append(raw)
+        if not replaced:
+            return False
+        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
 def cmd_audit(args) -> int:
     """What can be measured about parsing quality without labelling anything."""
     from .audit import audit
@@ -309,6 +409,120 @@ def cmd_audit(args) -> int:
     print("That is a FLOOR, not an accuracy figure. It counts only groups that")
     print("contradict themselves; a group can be wrong and look perfectly")
     print("consistent. For a real percentage:  nflcarddb review")
+    return 0
+
+
+def cmd_vision(args) -> int:
+    """Read listing photos and compare what they say with what the titles said.
+
+    Report-only on purpose. Photo reading is unproven on real eBay photos --
+    angled slabs, glare, a label 80 pixels tall -- and it is slow enough that
+    running it over a day's collection is a decision, not a default. So it
+    measures itself first: agreement, blanks filled, and disagreements, on a
+    sample. Wiring it into collection is worth doing once those numbers say it
+    is worth doing.
+    """
+    from .vision import OcrUnavailable, attrs_from_lines, fetch_image, \
+        rapidocr_reader, reconcile
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+    roster_path = args.roster or (config.roster if config else None)
+    roster = load_roster(roster_path) if roster_path and Path(roster_path).exists() else None
+
+    if roster is None:
+        print("No roster, so names cannot be read off a label -- OCR returns "
+              "one\nunbroken run of letters and the roster is what splits it.\n"
+              "Run `nflcarddb roster` (or names.bat) first.\n", file=sys.stderr)
+
+    conn = store.connect(db_path)
+    try:
+        clause = "c.card_key IS NULL" if args.unclear else "c.card_key IS NOT NULL"
+        rows = conn.execute(
+            f"""
+            SELECT s.item_id, s.title, s.image_url
+            FROM sales s JOIN cards c USING (item_id)
+            WHERE s.image_url IS NOT NULL AND {clause}
+            ORDER BY RANDOM() LIMIT ?
+            """,
+            (args.limit,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        print("No sales with a photo to read.", file=sys.stderr)
+        return 1
+
+    try:
+        read = rapidocr_reader()
+    except OcrUnavailable as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 2
+
+    stats = {"read": 0, "no_label": 0, "failed": 0,
+             "agreed": 0, "filled": 0, "conflicted": 0}
+    examples: list[tuple[str, object]] = []
+
+    print(f"Reading {len(rows)} photos. Roughly a second each.\n")
+    for i, row in enumerate(rows, 1):
+        try:
+            image = fetch_image(row["image_url"], args.cache)
+            photo = attrs_from_lines(read(image), roster)
+        except Exception as exc:      # a dead photo URL is ordinary, not fatal
+            stats["failed"] += 1
+            logging.debug("photo %s: %s", row["item_id"], exc)
+            continue
+
+        if not photo.confidence:
+            # eBay drops listing photos after ~90 days, and an ungraded card
+            # has no label to read in the first place.
+            stats["no_label"] += 1
+            continue
+
+        stats["read"] += 1
+        reading = reconcile(parse_title(row["title"], roster), photo)
+        if reading.agreed:
+            stats["agreed"] += 1
+        if reading.filled:
+            stats["filled"] += 1
+        if reading.conflicts:
+            stats["conflicted"] += 1
+            if len(examples) < 8:
+                examples.append((row["title"], reading))
+        elif args.unclear and reading.filled and len(examples) < 8:
+            examples.append((row["title"], reading))
+
+        if i % 25 == 0:
+            print(f"  {i}/{len(rows)}...")
+
+    print()
+    print("What the photos said")
+    print("=" * 58)
+    print(f"  photos tried            {len(rows):>6,}")
+    print(f"  label read              {stats['read']:>6,}")
+    print(f"  no readable label       {stats['no_label']:>6,}   "
+          f"(ungraded, or the photo is gone)")
+    print(f"  photo could not load    {stats['failed']:>6,}")
+    if stats["read"]:
+        print()
+        print(f"  agreed with the title   {stats['agreed']:>6,}   "
+              f"({stats['agreed'] / stats['read']:.0%} of labels read)")
+        print(f"  filled in a blank       {stats['filled']:>6,}")
+        print(f"  contradicted the title  {stats['conflicted']:>6,}   "
+              f"({stats['conflicted'] / stats['read']:.0%})")
+
+    for title, reading in examples:
+        print(f"\n  {title[:64]}")
+        for name, ours, theirs in reading.conflicts:
+            print(f"    {name}: title said {ours!r}, card says {theirs!r}")
+        if reading.filled:
+            print(f"    photo supplied: {', '.join(reading.filled)}")
+
+    print()
+    print("=" * 58)
+    print("Nothing was saved. This measures whether reading photos is worth")
+    print("doing before it is wired into collection.")
     return 0
 
 
@@ -1343,6 +1557,30 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=25)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_card)
+
+    p = sub.add_parser("roster", help="learn player names from collected titles")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--out", default="config/nfl_players.txt")
+    p.add_argument("--min-contexts", type=int, default=3,
+                   help="different set-and-year combinations a name must span")
+    p.add_argument("--min-sightings", type=int, default=8)
+    p.add_argument("--no-apply", action="store_true",
+                   help="write the list but do not switch it on or reparse")
+    p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("vision",
+                       help="read listing photos and compare them with the titles")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--roster")
+    p.add_argument("--limit", type=int, default=50,
+                   help="how many photos to read (default 50)")
+    p.add_argument("--unclear", action="store_true",
+                   help="sample sales the title could not identify at all")
+    p.add_argument("--cache", default="data/photo-cache",
+                   help="where downloaded photos are kept; safe to delete")
+    p.set_defaults(func=cmd_vision)
 
     p = sub.add_parser("audit", help="parsing quality that needs no human review")
     p.add_argument("--config", default="config/queries.yml")

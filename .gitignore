@@ -21,6 +21,9 @@ data/html/
 
 # Browser profile the collector reuses between runs (cookies, cache)
 data/browser-profile/
+
+# Listing photos downloaded for OCR. Disposable -- deleting it costs a re-fetch.
+data/photo-cache/
 doctor-report.txt
 install-log.txt
 
