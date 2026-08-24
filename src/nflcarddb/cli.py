@@ -240,6 +240,120 @@ def cmd_card(args) -> int:
     return 0
 
 
+def cmd_audit(args) -> int:
+    """What can be measured about parsing quality without labelling anything."""
+    from .audit import audit
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    report = audit(db_path)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+
+    if not report.get("cards"):
+        print("No parsed cards yet.", file=sys.stderr)
+        return 1
+
+    print("How much of the data is identified")
+    print("=" * 58)
+    print(f"  sales parsed          {report['cards']:>9,}")
+    print(f"  given a card_key      {report['with_key']:>9,}  "
+          f"({report['key_rate']:.1%})")
+    print(f"  no key (too unclear)  {report['without_key']:>9,}")
+    print(f"  distinct cards        {report['groups']:>9,}")
+    print(f"  seen more than once   {report['groups'] - report['singleton_groups']:>9,}")
+    print()
+    print("  confidence spread")
+    for bucket, n in report["confidence_buckets"].items():
+        bar = "#" * round(40 * n / report["cards"])
+        print(f"    {bucket}  {n:>8,}  {bar}")
+
+    print()
+    print("Errors the data admits to")
+    print("=" * 58)
+    print(f"  groups naming different players   {report['contradictory_groups']:>6,}")
+    print(f"  groups with 20x+ price spread     {report['wide_spread_groups']:>6,}")
+    print(f"  -> at least {report['known_bad_rate']:.2%} of keyed sales are grouped wrong")
+
+    for row in report["examples"]["contradictory"]:
+        print(f"\n  {row['card_key']}  ({row['sales']} sales)")
+        print(f"    names: {', '.join(row['players'])}")
+    for row in report["examples"]["wide_spread"]:
+        print(f"\n  {row['card_key']}  {row['grade']}  ({row['sales']} sales)")
+        print(f"    median ${row['median']:,.2f} but one at ${row['high']:,.2f} "
+              f"({row['ratio']}x)")
+
+    print()
+    print("=" * 58)
+    print("That is a FLOOR, not an accuracy figure. It counts only groups that")
+    print("contradict themselves; a group can be wrong and look perfectly")
+    print("consistent. For a real percentage:  nflcarddb review")
+    return 0
+
+
+def cmd_review(args) -> int:
+    """Draw a sample to check by hand, or score one that has been checked."""
+    from .review import draw_sample, score, write_sample
+
+    if args.score:
+        try:
+            result = score(args.score)
+        except ValueError as exc:
+            print(f"\n{exc}", file=sys.stderr)
+            return 2
+
+        print(json.dumps(result, indent=2))
+        low, high = result["range"]
+        print()
+        print("=" * 58)
+        print(f"  ACCURACY: {result['accuracy']:.1%}  "
+              f"(somewhere between {low:.1%} and {high:.1%})")
+        print("=" * 58)
+        print(f"\n  {result['correct']} right, {result['wrong']} wrong, "
+              f"out of {result['reviewed']} judged")
+        if result["not_reviewed"]:
+            print(f"  {result['not_reviewed']} row(s) left blank and not counted")
+        if result["margin_of_error"] > 0.05:
+            print(f"\n  That range is wide because the sample is small. Review "
+                  f"more rows\n  to narrow it -- 400 gets you to about +/-5%.")
+        if result["wrong_examples"]:
+            print("\n  Ones marked wrong:")
+            for row in result["wrong_examples"]:
+                print(f"    {row['title']}")
+                print(f"      read as: {row['card_name']}  "
+                      f"(confidence {row['confidence']})")
+                if row["notes"]:
+                    print(f"      note: {row['notes']}")
+        return 0
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    rows = draw_sample(db_path, size=args.sample, seed=args.seed,
+                       min_confidence=args.min_confidence,
+                       keyed_only=not args.include_unkeyed)
+    if not rows:
+        print("Nothing to review. Collect some sales, then `nflcarddb parse --all`.",
+              file=sys.stderr)
+        return 1
+
+    path = write_sample(rows, args.out)
+    print(f"Wrote {len(rows)} sales to {path}\n")
+    print("Open it in Excel. For each row, look at the `title` (and the")
+    print("`listing` link if you need the photo), then put y or n in the")
+    print("`correct` column:")
+    print()
+    print("  y  the card_name and card_key describe this listing")
+    print("  n  they do not")
+    print("  ?  you cannot tell -- not counted either way")
+    print()
+    print("Save it, then:")
+    print(f"  nflcarddb review --score {path}")
+    return 0
+
+
 def cmd_recheck(args) -> int:
     """Find days that look truncated, and queue them for re-collection."""
     config = load_config(args.config) if Path(args.config or "").exists() else None
@@ -1210,6 +1324,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=25)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_card)
+
+    p = sub.add_parser("audit", help="parsing quality that needs no human review")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_audit)
+
+    p = sub.add_parser("review", help="check a sample by hand for a real accuracy %")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--sample", type=int, default=100, help="rows to draw (default 100)")
+    p.add_argument("--seed", type=int, help="repeat an earlier sample exactly")
+    p.add_argument("--min-confidence", type=float,
+                   help="only sample rows at or above this confidence")
+    p.add_argument("--include-unkeyed", action="store_true",
+                   help="also sample sales that got no card_key")
+    p.add_argument("--out", default="review-sample.csv")
+    p.add_argument("--score", help="score a filled-in sample instead of drawing one")
+    p.set_defaults(func=cmd_review)
 
     p = sub.add_parser("recheck", help="find days that were cut short and re-collect them")
     p.add_argument("--config", default="config/queries.yml")

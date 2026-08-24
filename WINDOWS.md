@@ -313,6 +313,37 @@ the OneDrive move first.
 collecting still works by hand. `tools/grabber.html` needs no browser engine at
 all: it reads listings off a page you already have open.
 
+## How accurate is it?
+
+**Double-click `accuracy.bat`.** It reports two different things, and the
+difference matters.
+
+**What it can work out on its own** — how many sales got matched to a card at
+all, how confident the reading was, and which groups contradict themselves (one
+card whose sales name two different players is wrong without anyone checking).
+That last figure is a *floor*: everything it finds is definitely wrong, but a
+group can be wrong and still look consistent.
+
+**A real percentage** needs you. Choose option **1** and it pulls 100 random
+sales into a spreadsheet, which opens automatically. Each row shows the seller's
+title, what we read it as, and a link to the listing. Put **y** or **n** in the
+`correct` column — **?** if you genuinely cannot tell — save, then choose option
+**2**:
+
+```
+  ACCURACY: 91.0%  (somewhere between 85.4% and 96.6%)
+  91 right, 9 wrong, out of 100 judged
+```
+
+That range is the honest part. 100 rows gets you within about 10 points; 400
+gets you within 5. Anyone quoting "91%" off 100 rows is quoting more precision
+than they bought.
+
+**When a title is too vague to read**, nothing is invented — the sale is stored
+with its price and title, but gets no card identity, so it never joins a group
+and never pollutes a price history. Titles like "HUGE FOOTBALL CARD LOT MUST
+SEE" fall in here. `audit` counts them under "no key (too unclear)".
+
 ## Things that will happen eventually
 
 **"eBay showed a robot check partway through."** Whatever it collected before

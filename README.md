@@ -316,6 +316,8 @@ selectors.
 | `recheck` | find days that came back suspiciously small; `--fix` queues them again |
 | `schedule` | daily unattended run via Windows Task Scheduler (`--at`, `--status`, `--remove`, `--run-now`) |
 | `card` | one card's price history, or the cards actually trading |
+| `audit` | parse quality measurable without human review |
+| `review` | draw a sample to check by hand, then score it for a real accuracy % |
 | `stats` | daily counts, recent runs, top players |
 | `export` | CSV out (`--date`, `--out`) |
 | `import` | load eBay pages you saved by hand — no network, cannot be blocked |
@@ -336,7 +338,12 @@ selectors.
 - **Non-USD listings are stored in their original currency** with a `currency`
   column. There is no FX conversion; aggregate on `currency = 'USD'` or add a
   rates table.
-- **Player extraction is heuristic.** Filter on `confidence`.
+- **Player extraction is heuristic.** Filter on `confidence`. `nflcarddb audit`
+  reports how much of the data gets identified and which groups contradict
+  themselves; `nflcarddb review` samples rows for a human to check and turns the
+  answers into an accuracy percentage with a margin of error. The first is a
+  floor on the error rate, not an accuracy figure -- a group can be wrong and
+  look perfectly consistent.
 - **Photos are links, not copies.** `image_url` points at eBay's CDN at 500px.
   Nothing is downloaded, so nothing costs storage — but eBay purges listing
   images roughly 90 days after the sale, and the URL dies with them. Copying
