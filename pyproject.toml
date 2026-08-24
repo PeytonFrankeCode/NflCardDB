@@ -23,6 +23,12 @@ browser = ["playwright>=1.40"]
 # curl_cffi reproduces a real Chrome's TLS ClientHello, which is what eBay
 # fingerprints -- it refuses `requests` before HTTP is even spoken.
 impersonate = ["curl_cffi>=0.7"]
+# Reading the card off its photo. RapidOCR rather than Tesseract because it
+# installs from pip with its models inside the wheel -- Tesseract needs a
+# separate system binary, which on a Windows PC is the difference between a
+# working feature and a support conversation. ~200MB with onnxruntime, which is
+# why it is not in the default install.
+vision = ["rapidocr-onnxruntime>=1.3", "pillow>=10.0"]
 # Everything needed to actually get through.
 all = ["playwright>=1.40", "curl_cffi>=0.7"]
 

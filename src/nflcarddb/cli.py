@@ -17,7 +17,7 @@ from .config import load_config
 from .diagnose import bisect_url, format_bisect, format_report, run_diagnosis
 from .fetch import BlockedError, FetchError, SignedOutError, make_fetcher
 from .parse_listing import parse_search_page
-from .parse_title import parse_title
+from .parse_title import load_roster, parse_title
 from .ingest import import_files
 from .images import DEFAULT_SIZE
 from .pipeline import (
@@ -409,6 +409,120 @@ def cmd_audit(args) -> int:
     print("That is a FLOOR, not an accuracy figure. It counts only groups that")
     print("contradict themselves; a group can be wrong and look perfectly")
     print("consistent. For a real percentage:  nflcarddb review")
+    return 0
+
+
+def cmd_vision(args) -> int:
+    """Read listing photos and compare what they say with what the titles said.
+
+    Report-only on purpose. Photo reading is unproven on real eBay photos --
+    angled slabs, glare, a label 80 pixels tall -- and it is slow enough that
+    running it over a day's collection is a decision, not a default. So it
+    measures itself first: agreement, blanks filled, and disagreements, on a
+    sample. Wiring it into collection is worth doing once those numbers say it
+    is worth doing.
+    """
+    from .vision import OcrUnavailable, attrs_from_lines, fetch_image, \
+        rapidocr_reader, reconcile
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+    roster_path = args.roster or (config.roster if config else None)
+    roster = load_roster(roster_path) if roster_path and Path(roster_path).exists() else None
+
+    if roster is None:
+        print("No roster, so names cannot be read off a label -- OCR returns "
+              "one\nunbroken run of letters and the roster is what splits it.\n"
+              "Run `nflcarddb roster` (or names.bat) first.\n", file=sys.stderr)
+
+    conn = store.connect(db_path)
+    try:
+        clause = "c.card_key IS NULL" if args.unclear else "c.card_key IS NOT NULL"
+        rows = conn.execute(
+            f"""
+            SELECT s.item_id, s.title, s.image_url
+            FROM sales s JOIN cards c USING (item_id)
+            WHERE s.image_url IS NOT NULL AND {clause}
+            ORDER BY RANDOM() LIMIT ?
+            """,
+            (args.limit,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        print("No sales with a photo to read.", file=sys.stderr)
+        return 1
+
+    try:
+        read = rapidocr_reader()
+    except OcrUnavailable as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 2
+
+    stats = {"read": 0, "no_label": 0, "failed": 0,
+             "agreed": 0, "filled": 0, "conflicted": 0}
+    examples: list[tuple[str, object]] = []
+
+    print(f"Reading {len(rows)} photos. Roughly a second each.\n")
+    for i, row in enumerate(rows, 1):
+        try:
+            image = fetch_image(row["image_url"], args.cache)
+            photo = attrs_from_lines(read(image), roster)
+        except Exception as exc:      # a dead photo URL is ordinary, not fatal
+            stats["failed"] += 1
+            logging.debug("photo %s: %s", row["item_id"], exc)
+            continue
+
+        if not photo.confidence:
+            # eBay drops listing photos after ~90 days, and an ungraded card
+            # has no label to read in the first place.
+            stats["no_label"] += 1
+            continue
+
+        stats["read"] += 1
+        reading = reconcile(parse_title(row["title"], roster), photo)
+        if reading.agreed:
+            stats["agreed"] += 1
+        if reading.filled:
+            stats["filled"] += 1
+        if reading.conflicts:
+            stats["conflicted"] += 1
+            if len(examples) < 8:
+                examples.append((row["title"], reading))
+        elif args.unclear and reading.filled and len(examples) < 8:
+            examples.append((row["title"], reading))
+
+        if i % 25 == 0:
+            print(f"  {i}/{len(rows)}...")
+
+    print()
+    print("What the photos said")
+    print("=" * 58)
+    print(f"  photos tried            {len(rows):>6,}")
+    print(f"  label read              {stats['read']:>6,}")
+    print(f"  no readable label       {stats['no_label']:>6,}   "
+          f"(ungraded, or the photo is gone)")
+    print(f"  photo could not load    {stats['failed']:>6,}")
+    if stats["read"]:
+        print()
+        print(f"  agreed with the title   {stats['agreed']:>6,}   "
+              f"({stats['agreed'] / stats['read']:.0%} of labels read)")
+        print(f"  filled in a blank       {stats['filled']:>6,}")
+        print(f"  contradicted the title  {stats['conflicted']:>6,}   "
+              f"({stats['conflicted'] / stats['read']:.0%})")
+
+    for title, reading in examples:
+        print(f"\n  {title[:64]}")
+        for name, ours, theirs in reading.conflicts:
+            print(f"    {name}: title said {ours!r}, card says {theirs!r}")
+        if reading.filled:
+            print(f"    photo supplied: {', '.join(reading.filled)}")
+
+    print()
+    print("=" * 58)
+    print("Nothing was saved. This measures whether reading photos is worth")
+    print("doing before it is wired into collection.")
     return 0
 
 
@@ -1454,6 +1568,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-apply", action="store_true",
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("vision",
+                       help="read listing photos and compare them with the titles")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--roster")
+    p.add_argument("--limit", type=int, default=50,
+                   help="how many photos to read (default 50)")
+    p.add_argument("--unclear", action="store_true",
+                   help="sample sales the title could not identify at all")
+    p.add_argument("--cache", default="data/photo-cache",
+                   help="where downloaded photos are kept; safe to delete")
+    p.set_defaults(func=cmd_vision)
 
     p = sub.add_parser("audit", help="parsing quality that needs no human review")
     p.add_argument("--config", default="config/queries.yml")

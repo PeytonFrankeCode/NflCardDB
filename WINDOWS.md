@@ -354,6 +354,58 @@ Worth re-running every few weeks. The list is learned from your data, not
 shipped, so it improves as you collect and it never goes stale on rookies —
 which a hand-written list does every draft.
 
+## Reading the card off its photo (started, not switched on)
+
+The title is what a seller typed. The card is what it is. When a title says
+`HUGE FOOTBALL CARD LOT MUST SEE!!!` there is nothing to read — but the photo
+often shows a graded slab, and a slab has a label printed on it *by the grader*:
+
+```
+2024 PANINI PRIZM
+JAYDEN DANIELS
+#316 ROOKIE                          MINT 9      94612385
+```
+
+That is a title written by someone holding the card. Reading it gives a full
+identity where the seller's words gave none.
+
+**Double-click `read-photos.bat`.** It offers the one-time engine download
+(~200MB), reads 50 photos, and reports how often the photo and the title agree.
+**Nothing is saved** — this measures whether the idea works before it goes
+anywhere near your data.
+
+### What's actually built
+
+Working: fetching the photo at full size, reading the label, and merging the two
+readings. The merge has rules worth knowing:
+
+- **The photo wins on the player's name, and only there.** The label was printed
+  by a grader looking at the card; the name is the one field sellers pad with
+  insert names and hype.
+- **Everywhere else the title wins**, because it carries parallels, serial
+  numbers and autographs that no slab label mentions. The photo only fills
+  blanks.
+- **Disagreements are reported, never hidden.** Two independent readings that
+  contradict each other mean one is wrong — that's a free accuracy signal, and
+  the same reasoning behind the "errors the data admits to" figure in
+  `accuracy.bat`.
+
+It leans on `names.bat`: text recognition returns `JAYDENDANIELS` with the
+spaces gone, and the learned roster is what splits it back into a name. Without
+a roster it reads the year, set and number but not the player.
+
+### What is honestly untested
+
+The engine was tested against slab labels rendered on this end, not against real
+eBay photos. Real ones are angled, glared, and often show the slab small in
+frame. **I do not know the hit rate yet, and I'm not going to guess at one** —
+that's what `read-photos.bat` is for. Run it and send me the three numbers it
+prints.
+
+Two limits that won't go away: an **ungraded** card has no label at all, so this
+only ever helps graded sales; and eBay deletes listing photos after about 90
+days, so it only works on recent ones.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this
