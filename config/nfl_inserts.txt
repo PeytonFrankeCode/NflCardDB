@@ -1,0 +1,277 @@
+# Insert-set names learned from collected titles by `nflcarddb inserts`.
+#
+# An insert restarts its numbering at one, so its name is part of a
+# card's identity -- without it, four different cards share a number.
+#
+# Delete any line that is not really the name of an insert set. A wrong
+# entry SPLITS a card between sellers who typed the word and sellers who
+# did not, which is worse than the merging this fixes.
+#
+# name  # seen N times, in M product(s), beside P different players
+
+Green Space  # 59 listings, 2025 Chrome, 2025 Topps Chrome, 47 players
+Space Dust  # 58 listings, 2025 Chrome, 2025 Topps Chrome, 47 players
+Pink Fractor  # 35 listings, 2024 Topps Chrome, 2025 Topps Chrome, 33 players
+Pulse  # 39 listings, 2025 Topps Chrome, 32 players
+Neon Pulse  # 38 listings, 2025 Topps Chrome, 31 players
+Thunderbirds  # 50 listings, 2025 Phoenix, 30 players
+Night Stn  # 210 listings, 2025 Chrome, 2025 Topps Chrome, 28 players
+Urban Legends  # 38 listings, 2024 Topps Chrome, 2025 Topps Chrome, 25 players
+Urban  # 38 listings, 2024 Topps Chrome, 2025 Topps Chrome, 25 players
+Lightboard  # 32 listings, 2025 Topps Chrome, 25 players
+Finest Autographs  # 40 listings, 2024 Finest, 2025 Finest, 24 players
+Starfractor  # 22 listings, 2025 Chrome, 2025 Topps Chrome, 22 players
+Winter  # 34 listings, 2025 Phoenix, 21 players
+Mosaic Micro  # 28 listings, 2024 Mosaic, 2025 Mosaic, 21 players
+Starry  # 31 listings, 2025 Chrome, 2025 Topps Chrome, 20 players
+Phoenix Thunderbirds  # 29 listings, 2025 Phoenix, 20 players
+Starry Night  # 26 listings, 2025 Chrome, 2025 Topps Chrome, 20 players
+Pyramids  # 25 listings, 2025 Phoenix, 20 players
+Fanatical  # 24 listings, 2025 Topps Chrome, 2026 Topps Chrome, 19 players
+Tecmo  # 36 listings, 2025 Topps Chrome, 2026 Fire, 18 players
+Jumbo Downtown  # 34 listings, 2024 Donruss, 2025 Donruss, 18 players
+Purple Lava  # 25 listings, 2025 Bowman, 2025 Topps Chrome, 18 players
+Finest Common  # 19 listings, 2024 Finest, 2025 Finest, 17 players
+Helix  # 18 listings, 2024 Topps Chrome, 2025 Topps Chrome, 17 players
+Torchers  # 27 listings, 2025 Finest, 16 players
+Finest Flashback  # 22 listings, 2024 Finest, 2025 Finest, 16 players
+Shadow Etch  # 19 listings, 2025 Topps Chrome, 16 players
+Blue Lava  # 17 listings, 2025 Phoenix, 2025 Topps Chrome, 16 players
+Proof Premium  # 18 listings, 2021 Donruss, 2022 Donruss, 15 players
+Extraterrestrial Talent  # 31 listings, 2025 Chrome, 2025 Topps Chrome, 14 players
+Super Futures  # 18 listings, 2025 Topps Chrome, 14 players
+Creators  # 17 listings, 2025 Finest, 14 players
+Divisional  # 17 listings, 2023 Contenders, 2024 Contenders, 13 players
+Crunch Time  # 13 listings, 2022 Donruss, 2023 Donruss, 13 players
+Fortune Blue  # 13 listings, 2025 Topps Chrome, 13 players
+Funkadelic  # 11 listings, 2022 Illusions, 2023 Illusions, 13 players
+Paragon  # 21 listings, 2025 Phoenix, 12 players
+Composite Topps  # 20 listings, 2023 Finest, 2023 Topps Chrome, 12 players
+Divisional Ticket  # 16 listings, 2023 Contenders, 2024 Contenders, 12 players
+Mercury  # 16 listings, 2025 Chrome, 2025 Topps Chrome, 12 players
+Black Rau  # 15 listings, 2025 Topps Chrome, 12 players
+Cosmic Stn  # 15 listings, 2025 Topps Chrome, 12 players
+Finest Torchers  # 14 listings, 2025 Finest, 12 players
+Glass Mosaic  # 13 listings, 2021 Mosaic, 2022 Mosaic, 12 players
+Mosaic Razzle  # 11 listings, 2022 Mosaic, 2023 Mosaic, 12 players
+Kangaroo  # 14 listings, 2025 Prizm, 11 players
+Game Genies  # 12 listings, 2025 Topps Chrome, 11 players
+White Hole  # 11 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
+Etch Variation  # 11 listings, 2025 Topps Chrome, 11 players
+Lightspeed  # 10 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
+Orange Lava  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
+Visionary  # 17 listings, 2025 Mosaic, 10 players
+Conference Ticket  # 15 listings, 2023 Contenders, 2024 Contenders, 10 players
+Midfield  # 14 listings, 2023 Contenders, 2024 Contenders, 10 players
+Tecmo Bowl  # 13 listings, 2025 Topps Chrome, 2026 Fire, 10 players
+Portals  # 12 listings, 2023 Prizm, 2024 Prizm, 10 players
+Yellow Lava  # 12 listings, 2025 Phoenix, 2025 Topps Chrome, 10 players
+Mirror Platinum  # 11 listings, 2024 Certified, 10 players
+Silver Pyramids  # 11 listings, 2025 Phoenix, 10 players
+Treat  # 11 listings, 2024 Score, 2025 Score, 10 players
+Blue Fractor  # 11 listings, 2025 Bowman Chrome, 2025 Finest, 10 players
+Bowl Downtown  # 8 listings, 2022 Donruss, 2023 Donruss Optic, 10 players
+Jackson Battle  # 23 listings, 2024 Fire, 2026 Fire, 9 players
+Contenders Ssd  # 18 listings, 1999 Contenders, 9 players
+White Stripe  # 14 listings, 2025 Mosaic, 9 players
+Chronicles Gridiron  # 14 listings, 2020 Chronicles, 2022 Chronicles, 9 players
+Triumvirate  # 13 listings, 1997 Stadium Club, 1998 Stadium Club, 9 players
+Mojo Trc  # 13 listings, 2026 Chrome, 2026 Topps Chrome, 9 players
+Midfield Ticket  # 12 listings, 2023 Contenders, 2024 Contenders, 9 players
+Prizms Gold  # 11 listings, 2023 Prizm Draft Picks, 2025 Prizm Draft Picks, 9 players
+Ultra Violet  # 11 listings, 2025 Topps Chrome, 9 players
+Ivory  # 10 listings, 2025 Chrome, 2025 Topps Chrome, 9 players
+Artistry  # 9 listings, 2024 Rookies & Stars, 2025 Rookies & Stars, 9 players
+Artistry Motion  # 9 listings, 2024 Rookies & Stars, 2025 Rookies & Stars, 9 players
+Spill  # 9 listings, 2024 Finest, 2025 Finest, 9 players
+Oil Spill  # 9 listings, 2024 Finest, 2025 Finest, 9 players
+Club Triumvirate  # 9 listings, 1997 Stadium Club, 1998 Stadium Club, 9 players
+Rpsfl  # 9 listings, 2024 Instant, 2025 Instant, 9 players
+Heirlooms  # 9 listings, 2023 National Treasures, 2025 National Treasures, 9 players
+Venus  # 9 listings, 2024 Chrome, 2025 Chrome, 9 players
+Abracadabra  # 8 listings, 2024 Illusions, 9 players
+Select Sparks  # 8 listings, 2024 Select, 2025 Select, 9 players
+Mosaic Glass  # 8 listings, 2021 Mosaic, 2022 Mosaic, 9 players
+Constellation  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 9 players
+Blue Checker  # 7 listings, 2021 Select, 2025 Prizm, 9 players
+Cosmic Light  # 7 listings, 2025 Topps Chrome, 9 players
+Anniversary Mojo  # 19 listings, 2026 Chrome, 2026 Topps Chrome, 8 players
+Mosaic Super  # 17 listings, 2021 Mosaic, 2022 Mosaic, 8 players
+Day Souvenirs  # 16 listings, 1999 Contenders, 8 players
+Souvenirs  # 16 listings, 1999 Contenders, 8 players
+Spx Finite  # 13 listings, 1998 SPx, 2014 SPx, 8 players
+Uno Elite  # 13 listings, 2025 Elite, 2026 Elite, 8 players
+Reflash  # 11 listings, 2025 Finest, 8 players
+Darkness  # 11 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
+Phoenix Paragon  # 10 listings, 2025 Phoenix, 8 players
+Hog Heaven  # 10 listings, 1995 Contenders, 2025 Absolute, 8 players
+Gear Neon  # 10 listings, 2023 Prizm, 2024 Prizm, 8 players
+Uncommon Blue  # 9 listings, 2025 Finest, 8 players
+International Downtown  # 9 listings, 2023 Donruss Optic, 8 players
+Score Treat  # 8 listings, 2024 Score, 2025 Score, 8 players
+Chronicles Clear  # 8 listings, 2020 Chronicles, 2022 Chronicles, 8 players
+Mosaic Money  # 8 listings, 2024 Mosaic, 8 players
+Flagship Trc  # 8 listings, 2026 Chrome, 8 players
+Planetarium  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
+Green Squares  # 7 listings, 2022 Select Draft Picks, 2022 Select, 8 players
+Purple Fractor  # 7 listings, 2025 Finest, 8 players
+Sapphire Image  # 7 listings, 2025 Topps Chrome, 8 players
+Surge  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
+Prizmania  # 7 listings, 2024 Prizm, 2025 Prizm, 8 players
+Instant Replay  # 7 listings, 1984 Instant, 1995 Instant, 8 players
+Replay  # 7 listings, 1984 Instant, 1995 Instant, 8 players
+Class Contenders  # 6 listings, 2023 Contenders, 2024 Contenders, 8 players
+Level Tri  # 6 listings, 2021 Select, 2025 Select, 8 players
+Light Board  # 6 listings, 2024 Topps Chrome, 2025 Topps Chrome, 8 players
+Metalists  # 16 listings, 1995 Stadium Club, 7 players
+Yellow Geometric  # 12 listings, 2024 Chrome, 2024 Topps Chrome, 7 players
+Club Metalists  # 12 listings, 1995 Stadium Club, 7 players
+Preferred Qbc  # 10 listings, 1999 Donruss, 2000 Donruss, 7 players
+Original Gridiron  # 9 listings, 2024 Origins, 2025 Origins, 7 players
+Bowman Reserve  # 9 listings, 2000 Bowman, 7 players
+Greats Autographs  # 9 listings, 2024 Finest, 2025 Finest, 7 players
+Pinnacle Certified  # 9 listings, 1997 Certified, 7 players
+Best Cuts  # 9 listings, 1996 Bowman, 1997 Bowman, 7 players
+Cosmic Purple  # 9 listings, 2025 Topps Chrome, 7 players
+Contenders Power  # 8 listings, 2024 Contenders, 7 players
+Finest Reflash  # 8 listings, 2025 Finest, 7 players
+Optic Hash  # 8 listings, 2024 Donruss Optic, 2025 Donruss Optic, 7 players
+Finest Creators  # 8 listings, 2025 Finest, 7 players
+Glass Oversized  # 8 listings, 2025 Mosaic, 7 players
+Genre Graphs  # 8 listings, 2025 National Treasures, 7 players
+Genre  # 8 listings, 2025 National Treasures, 7 players
+Frozenfractor  # 8 listings, 2024 Topps Chrome, 2025 Topps Chrome, 7 players
+Mosaic Visionary  # 7 listings, 2025 Mosaic, 7 players
+Photo Variation  # 7 listings, 2021 Donruss, 2025 Prizm, 7 players
+Selections Memorabilia  # 7 listings, 2024 Select, 2025 Select, 7 players
+Green Dust  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
+Finest Rfa  # 7 listings, 2024 Finest, 2025 Finest, 7 players
+Design Variation  # 7 listings, 2005 Heritage, 2025 Topps Chrome, 7 players
+White Geometric  # 7 listings, 2024 Topps Chrome, 7 players
+Orange Autographs  # 7 listings, 2022 Phoenix, 2025 Donruss, 7 players
+Sunday Treasures  # 7 listings, 2024 National Treasures, 2025 National Treasures, 7 players
+Variations Silver  # 7 listings, 2021 Prizm, 2024 Prizm, 7 players
+Donruss Crunch  # 6 listings, 2022 Donruss, 2023 Donruss, 7 players
+Signatures Nil  # 6 listings, 2024 Luminance, 2025 Luminance, 7 players
+Recon  # 6 listings, 2021 Chronicles, 2022 Chronicles, 7 players
+Remarkable Jerseys  # 6 listings, 2025 Immaculate Collection, 2025 Immaculate, 7 players
+Gance  # 6 listings, 2024 Impeccable, 2025 Impeccable, 7 players
+Night Green  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
+Solar Flare  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
+Select Drake  # 32 listings, 2024 Select, 2025 Select, 6 players
+Prizmatrix  # 22 listings, 2025 Prizm, 6 players
+Finesse  # 12 listings, 2024 Prizm, 2024 Topps Chrome, 6 players
+Masters Mosaic  # 12 listings, 2022 Mosaic, 2025 Mosaic, 6 players
+Square One  # 11 listings, 2023 Panini One, 2024 Panini One, 6 players
+Prodigies  # 10 listings, 2024 Finest, 2024 Topps Chrome, 6 players
+Showpieces  # 9 listings, 2025 Bowman, 6 players
+Depths  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 6 players
+Depths Darkness  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 6 players
+Sunday Swag  # 8 listings, 2024 Topps Chrome, 6 players
+Shock Premier  # 8 listings, 2024 Select, 2025 Select, 6 players
+Silver Knight  # 8 listings, 2025 Mosaic, 6 players
+Risers  # 8 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
+Early Risers  # 8 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
+Black Prizmatrix  # 8 listings, 2025 Prizm, 6 players
+Wonderful Ones  # 8 listings, 2024 Panini One, 6 players
+Wonderful  # 8 listings, 2024 Panini One, 6 players
+Delights Early  # 7 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
+Delights  # 7 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
+Chronicles Dynagon  # 7 listings, 2020 Chronicles, 2021 Chronicles, 6 players
+Topps Mystery  # 7 listings, 1998 Finest, 1999 Chrome, 6 players
+Black Prospects  # 7 listings, 2025 Prizm, 6 players
+Workhorse  # 7 listings, 2025 Bowman, 6 players
+Optic International  # 7 listings, 2023 Donruss Optic, 6 players
+Thunderbirds Silver  # 6 listings, 2025 Phoenix, 6 players
+Marquee  # 6 listings, 2022 Chronicles, 2024 Zenith, 6 players
+Uncommon Sky  # 6 listings, 2025 Finest, 6 players
+Unexpected Delights  # 6 listings, 2023 Bowman, 6 players
+Unexpected  # 6 listings, 2023 Bowman, 6 players
+Bowman Sapphire  # 6 listings, 2023 Bowman, 2025 Bowman, 6 players
+Lightning Leaders  # 6 listings, 2025 Topps Chrome, 6 players
+Solar Swatches  # 6 listings, 2024 Obsidian, 6 players
+Storm Chasers  # 6 listings, 2021 Mosaic, 2022 Mosaic, 6 players
+Chasers  # 6 listings, 2021 Mosaic, 2022 Mosaic, 6 players
+Initials  # 6 listings, 2024 Obsidian, 6 players
+Atomic Initials  # 6 listings, 2024 Obsidian, 6 players
+Metalists Members  # 6 listings, 1995 Stadium Club, 6 players
+Start Ups  # 6 listings, 2023 Origins, 2024 Origins, 6 players
+Now Caleb  # 22 listings, 2024 Topps Now, 2026 Topps Now, 5 players
+Finest Cam  # 20 listings, 2011 Finest, 2025 Finest, 5 players
+Select Tyler  # 17 listings, 2025 Select, 5 players
+Youthquake  # 15 listings, 2024 Topps Chrome, 2025 Topps Chrome, 5 players
+Phoenix Cam  # 12 listings, 2020 Phoenix, 2025 Phoenix, 5 players
+Blue Mini  # 12 listings, 2025 Bowman Chrome, 2025 Bowman, 5 players
+Prizmatrix Signatures  # 11 listings, 2025 Prizm, 5 players
+Arena Tecmo  # 11 listings, 2026 Fire, 5 players
+Instant Nil  # 9 listings, 2024 Instant, 2025 Instant, 5 players
+Certified Ballers  # 9 listings, 2023 Certified, 2025 Certified, 5 players
+Optic Passing  # 8 listings, 2024 Donruss Optic, 2025 Donruss Optic, 5 players
+International Games  # 8 listings, 2025 Mosaic, 5 players
+Label Class  # 8 listings, 1998 Gold Label, 1999 Gold Label, 5 players
+Best Boa  # 7 listings, 2024 Bowman, 2025 Bowman, 5 players
+Zenith State  # 7 listings, 2024 Zenith, 5 players
+Capital Gains  # 7 listings, 2024 Mosaic, 5 players
+Capital  # 7 listings, 2024 Mosaic, 5 players
+Gains  # 7 listings, 2024 Mosaic, 5 players
+Cosmic Travis  # 7 listings, 2025 Topps Chrome, 5 players
+Deca Signatures  # 7 listings, 2024 Prizm, 5 players
+Flagship Mojo  # 7 listings, 2026 Chrome, 2026 Topps Chrome, 5 players
+Treasures Matthew  # 7 listings, 2025 National Treasures, 5 players
+Flagship Silver  # 6 listings, 2026 Chrome, 2026 Topps Chrome, 5 players
+Operation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
+Operation Detonation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
+Detonation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
+Mosaic International  # 6 listings, 2024 Obsidian, 2025 Mosaic, 5 players
+One Wonderful  # 6 listings, 2024 Panini One, 5 players
+Got Game  # 6 listings, 2020 Mosaic, 5 players
+Clusters Cam  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 5 players
+Immortal  # 6 listings, 2024 Impeccable, 2025 Impeccable, 5 players
+Immortal Ink  # 6 listings, 2024 Impeccable, 2025 Impeccable, 5 players
+Select Turbocharged  # 6 listings, 2023 Select, 2024 Select, 5 players
+Black Lava  # 6 listings, 2025 Topps Chrome, 5 players
+Obsidian Caleb  # 6 listings, 2024 Obsidian, 5 players
+Pursuit Mercury  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 5 players
+One Dual  # 6 listings, 2018 Panini One, 2024 Panini One, 5 players
+Level Drake  # 24 listings, 2022 Select, 2024 Select, 4 players
+Donruss Cam  # 22 listings, 2024 Donruss, 2025 Donruss, 4 players
+Mosaic Nix  # 22 listings, 2024 Mosaic, 2025 Mosaic, 4 players
+Donruss Jayden  # 21 listings, 2023 Donruss, 2024 Donruss, 4 players
+Stn Bengals  # 20 listings, 2025 Chrome, 4 players
+Select Shedeur  # 19 listings, 2024 Select, 2025 Select, 4 players
+Optic Stroud  # 17 listings, 2023 Donruss Optic, 2024 Donruss Optic, 4 players
+Mosaic Cam  # 15 listings, 2020 Mosaic, 2025 Mosaic, 4 players
+Phoenix Jayden  # 14 listings, 2024 Phoenix, 2025 Phoenix, 4 players
+Black Matthew  # 14 listings, 2025 Topps Chrome, 2026 Topps Chrome, 4 players
+Phoenician Penmanship  # 13 listings, 2024 Phoenix, 2025 Phoenix, 4 players
+Immaculate Joe  # 13 listings, 2020 Immaculate, 2024 Immaculate, 4 players
+Black Jordan  # 12 listings, 2023 Topps Chrome, 2025 Topps Chrome, 4 players
+Level Cam  # 10 listings, 2025 Select, 4 players
+Phoenix Omarion  # 9 listings, 2025 Phoenix, 4 players
+Treasures Jalen  # 9 listings, 2020 National Treasures, 2025 National Treasures, 4 players
+Raiders Trc  # 9 listings, 2026 Chrome, 2026 Topps Chrome, 4 players
+Black Jayden  # 9 listings, 2025 Topps Chrome, 2026 Chrome, 4 players
+Illusions Joe  # 8 listings, 2020 Illusions, 2023 Illusions, 4 players
+Downtown Matthew  # 8 listings, 2021 Donruss Optic, 2025 Donruss, 4 players
+Night Giants  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 4 players
+Select Puka  # 7 listings, 2023 Select, 2025 Select, 4 players
+Select Jack  # 7 listings, 2025 Select, 4 players
+Black Jalen  # 7 listings, 2020 Prizm, 2025 Topps Chrome, 4 players
+Ward Caleb  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 4 players
+South  # 7 listings, 2025 Bowman Chrome, 2025 Bowman, 4 players
+Finest Jordan  # 7 listings, 2023 Finest, 2025 Finest, 4 players
+Championship Fabric  # 7 listings, 2000 Contenders, 2022 Absolute, 4 players
+Black Drake  # 6 listings, 2025 National Treasures, 2025 Topps Chrome, 4 players
+Green Autographs  # 6 listings, 2020 Contenders Draft Picks, 2025 Donruss, 4 players
+Magnitude  # 6 listings, 2021 Chronicles, 2022 Chronicles, 4 players
+Prolific  # 6 listings, 2025 Prizm, 4 players
+Rps Variation  # 6 listings, 2023 Contenders, 2024 Contenders, 4 players
+Treasures Mason  # 6 listings, 2025 National Treasures, 4 players
+Spectra Sunday  # 6 listings, 2022 Spectra, 2024 Spectra, 4 players
+It'S Good  # 6 listings, 2024 Score, 2025 Score, 4 players
+South Carolina  # 6 listings, 2025 Bowman Chrome, 2025 Bowman, 4 players
+Contenders Mccarthy  # 6 listings, 2024 Contenders, 4 players
+Select Rome  # 6 listings, 2024 Select, 4 players
+One Quad  # 6 listings, 2021 Panini One, 2024 Panini One, 4 players
+Donruss Matthew  # 6 listings, 2009 Score, 2025 Donruss, 4 players
+Lotus  # 6 listings, 2025 Prizm, 4 players
