@@ -381,7 +381,7 @@ def cmd_facets(args) -> int:
     """
     import json
 
-    from .facets import as_vocabulary, harvest, merge
+    from .facets import as_vocabulary, drillable, harvest, merge
 
     config = load_config(args.config)
     queries = ([q for q in config.queries if q.id == args.query] if args.query
@@ -422,6 +422,32 @@ def cmd_facets(args) -> int:
             pages += 1
             merge(accumulated, found)
             print("  " + ", ".join(f"{k} {len(v)}" for k, v in sorted(found.items())))
+        # A results page renders only its top handful of values per aspect, so
+        # one pass gives the eight most-listed sets rather than the sets. The
+        # way to a full list is to narrow the search and ask again: inside
+        # Season=2025 the Set facet lists 2025's sets.
+        if args.drill and accumulated:
+            targets = drillable(accumulated, args.drill, limit=args.drill_limit)
+            base = queries[0]
+            print(f"\nDrilling into {len(targets)} {args.drill} value(s), "
+                  f"up to {args.budget} requests.")
+            for aspect, value in targets:
+                if pages >= args.budget:
+                    print("  request budget reached; run again to go further")
+                    break
+                url = build_url(base.keywords, base.category, page=1,
+                                items_per_page=60, extra={aspect: value})
+                try:
+                    html = fetcher.get(url, label=f"facets_{aspect}_{value}"[:60])
+                except (BlockedError, FetchError) as exc:
+                    print(f"  {value}: {type(exc).__name__}, stopping here")
+                    break
+                found = harvest(html)
+                pages += 1
+                before = sum(len(v) for v in accumulated.values())
+                merge(accumulated, found)
+                gained = sum(len(v) for v in accumulated.values()) - before
+                print(f"  {aspect}={value}: +{gained} new value(s)")
     finally:
         closer = getattr(fetcher, "close", None)
         if closer:
@@ -1764,6 +1790,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="start over rather than adding to what is stored")
     p.add_argument("--min-count", type=int, default=0,
                    help="ignore facet values eBay reports fewer listings for")
+    p.add_argument("--drill", metavar="BUCKET",
+                   help="narrow the search by each value of this vocabulary "
+                        "(e.g. seasons) so the other facets list more")
+    p.add_argument("--drill-limit", type=int, default=50,
+                   help="how many values of that vocabulary to drill into")
+    p.add_argument("--budget", type=int, default=60,
+                   help="stop after this many requests")
     p.add_argument("--engine")
     p.add_argument("--headed", action="store_true")
     p.add_argument("--save-html", help="keep the fetched page for inspection")
