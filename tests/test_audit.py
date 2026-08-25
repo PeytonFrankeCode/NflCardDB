@@ -416,3 +416,19 @@ def test_a_contradictory_group_carries_the_titles_that_built_it(tmp_path):
     assert len(flagged) == 1
     assert any("Draft Pick" in t for t in flagged[0]["titles"])
     assert any("Ranked" in t for t in flagged[0]["titles"])
+
+
+def test_the_audit_reports_which_parser_read_the_data(tmp_path):
+    """An audit that comes back identical after a parser fix is ambiguous
+    between "the fix did nothing" and "the fix is not on this machine". Those
+    need opposite responses, so the report says which parser produced the rows."""
+    from nflcarddb.parse_title import PARSER_VERSION
+
+    path = _seed(tmp_path / "ver.db", [
+        ("2021 Panini Prizm Ja'Marr Chase #220 PSA 10", 9000),
+    ])
+    stats = coverage(str(path))
+    assert stats["parser_versions"] == ["v1 (1)"]      # whatever _seed stamped
+
+    # A real parse stamps the live version, which is what the user compares.
+    assert PARSER_VERSION == "title/2"

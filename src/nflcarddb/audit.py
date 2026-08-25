@@ -66,8 +66,20 @@ def coverage(db_path: str) -> dict:
             ).fetchone()[0]
             buckets[f"{low:.1f}-{high:.1f}"] = n
 
+        # Which parser actually produced these rows. Reported because an audit
+        # that comes back identical after a parser fix is ambiguous between "the
+        # fix did nothing" and "the fix is not on this machine", and those need
+        # opposite responses.
+        versions = [
+            f"{row[0]} ({row[1]:,})" for row in conn.execute(
+                "SELECT parser_version, COUNT(*) FROM cards "
+                "GROUP BY parser_version ORDER BY COUNT(*) DESC"
+            ).fetchall() if row[0]
+        ]
+
         return {
             "cards": total,
+            "parser_versions": versions,
             "with_key": keyed,
             "key_rate": round(keyed / total, 3),
             "without_key": total - keyed,

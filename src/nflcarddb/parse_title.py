@@ -17,7 +17,14 @@ from typing import Iterable, Optional
 
 from .models import CardAttrs
 
-PARSER_VERSION = "title/1"
+# Bumped whenever parsing changes materially. It is stamped on every row, and
+# the audit reports it -- which is how "did my update actually land" becomes a
+# line in a report rather than a guess from whether the numbers moved. An audit
+# that came back byte-for-byte identical after a parser fix cost a round here.
+#
+# title/2: draft positions, set ranges, pick-your-card listings, set names
+#          ending in a subset name, and #1/1 serial numbering.
+PARSER_VERSION = "title/2"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the

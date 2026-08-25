@@ -395,6 +395,9 @@ def cmd_audit(args) -> int:
 
     print("How much of the data is identified")
     print("=" * 58)
+    versions = report.get("parser_versions") or []
+    if versions:
+        print(f"  read by parser        {', '.join(versions):>9}")
     print(f"  sales parsed          {report['cards']:>9,}")
     print(f"  given a card_key      {report['with_key']:>9,}  "
           f"({report['key_rate']:.1%})")
