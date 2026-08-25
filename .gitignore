@@ -41,3 +41,6 @@ api-details.txt
 
 # Cloudflare token and account id, saved so the scripts stop asking
 data/cloudflare.txt
+
+# eBay developer keys, saved so the scripts stop asking
+data/ebay-api.txt
