@@ -333,35 +333,98 @@ def _rate_delta(label: str, before_n: int, before_d: int,
 
 
 def enable_roster(config_path: Optional[str], roster_path) -> bool:
-    """Point the config at the roster just built, editing the file in place.
+    """Point the config at the roster just built."""
+    return enable_setting(config_path, "roster", roster_path)
+
+
+def enable_setting(config_path: Optional[str], key: str, value) -> bool:
+    """Set a top-level config key to a path, editing the file in place.
 
     A file the user has to remember to edit is a file that stays unedited, and
-    then the roster exists while nothing reads it -- which looks exactly like
-    the roster not working. The line is written as one comment-free assignment
-    so re-running this is idempotent rather than additive.
+    then the list exists while nothing reads it -- which looks exactly like the
+    list not working. The line is written as one comment-free assignment so
+    re-running this is idempotent rather than additive.
     """
     path = Path(config_path or "")
     if not path.exists():
         return False
 
-    line = f"roster: {Path(roster_path).as_posix()}"
+    line = f"{key}: {Path(value).as_posix()}"
     try:
         original = path.read_text(encoding="utf-8")
         out, replaced = [], False
         for raw in original.splitlines():
             stripped = raw.lstrip("# ").rstrip()
             # Both the shipped commented example and a previous run's line.
-            if stripped.startswith("roster:") and not replaced:
+            if stripped.startswith(f"{key}:") and not replaced:
                 out.append(line)
                 replaced = True
             else:
                 out.append(raw)
         if not replaced:
-            return False
+            # No line to rewrite, commented or otherwise: append one rather
+            # than reporting failure, so a config predating the setting still
+            # gets it.
+            out.append(line)
         path.write_text("\n".join(out) + "\n", encoding="utf-8")
     except OSError:
         return False
     return True
+
+
+def cmd_inserts(args) -> int:
+    """Propose insert-set names learned from collected titles."""
+    from .parse_title import load_inserts, register_inserts
+    from .roster import build_inserts, write_inserts
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+    roster_path = args.roster or (config.roster if config else None)
+
+    if not roster_path or not Path(roster_path).exists():
+        print("A roster is needed first -- the test for an insert is how many "
+              "different\nplayers it appears beside, and that needs to know who "
+              "the players are.\nRun `nflcarddb roster` (or names.bat).\n",
+              file=sys.stderr)
+        return 1
+
+    roster = load_roster(roster_path)
+    rows = build_inserts(db_path, roster, max_contexts=args.max_contexts,
+                         min_sightings=args.min_sightings,
+                         min_players=args.min_players)
+    if not rows:
+        print("No insert names met the evidence bar. Collect more and retry.")
+        return 0
+
+    path = write_inserts(rows, args.out)
+    print(f"Proposed {len(rows)} insert names -> {path}\n")
+    print("Strongest first, by how many different players they appear beside:")
+    for row in rows[:15]:
+        print(f"  {row['name']:<26} {row['sightings']:>5,} listings, "
+              f"{row['players']:>3} players, {row['where']}")
+    if len(rows) > 15:
+        print(f"\n  ...and {len(rows) - 15} more in the file.")
+
+    print()
+    print("=" * 58)
+    print("READ THE FILE BEFORE TURNING IT ON. A name that is not really an")
+    print("insert SPLITS a card between sellers who typed the word and sellers")
+    print("who did not -- worse than the merging this fixes, because it breaks")
+    print("cards that already group correctly. Delete any line you doubt.")
+
+    if args.apply:
+        if enable_setting(args.config, "inserts", path):
+            print(f"\nTurned on in {args.config}. Re-reading every title.")
+            register_inserts(load_inserts(path))
+            reparse_titles(db_path, roster_path, all_rows=True)
+            print("Done.")
+        else:
+            print(f"\nCould not edit {args.config}. Add this line yourself:")
+            print(f"  inserts: {Path(path).as_posix()}")
+            return 1
+    else:
+        print("\nWhen you are happy with it:  nflcarddb inserts --apply")
+    return 0
 
 
 def cmd_audit(args) -> int:
@@ -1615,6 +1678,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
 
+    p = sub.add_parser("inserts",
+                       help="learn insert-set names from collected titles")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--roster")
+    p.add_argument("--out", default="config/nfl_inserts.txt")
+    p.add_argument("--max-contexts", type=int, default=2,
+                   help="products a name may appear in and still be an insert")
+    p.add_argument("--min-sightings", type=int, default=6)
+    p.add_argument("--min-players", type=int, default=4,
+                   help="different players it must appear beside")
+    p.add_argument("--apply", action="store_true",
+                   help="switch the list on and re-read every title")
+    p.set_defaults(func=cmd_inserts)
+
     p = sub.add_parser("vision",
                        help="read listing photos and compare them with the titles")
     p.add_argument("--config", default="config/queries.yml")
@@ -1809,9 +1887,36 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _register_learned_vocabulary(args) -> None:
+    """Load learned insert names into the parser before anything parses.
+
+    Done once here rather than passed as an argument, because every path that
+    parses a title would otherwise have to carry it: the collector, the
+    importer, the reparser and the D1 restore all say the same thing. A silent
+    failure here would show up as inserts quietly not being recognised, so a
+    broken path is reported rather than swallowed.
+    """
+    from .parse_title import load_inserts, register_inserts
+
+    config_path = getattr(args, "config", None)
+    if not config_path or not Path(config_path).exists():
+        return
+    try:
+        config = load_config(config_path)
+    except (ValueError, OSError):
+        return          # the command itself will report a bad config
+    if not config.inserts:
+        return
+    if not Path(config.inserts).exists():
+        print(f"warning: inserts file not found: {config.inserts}", file=sys.stderr)
+        return
+    register_inserts(load_inserts(config.inserts))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     _setup_logging(args.verbose)
+    _register_learned_vocabulary(args)
     try:
         return args.func(args)
     except FileNotFoundError as exc:

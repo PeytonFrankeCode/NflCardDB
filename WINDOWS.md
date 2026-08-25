@@ -406,6 +406,44 @@ Two limits that won't go away: an **ungraded** card has no label at all, so this
 only ever helps graded sales; and eBay deletes listing photos after about 90
 days, so it only works on recent ones.
 
+## Cards that share a number
+
+An **insert set** restarts its numbering at 1. So in Panini Phoenix, "Contours
+#8", "Phoenician #8", "Genies #8" and "Archetype #8" are four completely
+different cards — and if you only look at the number, they're one card with
+fourteen sales and four different players in it. That was real, in your data.
+
+So the insert name is part of a card's identity. The problem is knowing the
+names: every product ships a dozen inserts, and next year ships different ones.
+A hand-written list is out of date the day it's written.
+
+**Double-click `inserts.bat`.** It works the names out from your own listings,
+using the mirror image of the roster trick: **a player turns up across many sets
+and years; an insert lives in one product, standing next to lots of different
+players.** That second half is what matters — a rookie who only appears in one
+product looks exactly like an insert by breadth alone, and what separates them
+is that nobody else's name is beside theirs.
+
+Run `names.bat` first. Working out which phrases are inserts needs to know which
+ones are players.
+
+### It asks you to check the list, and that's not a formality
+
+The file opens automatically, with the evidence beside each name:
+
+```
+Moonstruck  # 142 listings, 2025 Donruss Optic, 37 players
+```
+
+**Delete any line that isn't really the name of an insert set.** The risk here
+runs one way and it's worth understanding: a *missed* insert leaves cards merged,
+which is where you already are. A *wrong* entry **splits** a card in two —
+between sellers who typed that word and sellers who didn't — which breaks cards
+that currently work. Missing one costs you nothing new; adding a bad one costs
+you a card.
+
+Then answer **y** and it re-reads every title.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this

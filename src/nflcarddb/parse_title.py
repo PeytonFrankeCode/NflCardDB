@@ -270,6 +270,53 @@ _CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSET
 
 _INSERT_LOOKUP = {t.lower() for t in INSERTS}
 
+# Insert names learned from collected titles, registered at startup. Kept apart
+# from INSERTS so re-registering replaces them rather than piling up.
+_LEARNED_INSERTS: tuple[str, ...] = ()
+
+
+def register_inserts(names: Iterable[str]) -> int:
+    """Add learned insert names to the vocabulary, replacing any previous set.
+
+    A registry rather than a parameter on `parse_title`, because the vocabulary
+    is process-wide and the alternative is threading an argument through every
+    caller that parses anything -- the collector, the importer, the reparser and
+    the D1 restore -- to say the same thing each time.
+
+    Replaces rather than accumulates so calling it twice is the same as calling
+    it once, and so tests can clear it with an empty list.
+    """
+    global _LEARNED_INSERTS, SUBSETS, SUBSET_PAT, _CANONICAL, _INSERT_LOOKUP
+
+    # DESIGNATIONS are excluded as well as INSERTS, and that is the important
+    # half. A built-in designation is a deliberate decision that a word is
+    # boilerplate -- "Rated Rookie" means the same card whether or not the
+    # seller typed it. Letting a learned list promote one into the key would
+    # split cards that currently group correctly, which is the failure this
+    # whole feature is supposed to avoid causing.
+    reserved = {t.lower() for t in (*INSERTS, *DESIGNATIONS)}
+    _LEARNED_INSERTS = tuple(
+        n.strip() for n in names
+        if n.strip() and n.strip().lower() not in reserved
+    )
+    SUBSETS = INSERTS + _LEARNED_INSERTS + DESIGNATIONS
+    SUBSET_PAT = _vocab_pattern(SUBSETS)
+    _CANONICAL = {t.lower(): t
+                  for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
+    _INSERT_LOOKUP = {t.lower() for t in (*INSERTS, *_LEARNED_INSERTS)}
+    return len(_LEARNED_INSERTS)
+
+
+def load_inserts(path: str) -> list[str]:
+    """Read a learned insert list, ignoring comments and blank lines."""
+    names = []
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            name = line.split("#", 1)[0].strip()
+            if name:
+                names.append(name)
+    return names
+
 # Nickname -> full team name, so "Commanders" and "Washington Commanders"
 # land on the same value.
 _TEAM_BY_NICKNAME = {
