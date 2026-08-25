@@ -98,9 +98,12 @@ _BRACKETED = re.compile(r"^\[.*\]$")
 _COUNT_RE = re.compile(r"\(\s*([\d,]+)\s*\)\s*$")
 
 # A facet value that is really a control word rather than a card attribute.
-# "!" is what eBay renders for "not specified" -- it turned up as a value under
-# Autographed, Graded, Material and Card Condition on a live page.
-_NOT_A_VALUE = re.compile(r"^(see all|show more|more|less|any|all|!)$", re.I)
+# "!" is what the web page renders for an unfilled field; "Not Specified" is
+# what the API returns for the same thing, and it arrived as a value under every
+# single aspect -- including as a "set name" and a "player".
+_NOT_A_VALUE = re.compile(
+    r"^(see all|show more|more|less|any|all|!|not specified|unspecified|"
+    r"n/?a|none|other)$", re.I)
 
 
 def _normalise_aspect(name: str) -> str:
@@ -165,7 +168,7 @@ FILE_VERSION = 2
 # Stamped into the report so a run says which code produced it. Two rounds
 # were spent on output that looked unchanged because it was unchanged --
 # the same lesson as the title parser version.
-HARVESTER_VERSION = "facets/3"
+HARVESTER_VERSION = "facets/4"
 
 
 def bucket_of(aspect: str) -> str:
@@ -227,7 +230,7 @@ def as_vocabulary(store: dict[str, dict[str, Optional[int]]],
     eBay's taxonomy verbatim, which is what drilling needs.
     """
     merged: dict[str, dict[str, Optional[int]]] = defaultdict(dict)
-    for aspect, values in store.items():
+    for aspect, values in clean(store).items():
         bucket = bucket_of(aspect)
         for value, count in values.items():
             if value not in merged[bucket] or (count or 0) > (merged[bucket][value] or 0):
@@ -293,8 +296,12 @@ def save_store(store: dict[str, dict[str, Optional[int]]], path) -> None:
 
     file = Path(path)
     file.parent.mkdir(parents=True, exist_ok=True)
+    # Cleaned on the way out as well as the way in. Cleaning only on load meant
+    # anything arriving from a new source -- the API -- was written unfiltered,
+    # which is how "[Base]" and "Not Specified" reached a report as a parallel
+    # and a set name after both had supposedly been filtered.
     file.write_text(
-        json.dumps({"version": FILE_VERSION, "aspects": store},
+        json.dumps({"version": FILE_VERSION, "aspects": clean(store)},
                    indent=1, sort_keys=True),
         encoding="utf-8",
     )

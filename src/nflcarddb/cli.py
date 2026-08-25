@@ -414,9 +414,15 @@ def cmd_catalog(args) -> int:
     calls = 0
 
     try:
+        # Category 261328 is every sport's singles, so an unfiltered harvest
+        # brings back Premier League, the MLB World Series and Shohei Ohtani.
+        # Baseball set names in a football parser are false matches waiting to
+        # happen, so the sport is pinned unless explicitly cleared.
+        sport = [("Sport", args.sport)] if args.sport else []
         for query in queries:
-            payload = client.refinements(query.keywords or "football",
-                                         query.category)
+            payload = client.refinements(
+                query.keywords or "football", query.category,
+                aspect_filter=aspect_filter_for(query.category, sport))
             calls += 1
             found = aspects_from_payload(payload)
             total = payload.get("total")
@@ -440,12 +446,14 @@ def cmd_catalog(args) -> int:
                 if calls >= args.budget:
                     print(f"  stopped at the {args.budget}-call budget")
                     break
-                if "," in value or "{" in value or "}" in value:
-                    # aspect_filter uses braces and commas as syntax.
+                narrowed = aspect_filter_for(base.category, sport + [(aspect, value)])
+                if narrowed is None:
+                    # The value carries a comma or a brace, which are the
+                    # syntax; sending it would filter on something else.
                     continue
                 payload = client.refinements(
                     base.keywords or "football", base.category,
-                    aspect_filter=aspect_filter_for(aspect, value))
+                    aspect_filter=narrowed)
                 calls += 1
                 before = sum(len(v) for v in accumulated.values())
                 merge(accumulated, aspects_from_payload(payload))
@@ -1938,6 +1946,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--drill-limit", type=int, default=40)
     p.add_argument("--budget", type=int, default=120,
                    help="stop after this many API calls")
+    p.add_argument("--sport", default="Football",
+                   help="pin the sport; pass empty to harvest every sport")
     p.set_defaults(func=cmd_catalog)
 
     p = sub.add_parser("facets",

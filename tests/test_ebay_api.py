@@ -92,8 +92,30 @@ def test_a_missing_count_is_kept_as_unknown_not_zero():
 
 
 def test_the_aspect_filter_uses_ebays_brace_syntax():
-    """Not a plain query parameter -- the braces are required."""
-    assert aspect_filter_for("Season", "2025") == "Season:{2025}"
+    """Not a plain query parameter: the category comes first, values are
+    braced, clauses are comma-separated."""
+    assert aspect_filter_for("261328", [("Season", "2025")]) == \
+        "categoryId:261328,Season:{2025}"
+
+
+def test_several_aspects_combine_into_one_filter():
+    """Pinning the sport has to survive being combined with a drill target."""
+    assert aspect_filter_for("261328", [("Sport", "Football"),
+                                        ("Season", "2025")]) == \
+        "categoryId:261328,Sport:{Football},Season:{2025}"
+
+
+def test_a_value_containing_the_syntax_is_dropped_not_sent():
+    """A comma or brace inside a value would silently filter on something
+    else, which is worse than not filtering."""
+    assert aspect_filter_for("261328", [("Set", "Topps, Chrome")]) is None
+    assert aspect_filter_for("261328", [("Sport", "Football"),
+                                        ("Set", "a{b}")]) == \
+        "categoryId:261328,Sport:{Football}"
+
+
+def test_no_pairs_means_no_filter_rather_than_a_bare_category():
+    assert aspect_filter_for("261328", []) is None
 
 
 def test_credentials_round_trip(tmp_path):

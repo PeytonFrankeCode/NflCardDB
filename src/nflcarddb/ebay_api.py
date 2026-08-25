@@ -192,11 +192,20 @@ def aspects_from_payload(payload: dict) -> dict[str, dict[str, Optional[int]]]:
     return out
 
 
-def aspect_filter_for(aspect: str, value: str) -> str:
+def aspect_filter_for(category_id: Optional[str],
+                      pairs: "list[tuple[str, str]]") -> Optional[str]:
     """eBay's aspect_filter syntax, which is not a plain query parameter.
 
-    It reads `categoryId:<id>,Aspect:{Value}` -- the braces are required and a
-    literal comma inside a value would break the encoding, so those values are
-    skipped rather than sent malformed.
+    It reads `categoryId:<id>,Aspect:{Value},Other:{Value}` -- the category is
+    required as the first element, braces are required around values, and
+    commas separate clauses. A value containing a comma or a brace would break
+    that encoding, so such values are dropped rather than sent malformed.
     """
-    return f"{aspect}:{{{value}}}"
+    usable = [(a, v) for a, v in pairs
+              if not any(ch in v for ch in ",{}") and not any(ch in a for ch in ",{}")]
+    if not usable:
+        return None
+    clauses = [f"{a}:{{{v}}}" for a, v in usable]
+    if category_id:
+        clauses.insert(0, f"categoryId:{category_id}")
+    return ",".join(clauses)

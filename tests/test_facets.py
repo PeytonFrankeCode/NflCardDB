@@ -254,3 +254,39 @@ def test_a_stored_file_is_cleaned_when_it_is_loaded(tmp_path):
     }), encoding="utf-8")
 
     assert load_store(path) == {"Set": {"1979 Topps": 20}}
+
+
+def test_the_apis_not_specified_placeholder_is_not_a_value():
+    """The API's version of "!". It arrived under every single aspect on a
+    live run -- including as a set name and as a player."""
+    from nflcarddb.facets import clean
+
+    dirty = {
+        "Set": {"Not Specified": 90000, "2024 Panini Donruss": 2110},
+        "Player/Athlete": {"Not Specified": 5, "Tom Brady": 900},
+        "Parallel/Variety": {"[Base]": 40, "Not Specified": 3, "Prizm": 700},
+    }
+    assert clean(dirty) == {
+        "Set": {"2024 Panini Donruss": 2110},
+        "Player/Athlete": {"Tom Brady": 900},
+        "Parallel/Variety": {"Prizm": 700},
+    }
+
+
+def test_saving_cleans_too(tmp_path):
+    """Cleaning only on load let anything from a new source through: values
+    harvested from the API were written unfiltered, so "[Base]" reached a
+    report as a parallel after it had supposedly been filtered."""
+    from nflcarddb.facets import load_store, save_store
+
+    path = tmp_path / "f.json"
+    save_store({"Parallel/Variety": {"[Base]": 9, "Prizm": 3},
+                "LH_BO": {"1": None}}, path)
+    assert load_store(path) == {"Parallel/Variety": {"Prizm": 3}}
+
+
+def test_a_vocabulary_is_cleaned_however_the_values_arrived():
+    from nflcarddb.facets import as_vocabulary
+
+    vocab = as_vocabulary({"Set": {"Not Specified": 9, "1979 Topps": 3}})
+    assert vocab["sets"] == ["1979 Topps"]
