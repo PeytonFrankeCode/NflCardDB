@@ -56,6 +56,10 @@ CONTROL_PARAMS = {
     "ssPageName", "mode", "notionalTypeId", "period", "source", "title", "id",
     "CurrentPage", "amdata", "var", "hash", "campid", "customid", "toolid",
     "mkevt", "mkcid", "mkrid", "siteid", "brand", "norover", "pageci",
+    # eBay's "show only" toggles. They are boolean switches, not card
+    # attributes, and each contributed a bucket holding the single value "1".
+    "LH_AS", "LH_AV", "LH_All", "LH_BO", "LH_FAST", "LH_FR", "LH_LPickup",
+    "LH_RPA", "LH_Savings", "LH_CAds", "LH_Time", "imm",
 }
 
 # The aspects worth harvesting, and what each feeds. Names are eBay's, matched
@@ -94,7 +98,9 @@ _BRACKETED = re.compile(r"^\[.*\]$")
 _COUNT_RE = re.compile(r"\(\s*([\d,]+)\s*\)\s*$")
 
 # A facet value that is really a control word rather than a card attribute.
-_NOT_A_VALUE = re.compile(r"^(see all|show more|more|less|any|all)$", re.I)
+# "!" is what eBay renders for "not specified" -- it turned up as a value under
+# Autographed, Graded, Material and Card Condition on a live page.
+_NOT_A_VALUE = re.compile(r"^(see all|show more|more|less|any|all|!)$", re.I)
 
 
 def _normalise_aspect(name: str) -> str:

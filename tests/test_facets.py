@@ -210,3 +210,18 @@ def test_bucketing_is_never_applied_twice():
 
     assert bucket_of("Parallel/Variety") == "parallels"
     assert bucket_of("parallels").startswith("other:")   # not "parallels" again
+
+
+def test_ebays_show_only_toggles_are_not_a_vocabulary():
+    """LH_AS, LH_BO and friends are boolean switches. Each produced a bucket
+    holding the single value "1" on a live page."""
+    html = ('<a href="/sch/i.html?_nkw=x&LH_BO=1">Best offer</a>'
+            '<a href="/sch/i.html?_nkw=x&LH_FAST=1">Fast N Free</a>'
+            '<a href="/sch/i.html?_nkw=x&imm=1">x</a>')
+    assert harvest(html) == {}
+
+
+def test_ebays_not_specified_marker_is_not_a_value():
+    """"!" appeared under Autographed, Graded, Material and Card Condition."""
+    html = '<a href="/sch/i.html?_nkw=x&Autographed=%21">! (5)</a>'
+    assert harvest(html) == {}

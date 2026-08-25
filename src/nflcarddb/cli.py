@@ -379,8 +379,8 @@ def cmd_facets(args) -> int:
     wrong the day a product ships. eBay classifies the same listings itself and
     exposes the result as search facets, so this reads them instead of guessing.
     """
-    from .facets import (as_vocabulary, drillable, harvest, load_store,
-                         merge, save_store)
+    from .facets import (as_vocabulary, bucket_of, drillable, harvest,
+                         load_store, merge, save_store)
 
     config = load_config(args.config)
     queries = ([q for q in config.queries if q.id == args.query] if args.query
@@ -404,19 +404,25 @@ def cmd_facets(args) -> int:
         profile_dir="data/browser-profile",
     )
     pages = 0
+    baselines: dict[str, Optional[int]] = {}
     try:
         for query in queries:
             url = build_url(query.keywords, query.category, page=1,
                             items_per_page=60)
             print(f"GET {url}")
             html = fetcher.get(url, label=f"facets_{query.id}")
+            baselines[query.id] = parse_search_page(
+                html, query_id=query.id).total_results
             found = harvest(html)
             if not found:
                 print("  no facets found on this page")
                 continue
             pages += 1
             merge(accumulated, found)
-            print("  " + ", ".join(f"{k} {len(v)}" for k, v in sorted(found.items())))
+            print(f"  {baselines[query.id] or '?'} results; "
+                  + ", ".join(f"{bucket_of(k)} {len(v)}"
+                              for k, v in sorted(found.items())
+                              if not bucket_of(k).startswith("other:")))
         # A results page renders only its top handful of values per aspect, so
         # one pass gives the eight most-listed sets rather than the sets. The
         # way to a full list is to narrow the search and ask again: inside
@@ -428,6 +434,11 @@ def cmd_facets(args) -> int:
         # because a set has to be known before it can be searched within.
         base = queries[0]
         stopped = False
+        # The unfiltered count for the query being drilled. Every narrowed
+        # search should return fewer than this; one that does not was not
+        # narrowed at all.
+        baseline = baselines.get(base.id)
+        unfiltered = 0
         for stage in [s.strip() for s in (args.drill or "").split(",") if s.strip()]:
             if stopped:
                 break
@@ -442,8 +453,16 @@ def cmd_facets(args) -> int:
                           f"run again to go further")
                     stopped = True
                     break
+                # `_dcat` alongside `_sacat`: eBay's own facet links carry it,
+                # and without it an aspect filter is ignored rather than
+                # rejected -- the page comes back unfiltered and identical, so
+                # sixty drill requests harvested nothing new and looked like a
+                # thin category rather than a broken URL.
+                extra = {aspect: value}
+                if base.category:
+                    extra["_dcat"] = base.category
                 url = build_url(base.keywords, base.category, page=1,
-                                items_per_page=60, extra={aspect: value})
+                                items_per_page=60, extra=extra)
                 try:
                     html = fetcher.get(url, label=f"facets_{aspect}_{value}"[:60])
                 except (BlockedError, FetchError) as exc:
@@ -451,11 +470,23 @@ def cmd_facets(args) -> int:
                     stopped = True
                     break
                 pages += 1
+
+                # Whether the filter actually applied. An ignored filter is
+                # silent, so it is checked rather than assumed.
+                narrowed = parse_search_page(html, query_id=base.id).total_results
+                if baseline and narrowed and narrowed >= baseline:
+                    unfiltered += 1
+
                 before = sum(len(v) for v in accumulated.values())
                 merge(accumulated, harvest(html))
                 gained = sum(len(v) for v in accumulated.values()) - before
                 if gained:
                     print(f"  {aspect}={value}: +{gained} new")
+        if unfiltered:
+            print(f"\n  WARNING: {unfiltered} narrowed search(es) came back no "
+                  f"smaller than the\n  unfiltered one, so eBay ignored the "
+                  f"filter. Drilling cannot deepen\n  the vocabulary until "
+                  f"that is fixed -- send this to Claude.")
     finally:
         closer = getattr(fetcher, "close", None)
         if closer:
