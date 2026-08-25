@@ -435,6 +435,10 @@ def cmd_audit(args) -> int:
     for row in report["examples"]["contradictory"]:
         print(f"\n  {row['card_key']}  ({row['sales']} sales)")
         print(f"    names: {', '.join(row['players'])}")
+        # The titles, because a key alone cannot say what went wrong: `n1` looks
+        # identical whether it came from "#1/1" or "#1 OVERALL PICK".
+        for title in row.get("titles", []):
+            print(f"      | {title[:72]}")
     for row in report["examples"]["messy_names"]:
         print(f"\n  {row['card_key']}  ({row['sales']} sales, grouped correctly)")
         print(f"    name read as: {', '.join(row['variants'])}")

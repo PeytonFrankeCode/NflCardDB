@@ -163,7 +163,36 @@ PRINT_RUN_ONLY_RE = re.compile(r"(?<![\d/])/\s*(\d{1,5})\b")
 # A slash *attached* to the digits means serial numbering. A detached one is a
 # print run belonging to a real card number, which is why "#301 /249" must keep
 # reading as card 301 and the lookahead deliberately does not span whitespace.
-CARD_NUM_RE = re.compile(r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}[A-Z]?)\b(?!/)", re.I)
+# Words that turn a "#N" into something other than a card number. A draft
+# position and a ranking are both written exactly like one, and both are common
+# enough to build fake groups: 2024-contenders-n1 collected Mahomes, Williams
+# and Daniels purely from "#1 Draft Pick" and "#1 Ranked".
+#
+# "Pick" is matched only in the singular, because "Draft Picks" is a Panini set
+# name -- and the set is claimed *after* the number, so the plural is still in
+# the text at this point and rejecting it would cost "#25 Draft Picks" its
+# number.
+_NOT_A_NUMBER = r"(?:overall|draft\s+pick(?!s)|pick(?!s)|ranked|rank|seed|prospect)"
+
+CARD_NUM_RE = re.compile(
+    # A slash *attached* to the digits means serial numbering: sellers write a
+    # one-of-one as "#1/1" and a numbered parallel as "#8/10". A detached slash
+    # is a print run belonging to a real card number, which is why this must not
+    # span whitespace -- "#301 /249" has to keep reading as card 301.
+    r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}[A-Z]?)\b(?!/)"
+    # "#1-330" is the range of a whole set being offered, not card one.
+    r"(?!-\d)"
+    rf"(?!\s+{_NOT_A_NUMBER}\b)",
+    re.I,
+)
+
+# Listings that sell an unspecified card out of many. The price is real but it
+# belongs to no particular card, so keying one would put a $3 "pick your card"
+# sale into a genuine card's price history.
+MULTI_CARD_RE = re.compile(
+    r"\b(?:pick\s+your|you\s+pick|complete\s+your|choose\s+your|"
+    r"your\s+choice|build\s+your)\b", re.I
+)
 ROOKIE_RE = re.compile(r"\b(RC|RY|ROOKIE|ROOKIE\s+CARD|1ST\s+YEAR)\b", re.I)
 AUTO_RE = re.compile(r"\b(AUTO(?:GRAPH(?:ED)?)?|SIGNED|ON[-\s]CARD)\b", re.I)
 RELIC_RE = re.compile(r"\b(PATCH|RELIC|JERSEY|RPA|MEM(?:ORABILIA)?|SWATCH|GLOVE)\b", re.I)
@@ -339,6 +368,15 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         attrs.team = _canonical_team(m.group(1))
         hits += 1
 
+    # The set is claimed before the subset, because several set names *end* in a
+    # subset name: "Prizm Draft Picks" is a different product from "Prizm", and
+    # taking "Draft Picks" out first left the set matching bare "Prizm" -- so a
+    # college card and an NFL card with the same number merged into one.
+    m = _take(work, SET_PAT)
+    if m:
+        attrs.set_name = _canonical(m.group(1))
+        hits += 1
+
     # Subsets sit right beside the player -- "Caleb Williams Future Stars" --
     # so they are claimed before the name scan for the same reason teams are.
     # Deliberately not recorded as a field: what distinguishes a Future Stars
@@ -350,11 +388,6 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # read off the match rather than lost.
     if subset_match and "rookie" in subset_match.group(1).lower():
         attrs.is_rookie = True
-
-    m = _take(work, SET_PAT)
-    if m:
-        attrs.set_name = _canonical(m.group(1))
-        hits += 1
 
     m = _take(work, BRAND_PAT)
     if m:
@@ -401,6 +434,18 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         (attrs.is_graded, 0.05),
     ]
     attrs.confidence = round(min(1.0, sum(w for ok, w in weights if ok)), 3)
+
+    if MULTI_CARD_RE.search(title):
+        # "Pick your card" sells one unspecified card out of a set. The price is
+        # real, the card is not knowable, and any name in the title is an
+        # example rather than what sold. Clearing both the number and the name
+        # leaves card_key with nothing to build from, which is the honest
+        # outcome -- the alternative is a $3 sale sitting in a real card's price
+        # history. The sale itself is still stored with its title and price.
+        attrs.card_number = None
+        attrs.player = None
+        attrs.confidence = min(attrs.confidence, 0.3)
+
     return attrs
 
 
