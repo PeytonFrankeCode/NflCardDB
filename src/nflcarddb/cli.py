@@ -379,9 +379,8 @@ def cmd_facets(args) -> int:
     wrong the day a product ships. eBay classifies the same listings itself and
     exposes the result as search facets, so this reads them instead of guessing.
     """
-    import json
-
-    from .facets import as_vocabulary, drillable, harvest, merge
+    from .facets import (as_vocabulary, drillable, harvest, load_store,
+                         merge, save_store)
 
     config = load_config(args.config)
     queries = ([q for q in config.queries if q.id == args.query] if args.query
@@ -392,15 +391,11 @@ def cmd_facets(args) -> int:
         return 2
 
     store_path = Path(args.out)
-    accumulated: dict = {}
-    if store_path.exists() and not args.fresh:
-        # Facets accumulate: one search shows only what eBay chose to render
-        # for it, so the vocabulary is built up across queries and days.
-        accumulated = {
-            bucket: dict(values)
-            for bucket, values in json.loads(
-                store_path.read_text(encoding="utf-8")).items()
-        }
+    # Facets accumulate: one search shows only what eBay chose to render for
+    # it, so the vocabulary is built up across queries and days.
+    accumulated = {} if args.fresh else load_store(store_path)
+    if store_path.exists() and not accumulated and not args.fresh:
+        print("(existing file was an older format; starting over)")
 
     fetcher = make_fetcher(
         engine=args.engine or config.fetch.engine,
@@ -426,14 +421,26 @@ def cmd_facets(args) -> int:
         # one pass gives the eight most-listed sets rather than the sets. The
         # way to a full list is to narrow the search and ask again: inside
         # Season=2025 the Set facet lists 2025's sets.
-        if args.drill and accumulated:
-            targets = drillable(accumulated, args.drill, limit=args.drill_limit)
-            base = queries[0]
-            print(f"\nDrilling into {len(targets)} {args.drill} value(s), "
-                  f"up to {args.budget} requests.")
+        # Stages run in order and each recomputes its targets from everything
+        # harvested so far, so "seasons,sets" means: narrow by each season to
+        # discover that season's sets, then narrow by each of those sets to
+        # discover its parallels. One stage alone cannot reach the parallels,
+        # because a set has to be known before it can be searched within.
+        base = queries[0]
+        stopped = False
+        for stage in [s.strip() for s in (args.drill or "").split(",") if s.strip()]:
+            if stopped:
+                break
+            targets = drillable(accumulated, stage, limit=args.drill_limit)
+            if not targets:
+                print(f"\nNothing to drill for {stage!r} yet.")
+                continue
+            print(f"\nNarrowing by {len(targets)} {stage} value(s)...")
             for aspect, value in targets:
                 if pages >= args.budget:
-                    print("  request budget reached; run again to go further")
+                    print(f"  stopped at the {args.budget}-request budget; "
+                          f"run again to go further")
+                    stopped = True
                     break
                 url = build_url(base.keywords, base.category, page=1,
                                 items_per_page=60, extra={aspect: value})
@@ -441,13 +448,14 @@ def cmd_facets(args) -> int:
                     html = fetcher.get(url, label=f"facets_{aspect}_{value}"[:60])
                 except (BlockedError, FetchError) as exc:
                     print(f"  {value}: {type(exc).__name__}, stopping here")
+                    stopped = True
                     break
-                found = harvest(html)
                 pages += 1
                 before = sum(len(v) for v in accumulated.values())
-                merge(accumulated, found)
+                merge(accumulated, harvest(html))
                 gained = sum(len(v) for v in accumulated.values()) - before
-                print(f"  {aspect}={value}: +{gained} new value(s)")
+                if gained:
+                    print(f"  {aspect}={value}: +{gained} new")
     finally:
         closer = getattr(fetcher, "close", None)
         if closer:
@@ -459,9 +467,7 @@ def cmd_facets(args) -> int:
               file=sys.stderr)
         return 1
 
-    store_path.parent.mkdir(parents=True, exist_ok=True)
-    store_path.write_text(json.dumps(accumulated, indent=1, sort_keys=True),
-                          encoding="utf-8")
+    save_store(accumulated, store_path)
 
     vocab = as_vocabulary(accumulated, min_count=args.min_count)
     print(f"\nHarvested from {pages} page(s) -> {store_path}")
