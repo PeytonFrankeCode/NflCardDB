@@ -379,8 +379,8 @@ def cmd_facets(args) -> int:
     wrong the day a product ships. eBay classifies the same listings itself and
     exposes the result as search facets, so this reads them instead of guessing.
     """
-    from .facets import (as_vocabulary, bucket_of, drillable, harvest,
-                         load_store, merge, save_store)
+    from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
+                         drillable, harvest, load_store, merge, save_store)
 
     config = load_config(args.config)
     queries = ([q for q in config.queries if q.id == args.query] if args.query
@@ -439,6 +439,7 @@ def cmd_facets(args) -> int:
         # narrowed at all.
         baseline = baselines.get(base.id)
         unfiltered = 0
+        checked = 0
         for stage in [s.strip() for s in (args.drill or "").split(",") if s.strip()]:
             if stopped:
                 break
@@ -474,14 +475,19 @@ def cmd_facets(args) -> int:
                 # Whether the filter actually applied. An ignored filter is
                 # silent, so it is checked rather than assumed.
                 narrowed = parse_search_page(html, query_id=base.id).total_results
-                if baseline and narrowed and narrowed >= baseline:
-                    unfiltered += 1
+                if baseline and narrowed:
+                    checked += 1
+                    if narrowed >= baseline:
+                        unfiltered += 1
 
                 before = sum(len(v) for v in accumulated.values())
                 merge(accumulated, harvest(html))
                 gained = sum(len(v) for v in accumulated.values()) - before
                 if gained:
                     print(f"  {aspect}={value}: +{gained} new")
+        if checked:
+            print(f"\n  filter check: {checked - unfiltered} of {checked} narrowed "
+                  f"searches came back smaller")
         if unfiltered:
             print(f"\n  WARNING: {unfiltered} narrowed search(es) came back no "
                   f"smaller than the\n  unfiltered one, so eBay ignored the "
@@ -501,7 +507,7 @@ def cmd_facets(args) -> int:
     save_store(accumulated, store_path)
 
     vocab = as_vocabulary(accumulated, min_count=args.min_count)
-    print(f"\nHarvested from {pages} page(s) -> {store_path}")
+    print(f"\nHarvested by {HARVESTER_VERSION} from {pages} page(s) -> {store_path}")
     print("=" * 58)
     for bucket, names in sorted(vocab.items()):
         print(f"  {bucket:<16} {len(names):>6,}   e.g. {', '.join(names[:4])}")

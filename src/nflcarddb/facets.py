@@ -162,6 +162,11 @@ def aspect_links(html: str) -> list[tuple[str, str, Optional[int]]]:
 # and "other:other:mode" in a live run.
 FILE_VERSION = 2
 
+# Stamped into the report so a run says which code produced it. Two rounds
+# were spent on output that looked unchanged because it was unchanged --
+# the same lesson as the title parser version.
+HARVESTER_VERSION = "facets/3"
+
 
 def bucket_of(aspect: str) -> str:
     """Which vocabulary an eBay aspect feeds, or `other:<name>` if unknown."""
@@ -238,6 +243,28 @@ def as_vocabulary(store: dict[str, dict[str, Optional[int]]],
     return out
 
 
+def clean(store: dict[str, dict[str, Optional[int]]]) -> dict[str, dict[str, Optional[int]]]:
+    """Re-apply the current filters to an already-accumulated harvest.
+
+    Filtering only at harvest time makes junk permanent: `LH_AS` and eBay's "!"
+    marker survived two rounds of being filtered, because they were already in
+    the stored file and nothing re-examined it. Cleaning on load means
+    improving a filter fixes the history too.
+    """
+    out: dict[str, dict[str, Optional[int]]] = {}
+    for aspect, values in store.items():
+        if aspect in CONTROL_PARAMS or aspect.startswith("_"):
+            continue
+        kept = {
+            v: c for v, c in values.items()
+            if v and not _NOT_A_VALUE.match(v) and not _BRACKETED.match(v)
+            and len(v) <= 60 and not v.startswith("enc:")
+        }
+        if kept:
+            out[aspect] = kept
+    return out
+
+
 def load_store(path) -> dict[str, dict[str, Optional[int]]]:
     """Read an accumulated harvest, or start empty if it is an older shape.
 
@@ -257,7 +284,7 @@ def load_store(path) -> dict[str, dict[str, Optional[int]]]:
         return {}
     if not isinstance(raw, dict) or raw.get("version") != FILE_VERSION:
         return {}
-    return {a: dict(v) for a, v in raw.get("aspects", {}).items()}
+    return clean({a: dict(v) for a, v in raw.get("aspects", {}).items()})
 
 
 def save_store(store: dict[str, dict[str, Optional[int]]], path) -> None:
