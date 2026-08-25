@@ -372,6 +372,83 @@ def enable_setting(config_path: Optional[str], key: str, value) -> bool:
     return True
 
 
+def cmd_facets(args) -> int:
+    """Harvest eBay's own card taxonomy from its search sidebar.
+
+    Every vocabulary in the title parser is a list somebody maintains, and it is
+    wrong the day a product ships. eBay classifies the same listings itself and
+    exposes the result as search facets, so this reads them instead of guessing.
+    """
+    import json
+
+    from .facets import as_vocabulary, harvest, merge
+
+    config = load_config(args.config)
+    queries = ([q for q in config.queries if q.id == args.query] if args.query
+               else config.queries)
+    if not queries:
+        print(f"no query {args.query!r}; have: {[q.id for q in config.queries]}",
+              file=sys.stderr)
+        return 2
+
+    store_path = Path(args.out)
+    accumulated: dict = {}
+    if store_path.exists() and not args.fresh:
+        # Facets accumulate: one search shows only what eBay chose to render
+        # for it, so the vocabulary is built up across queries and days.
+        accumulated = {
+            bucket: dict(values)
+            for bucket, values in json.loads(
+                store_path.read_text(encoding="utf-8")).items()
+        }
+
+    fetcher = make_fetcher(
+        engine=args.engine or config.fetch.engine,
+        delay=config.fetch.delay, jitter=config.fetch.jitter, max_retries=2,
+        save_dir=args.save_html, headless=not args.headed,
+        profile_dir="data/browser-profile",
+    )
+    pages = 0
+    try:
+        for query in queries:
+            url = build_url(query.keywords, query.category, page=1,
+                            items_per_page=60)
+            print(f"GET {url}")
+            html = fetcher.get(url, label=f"facets_{query.id}")
+            found = harvest(html)
+            if not found:
+                print("  no facets found on this page")
+                continue
+            pages += 1
+            merge(accumulated, found)
+            print("  " + ", ".join(f"{k} {len(v)}" for k, v in sorted(found.items())))
+    finally:
+        closer = getattr(fetcher, "close", None)
+        if closer:
+            closer()
+
+    if not accumulated:
+        print("\nNothing harvested. eBay's sidebar markup or URL format has "
+              "moved.\nRe-run with --save-html and send the saved page to Claude.",
+              file=sys.stderr)
+        return 1
+
+    store_path.parent.mkdir(parents=True, exist_ok=True)
+    store_path.write_text(json.dumps(accumulated, indent=1, sort_keys=True),
+                          encoding="utf-8")
+
+    vocab = as_vocabulary(accumulated, min_count=args.min_count)
+    print(f"\nHarvested from {pages} page(s) -> {store_path}")
+    print("=" * 58)
+    for bucket, names in sorted(vocab.items()):
+        print(f"  {bucket:<16} {len(names):>6,}   e.g. {', '.join(names[:4])}")
+
+    print()
+    print("This is eBay's classification of the same listings, not a guess.")
+    print("Run it again after each product release and it stays current.")
+    return 0
+
+
 def cmd_inserts(args) -> int:
     """Propose insert-set names learned from collected titles."""
     from .parse_title import load_inserts, register_inserts
@@ -1677,6 +1754,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-apply", action="store_true",
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("facets",
+                       help="harvest eBay's own set/parallel/player taxonomy")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--query", help="one query id; default is every query")
+    p.add_argument("--out", default="data/ebay-facets.json")
+    p.add_argument("--fresh", action="store_true",
+                   help="start over rather than adding to what is stored")
+    p.add_argument("--min-count", type=int, default=0,
+                   help="ignore facet values eBay reports fewer listings for")
+    p.add_argument("--engine")
+    p.add_argument("--headed", action="store_true")
+    p.add_argument("--save-html", help="keep the fetched page for inspection")
+    p.set_defaults(func=cmd_facets)
 
     p = sub.add_parser("inserts",
                        help="learn insert-set names from collected titles")
