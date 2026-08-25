@@ -24,13 +24,18 @@ echo product ships.
 echo.
 echo This reads eBay's lists instead.
 echo.
-echo eBay only shows the top 8 or so of each list on one page,
-echo so this then narrows the search year by year and asks
-echo again - that is how you get all the sets rather than the
-echo eight biggest. It takes a few minutes.
+echo eBay only shows the top 8 or so of each list on one page.
+echo So this narrows the search year by year to find that
+echo year's sets, then narrows by each set to find that set's
+echo inserts and parallels. That is how you get the real lists
+echo rather than the eight biggest.
+echo.
+echo It takes about 15 minutes, and it stops itself if eBay
+echo starts pushing back. Run it again another day and it
+echo picks up where it left off - the list keeps growing.
 echo.
 
-nflcarddb facets --drill seasons --save-html data\html
+nflcarddb facets --drill seasons,sets --budget 200 --save-html data\html
 if errorlevel 1 goto NOTHING
 
 echo.

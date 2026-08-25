@@ -171,3 +171,42 @@ def test_drilling_respects_a_limit():
     from nflcarddb.facets import drillable
 
     assert len(drillable(harvest(HTML), "players", limit=1)) == 1
+
+
+def test_an_older_stored_file_is_discarded_rather_than_misread(tmp_path):
+    """Version 1 was keyed by bucket. Reading it with version-2 code bucketed
+    the bucket names, and a live run produced "other:parallels" and
+    "other:other:mode". Re-harvesting costs minutes; corrupt vocabulary costs
+    confidence in everything downstream."""
+    import json
+
+    from nflcarddb.facets import load_store
+
+    old = tmp_path / "facets.json"
+    old.write_text(json.dumps({"parallels": {"Genies": 10}}), encoding="utf-8")
+    assert load_store(old) == {}
+
+
+def test_a_current_file_round_trips(tmp_path):
+    from nflcarddb.facets import load_store, save_store
+
+    path = tmp_path / "facets.json"
+    save_store({"Parallel/Variety": {"Genies": 10}}, path)
+    assert load_store(path) == {"Parallel/Variety": {"Genies": 10}}
+
+
+def test_a_missing_or_unreadable_file_starts_empty(tmp_path):
+    from nflcarddb.facets import load_store
+
+    assert load_store(tmp_path / "nope.json") == {}
+    bad = tmp_path / "bad.json"
+    bad.write_text("not json at all", encoding="utf-8")
+    assert load_store(bad) == {}
+
+
+def test_bucketing_is_never_applied_twice():
+    """The shape of the bug: a bucket name must not survive a second pass."""
+    from nflcarddb.facets import bucket_of
+
+    assert bucket_of("Parallel/Variety") == "parallels"
+    assert bucket_of("parallels").startswith("other:")   # not "parallels" again

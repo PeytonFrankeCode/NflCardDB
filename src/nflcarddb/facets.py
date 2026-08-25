@@ -149,6 +149,14 @@ def aspect_links(html: str) -> list[tuple[str, str, Optional[int]]]:
     return out
 
 
+# The stored file's shape. Version 1 was keyed by vocabulary bucket; version 2
+# is keyed by eBay's own aspect name, which drilling needs. Bumped rather than
+# migrated because re-harvesting costs minutes and a mis-read old file is worse
+# than an empty one: bucketing an already-bucketed key produced "other:parallels"
+# and "other:other:mode" in a live run.
+FILE_VERSION = 2
+
+
 def bucket_of(aspect: str) -> str:
     """Which vocabulary an eBay aspect feeds, or `other:<name>` if unknown."""
     return WANTED.get(_normalise_aspect(aspect), f"other:{aspect}")
@@ -222,6 +230,41 @@ def as_vocabulary(store: dict[str, dict[str, Optional[int]]],
         if names:
             out[bucket] = names
     return out
+
+
+def load_store(path) -> dict[str, dict[str, Optional[int]]]:
+    """Read an accumulated harvest, or start empty if it is an older shape.
+
+    Silently reading a version-1 file would double-bucket every key. Starting
+    over costs one re-harvest; carrying corrupt vocabulary forward costs
+    confidence in everything downstream of it.
+    """
+    import json
+    from pathlib import Path
+
+    file = Path(path)
+    if not file.exists():
+        return {}
+    try:
+        raw = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict) or raw.get("version") != FILE_VERSION:
+        return {}
+    return {a: dict(v) for a, v in raw.get("aspects", {}).items()}
+
+
+def save_store(store: dict[str, dict[str, Optional[int]]], path) -> None:
+    import json
+    from pathlib import Path
+
+    file = Path(path)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(
+        json.dumps({"version": FILE_VERSION, "aspects": store},
+                   indent=1, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def drillable(store: dict[str, dict[str, Optional[int]]], bucket: str,
