@@ -60,18 +60,27 @@ def test_counts_are_read_from_the_link_text():
     assert counts["Silver Prizm"] == 5001
 
 
-def test_aspects_are_grouped_into_the_vocabularies_they_feed():
+def test_harvest_keeps_ebays_own_aspect_names():
+    """Keyed by the raw name, because that name is also the query parameter
+    needed to search within the facet -- which is how drilling works."""
     grouped = harvest(HTML)
-    assert "Jayden Daniels" in dict(grouped["players"])
-    assert "Genies" in dict(grouped["parallels"])
-    assert "Panini Phoenix" in dict(grouped["sets"])
-    assert "2025" in dict(grouped["seasons"])
+    assert "Jayden Daniels" in grouped["Player/Athlete"]
+    assert "Genies" in grouped["Parallel/Variety"]
+    assert "Panini Phoenix" in grouped["Set"]
+
+
+def test_aspects_are_grouped_into_the_vocabularies_they_feed():
+    vocab = as_vocabulary(harvest(HTML))
+    assert "Jayden Daniels" in vocab["players"]
+    assert "Genies" in vocab["parallels"]
+    assert "Panini Phoenix" in vocab["sets"]
+    assert "2025" in vocab["seasons"]
 
 
 def test_the_insert_names_added_by_hand_are_in_ebays_own_list():
     """The point of the whole exercise: Genies and Sunday Kings were typed in
     by hand over two rounds. eBay had them all along, under Parallel/Variety."""
-    parallels = dict(harvest(HTML)["parallels"])
+    parallels = as_vocabulary(harvest(HTML))["parallels"]
     assert "Genies" in parallels
     assert "Sunday Kings" in parallels
 
@@ -80,18 +89,18 @@ def test_harvests_accumulate_across_pages():
     """One search renders only the facets eBay chose for it, so the vocabulary
     is built from many searches rather than one."""
     store: dict = {}
-    merge(store, {"parallels": {"Genies": 10}})
-    merge(store, {"parallels": {"Kaboom": 4}, "sets": {"Prizm": 99}})
+    merge(store, {"Parallel/Variety": {"Genies": 10}})
+    merge(store, {"Parallel/Variety": {"Kaboom": 4}, "Set": {"Prizm": 99}})
 
-    assert set(store["parallels"]) == {"Genies", "Kaboom"}
-    assert set(store["sets"]) == {"Prizm"}
+    assert set(store["Parallel/Variety"]) == {"Genies", "Kaboom"}
+    assert set(store["Set"]) == {"Prizm"}
 
 
 def test_a_bigger_count_wins_when_a_value_is_seen_again():
     store: dict = {}
-    merge(store, {"parallels": {"Genies": 10}})
-    merge(store, {"parallels": {"Genies": 300}})
-    assert store["parallels"]["Genies"] == 300
+    merge(store, {"Parallel/Variety": {"Genies": 10}})
+    merge(store, {"Parallel/Variety": {"Genies": 300}})
+    assert store["Parallel/Variety"]["Genies"] == 300
 
 
 def test_the_vocabulary_comes_back_biggest_first():
@@ -115,3 +124,50 @@ def test_an_unrecognised_aspect_is_kept_rather_than_dropped():
             'Sticker (12)</a>')
     grouped = harvest(html)
     assert any("Autograph Format" in bucket for bucket in grouped)
+
+
+def test_tracking_payloads_are_not_a_vocabulary():
+    """Confirmed against a live page: 261 encrypted `itmprp` blobs and 227
+    `itemId` values arrived looking exactly like harvested facet values."""
+    html = (
+        '<a href="/sch/i.html?_nkw=x&itmprp=enc:AQALAAAA0GfYFPkwiKCW4ZNSs2u11xA">a</a>'
+        '<a href="/sch/i.html?_nkw=x&itemId=117359217764">b</a>'
+        '<a href="/sch/i.html?_nkw=x&itmmeta=012DEW30YG0MEEKND7NH">c</a>'
+        '<a href="/sch/i.html?_nkw=x&promoted_items=127675991379,117029055330">d</a>'
+        '<a href="/sch/i.html?_nkw=x&ssPageName=STRK:ME:LNLK:MESX">e</a>'
+    )
+    assert harvest(html) == {}
+
+
+def test_ebays_base_marker_is_not_a_parallel():
+    """"[Base]" means "not a parallel". Harvesting it would put it in a key."""
+    html = '<a href="/sch/i.html?_nkw=x&Parallel%2FVariety=%5BBase%5D">[Base] (9)</a>'
+    assert harvest(html) == {}
+
+
+def test_aspects_seen_on_the_live_page_are_named_not_dumped_in_other():
+    html = (
+        '<a href="/sch/i.html?_nkw=x&Sport=Football">Football (1)</a>'
+        '<a href="/sch/i.html?_nkw=x&Year%20Manufactured=2025">2025 (1)</a>'
+    )
+    vocab = as_vocabulary(harvest(html))
+    assert vocab["sports"] == ["Football"]
+    assert vocab["seasons"] == ["2025"]
+
+
+def test_drilling_targets_carry_the_parameter_ebay_expects():
+    """Narrowing the search needs eBay's aspect name, not our bucket name."""
+    from nflcarddb.facets import drillable
+
+    store = harvest(HTML)
+    targets = drillable(store, "seasons")
+    assert ("Season", "2025") in targets
+
+    players = drillable(store, "players")
+    assert ("Player/Athlete", "Jayden Daniels") in players
+
+
+def test_drilling_respects_a_limit():
+    from nflcarddb.facets import drillable
+
+    assert len(drillable(harvest(HTML), "players", limit=1)) == 1

@@ -22,11 +22,15 @@ echo that form. So the names of sets and inserts have been
 echo hand-written lists that go out of date every time a new
 echo product ships.
 echo.
-echo This reads eBay's lists instead. It is a handful of pages,
-echo so it takes under a minute.
+echo This reads eBay's lists instead.
+echo.
+echo eBay only shows the top 8 or so of each list on one page,
+echo so this then narrows the search year by year and asks
+echo again - that is how you get all the sets rather than the
+echo eight biggest. It takes a few minutes.
 echo.
 
-nflcarddb facets --save-html data\html
+nflcarddb facets --drill seasons --save-html data\html
 if errorlevel 1 goto NOTHING
 
 echo.
