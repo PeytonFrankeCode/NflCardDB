@@ -107,18 +107,25 @@ def contradictory_groups(db_path: str, limit: int = 25) -> list[dict]:
     conn = store.connect(db_path)
     try:
         rows = conn.execute(
-            "SELECT card_key, player FROM cards "
-            "WHERE card_key IS NOT NULL AND player IS NOT NULL"
+            "SELECT c.card_key, c.player, s.title FROM cards c "
+            "JOIN sales s USING (item_id) "
+            "WHERE c.card_key IS NOT NULL AND c.player IS NOT NULL"
         ).fetchall()
     finally:
         conn.close()
 
     by_key: dict[str, dict[str, int]] = {}
-    for key, player in rows:
+    # One real title per conflicting name. Reasoning about a group from its key
+    # alone is guessing -- `n1` looks like card number one whether it came from
+    # "#1/1", "#1 OVERALL PICK" or "#1-330 PICK YOUR CARD", and those need
+    # different fixes. The title says which.
+    samples: dict[str, dict[str, str]] = {}
+    for key, player, title in rows:
         folded = normalize_player(player)
         if folded:
             by_key.setdefault(key, {}).setdefault(folded, 0)
             by_key[key][folded] += 1
+            samples.setdefault(key, {}).setdefault(folded, title)
 
     bad = []
     for key, players in by_key.items():
@@ -141,6 +148,8 @@ def contradictory_groups(db_path: str, limit: int = 25) -> list[dict]:
             "sales": total,
             "players": [name for name, _ in ordered[:4]],
             "minority_share": round(dissenting / total, 2),
+            "titles": [samples[key][name] for name, _ in ordered[:4]
+                       if name in samples.get(key, {})],
         })
 
     bad.sort(key=lambda r: -r["sales"])

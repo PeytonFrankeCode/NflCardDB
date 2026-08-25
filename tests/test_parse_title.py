@@ -203,3 +203,69 @@ def test_a_card_number_and_a_separate_serial_both_survive():
     a = parse_title("2024 Donruss Jayden Daniels #389 12/99")
     assert a.card_number == "389"
     assert (a.serial_number, a.print_run) == (12, 99)
+
+
+def test_a_draft_position_is_not_a_card_number():
+    """2024-contenders-n1 collected Mahomes, Williams and Daniels -- entirely
+    from "#1 Draft Pick" and "#1 Ranked". Nine sales, one fake card."""
+    for title in [
+        "2025 Panini Prizm Cam Ward Rookie #1 Overall Pick RC",
+        "2024 Panini Contenders Caleb Williams #1 Draft Pick Rookie Ticket",
+        "2024 Panini Contenders Patrick Mahomes MVP #1 Ranked",
+    ]:
+        assert parse_title(title).card_number is None, title
+
+
+def test_draft_picks_the_set_keeps_its_number():
+    """The discriminator is the plural: "Draft Picks" is a Panini product and
+    "Draft Pick" after a number is where someone was taken. The set is claimed
+    *after* the number, so the plural is still in the text at that point."""
+    for title in ["2024 Panini Prizm Draft Picks #25 Caleb Williams",
+                  "2024 Panini Prizm #25 Draft Picks Caleb Williams"]:
+        assert parse_title(title).card_number == "25", title
+
+
+def test_a_set_range_is_not_card_number_one():
+    """"#1-330" is the span of a whole set on offer."""
+    a = parse_title("2025 Panini Prizm #1-330 Base Set Arch Manning")
+    assert a.card_number is None
+
+
+def test_pick_your_card_listings_get_no_identity():
+    """The price is real; the card is not knowable. Any name in the title is an
+    example rather than what sold, so keying it would drop a $3 sale into a
+    genuine card's price history."""
+    for title in [
+        "2025 Panini Prizm #1-330 Complete Your Set Pick Your Card Arch Manning",
+        "2024 Donruss You Pick Your Card Caleb Williams #389",
+        "2025 Mosaic Choose Your Card Travis Hunter",
+    ]:
+        attrs = parse_title(title)
+        assert card_key(attrs) is None, title
+
+
+def test_the_sale_behind_a_pick_your_card_listing_is_still_kept():
+    """Suppressing the identity must not suppress the row -- the title and
+    price stay, they simply join no card."""
+    attrs = parse_title("2025 Panini Prizm Pick Your Card Complete Your Set")
+    assert attrs.year == 2025
+    assert attrs.set_name == "Prizm"
+    assert attrs.player is None
+
+
+def test_a_set_name_ending_in_a_subset_name_survives_intact():
+    """"Prizm Draft Picks" is a college product and "Prizm" is the NFL one.
+    Claiming the subset first left the set matching bare "Prizm", so a college
+    card and an NFL card with the same number merged into one price history."""
+    assert parse_title(
+        "2024 Panini Prizm Draft Picks #25 Caleb Williams").set_name == "Prizm Draft Picks"
+    assert parse_title(
+        "2024 Panini Prizm #25 Caleb Williams").set_name == "Prizm"
+    assert parse_title(
+        "2025 Panini Select Draft Picks #12 Travis Hunter").set_name == "Select Draft Picks"
+
+
+def test_two_products_sharing_a_number_no_longer_share_a_key():
+    college = parse_title("2024 Panini Prizm Draft Picks #25 Caleb Williams")
+    nfl = parse_title("2024 Panini Prizm #25 Caleb Williams")
+    assert card_key(college) != card_key(nfl)

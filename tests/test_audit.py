@@ -388,3 +388,31 @@ def test_a_parallel_keeps_its_own_split_accounting(tmp_path):
     report = number_split_groups(str(path))
     assert report["recoverable_sales"] == 1
     assert report["examples"][0]["joined"] == 1     # the Silver, not the base
+
+
+def test_a_contradictory_group_carries_the_titles_that_built_it(tmp_path):
+    """A key cannot say what went wrong: `n1` looks identical whether it came
+    from "#1/1", "#1 OVERALL PICK" or "#1-330 PICK YOUR CARD", and those need
+    different fixes. Reasoning from the key alone cost a whole round."""
+    from nflcarddb.models import CardAttrs
+
+    path = tmp_path / "titles.db"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-08-03")
+    titles = ["Mahomes #1 Draft Pick", "Mahomes #1 Draft Pick",
+              "Williams #1 Ranked", "Williams #1 Ranked"]
+    sales = [Sale(item_id=f"90000000000{i}", title=t, price_cents=1000,
+                  sold_date="2026-08-03") for i, t in enumerate(titles)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [
+        (s.item_id, CardAttrs(player=name, year=2024, set_name="Contenders",
+                              card_number="1", confidence=0.9))
+        for s, name in zip(sales, ["Patrick Mahomes", "Patrick Mahomes",
+                                   "Caleb Williams", "Caleb Williams"])
+    ], "v1")
+    conn.close()
+
+    flagged = contradictory_groups(str(path))
+    assert len(flagged) == 1
+    assert any("Draft Pick" in t for t in flagged[0]["titles"])
+    assert any("Ranked" in t for t in flagged[0]["titles"])
