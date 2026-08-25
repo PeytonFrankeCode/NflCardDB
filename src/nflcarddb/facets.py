@@ -168,7 +168,7 @@ FILE_VERSION = 2
 # Stamped into the report so a run says which code produced it. Two rounds
 # were spent on output that looked unchanged because it was unchanged --
 # the same lesson as the title parser version.
-HARVESTER_VERSION = "facets/4"
+HARVESTER_VERSION = "facets/5"
 
 
 def bucket_of(aspect: str) -> str:
