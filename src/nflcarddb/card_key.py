@@ -84,6 +84,14 @@ def card_key(attrs: CardAttrs) -> Optional[str]:
 
     parts = [str(attrs.year), _slug(attrs.set_name)]
 
+    # The insert set, when there is one. An insert restarts its numbering at
+    # one, so the number alone does not separate it from the base set or from a
+    # sibling insert: Phoenix "Contours #8", "Genies #8" and "Archetype #8" are
+    # three different cards. Leaving this out merged them into one price
+    # history naming three different players.
+    if attrs.subset:
+        parts.append(_slug(attrs.subset))
+
     if attrs.card_number:
         parts.append(f"n{_slug(attrs.card_number)}")
     elif attrs.player:
@@ -111,6 +119,10 @@ def card_name(attrs: CardAttrs) -> Optional[str]:
         bits.append(str(attrs.year))
     if attrs.set_name:
         bits.append(attrs.set_name)
+    if attrs.subset:
+        # Shown because it is what the card is: "2025 Phoenix Genies Bo Nix #8"
+        # tells a reader which #8 they are looking at, and the key now says so.
+        bits.append(attrs.subset)
     if attrs.player:
         bits.append(attrs.player)
     if attrs.card_number:

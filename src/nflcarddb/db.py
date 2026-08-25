@@ -170,7 +170,8 @@ def upsert_sales(conn: sqlite3.Connection, sales: Iterable[Sale], run_id: str) -
 
 
 _CARD_COLS = (
-    "player", "team", "year", "brand", "set_name", "parallel", "card_number",
+    "player", "team", "year", "brand", "set_name", "subset", "parallel",
+    "card_number",
     "serial_number", "print_run", "grader", "grade", "is_graded", "is_rookie",
     "is_auto", "is_relic", "confidence", "card_key", "card_name",
 )

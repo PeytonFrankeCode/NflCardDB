@@ -431,4 +431,4 @@ def test_the_audit_reports_which_parser_read_the_data(tmp_path):
     assert stats["parser_versions"] == ["v1 (1)"]      # whatever _seed stamped
 
     # A real parse stamps the live version, which is what the user compares.
-    assert PARSER_VERSION == "title/2"
+    assert PARSER_VERSION.startswith("title/")

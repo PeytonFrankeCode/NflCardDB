@@ -24,7 +24,9 @@ from .models import CardAttrs
 #
 # title/2: draft positions, set ranges, pick-your-card listings, set names
 #          ending in a subset name, and #1/1 serial numbering.
-PARSER_VERSION = "title/2"
+# title/3: named insert sets became part of the identity, because an insert
+#          restarts its numbering at one.
+PARSER_VERSION = "title/3"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -90,16 +92,37 @@ GRADERS = {
 # Fernando Mendoza" were both read as players. Claimed before the scan, the
 # same way teams and parallels are.
 #
-# These are not parallels -- a Future Stars card is a different card from a base
-# card, but the distinction is carried by the card number, not by this. They are
-# claimed only to keep them out of the name.
-SUBSETS = (
+# They split into two lists, because only one kind belongs in a card's identity.
+
+# Named insert sets. Each restarts its numbering at one, so these are part of
+# the card's identity: without them Phoenix "Contours #8", "Phoenician #8",
+# "Genies #8" and "Archetype #8" are one card as far as the key is concerned --
+# and they were, in a single fourteen-sale group naming four different players.
+#
+# A name only belongs here if a seller would bother to type it, because it is
+# the valuable thing about the card. That is what separates it from the list
+# below.
+INSERTS = (
+    "Micro Mosaic", "Prized Footballers", "Bomb Squad", "Season's Best",
+    "Sunday's Best", "Dawn of a Legend", "Contours", "Phoenician", "Genies",
+    "Archetype", "Notoriety", "Illuminating", "Emoji",
+)
+
+# Boilerplate that sits beside the player and would otherwise be read as part
+# of the name. Claimed for that reason alone and deliberately kept OUT of the
+# key: "Rated Rookie" is what Donruss calls its base rookie cards, so a seller
+# who types it and one who does not are describing the same card. Keying it
+# would split a real card in two -- the opposite of the bug above, and worse,
+# because it breaks cards that currently work.
+DESIGNATIONS = (
     "Future Stars", "Rated Rookie", "Rated Rookies", "University Chrome",
     "University", "Star Rookies", "Rookie Card", "Rookie Ticket",
     "Draft Picks", "All Pro", "All-Pro", "Pro Bowl", "Team Leaders",
     "Record Breakers", "League Leaders", "Hall of Fame", "Legends",
     "Franchise", "Phenoms", "Sensational", "Freshman", "Class of",
 )
+
+SUBSETS = INSERTS + DESIGNATIONS
 
 # Tokens that are never part of a player's name.
 NOISE = {
@@ -219,7 +242,12 @@ PARALLEL_PAT = _vocab_pattern(PARALLELS)
 TEAM_PAT = _vocab_pattern(TEAMS)
 SUBSET_PAT = _vocab_pattern(SUBSETS)
 
-_CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS)}
+# Subsets included so a SHOUTED "GENIES" and a lowercase "genies" fold to one
+# spelling -- the subset is part of the key now, and two spellings would be two
+# cards.
+_CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
+
+_INSERT_LOOKUP = {t.lower() for t in INSERTS}
 
 # Nickname -> full team name, so "Commanders" and "Washington Commanders"
 # land on the same value.
@@ -386,10 +414,21 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
 
     # Subsets sit right beside the player -- "Caleb Williams Future Stars" --
     # so they are claimed before the name scan for the same reason teams are.
-    # Deliberately not recorded as a field: what distinguishes a Future Stars
-    # card from a base card is its card number, and storing the subset would
-    # invite it into the identity where the number already does the job.
+    #
+    # This was once discarded, on the reasoning that a card number already
+    # separates an insert from a base card. That is wrong, and Peyton's data
+    # shows it plainly: an insert set restarts its numbering at one, so Phoenix
+    # "Contours #8", "Phoenician #8", "Genies #8" and "Archetype #8" are four
+    # different cards that collapsed into a single fourteen-sale group naming
+    # four different players. The insert name is part of the card's identity.
     subset_match = _take(work, SUBSET_PAT)
+    if subset_match:
+        claimed = _canonical(subset_match.group(1))
+        # Only a named insert set becomes part of the identity. A designation is
+        # claimed purely to keep it out of the player's name.
+        if claimed.lower() in _INSERT_LOOKUP:
+            attrs.subset = claimed
+            hits += 1
     # "Rated Rookie" is a subset AND states the card is a rookie. Claiming the
     # phrase consumes the word before the flag pass sees it, so the flag is
     # read off the match rather than lost.

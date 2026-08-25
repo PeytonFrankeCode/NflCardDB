@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS cards (
     set_name      TEXT,
     parallel      TEXT,
     card_number   TEXT,
+    -- The named insert set, when there is one. Part of the identity because
+    -- an insert restarts its numbering at one: Phoenix "Contours #8" and
+    -- "Genies #8" are different cards sharing a number.
+    subset        TEXT,
     serial_number INTEGER,
     print_run     INTEGER,
     grader        TEXT,

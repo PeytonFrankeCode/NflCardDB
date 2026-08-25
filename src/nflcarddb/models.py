@@ -40,6 +40,7 @@ class CardAttrs:
     year: Optional[int] = None
     brand: Optional[str] = None
     set_name: Optional[str] = None
+    subset: Optional[str] = None
     parallel: Optional[str] = None
     card_number: Optional[str] = None
     serial_number: Optional[int] = None

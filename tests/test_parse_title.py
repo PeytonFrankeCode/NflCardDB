@@ -269,3 +269,53 @@ def test_two_products_sharing_a_number_no_longer_share_a_key():
     college = parse_title("2024 Panini Prizm Draft Picks #25 Caleb Williams")
     nfl = parse_title("2024 Panini Prizm #25 Caleb Williams")
     assert card_key(college) != card_key(nfl)
+
+
+def test_an_insert_set_is_part_of_the_card():
+    """Peyton's 2025-phoenix-n8 held fourteen sales and four players. Contours,
+    Phoenician, Genies and Archetype are four insert sets inside Phoenix, and
+    each restarts its numbering at one -- so four different cards were sharing
+    a key, and a price history."""
+    titles = [
+        "Panini Phoenix Contours Myles Garrett #8 Cleveland Browns 2025 Football",
+        "2025 Panini Phoenix Travis Hunter Phoenician SSP Case Hit #8 Jaguars",
+        "2025 Panini Phoenix Bo Nix GENIES Denver Broncos #8 CASE HIT SSP",
+        "2025 Panini Phoenix Omarion Hampton Archetype Case Hit RC Chargers #8",
+    ]
+    keys = {card_key(parse_title(t)) for t in titles}
+    assert len(keys) == 4
+
+
+def test_the_insert_name_is_read_not_mistaken_for_the_player():
+    """"Micro Mosaic" was being stored as a player's name."""
+    a = parse_title("Panini 2025 Mosaic Football Micro Mosaic Omarion Hampton RC #11")
+    assert a.subset == "Micro Mosaic"
+    assert a.player == "Omarion Hampton"
+
+
+def test_a_shouted_insert_name_is_one_card_not_two():
+    """The subset is in the key now, so two spellings would be two cards."""
+    a = parse_title("2025 Panini Phoenix Bo Nix GENIES #8")
+    b = parse_title("2025 Panini Phoenix Bo Nix Genies #8")
+    assert a.subset == b.subset == "Genies"
+    assert card_key(a) == card_key(b)
+
+
+def test_boilerplate_beside_the_player_never_reaches_the_key():
+    """"Rated Rookie" is what Donruss calls its base rookie cards. Keying it
+    would split a real card between sellers who type it and sellers who don't --
+    the opposite failure, and worse, because it breaks cards that work."""
+    for typed, plain in [
+        ("2024 Donruss Optic Caleb Williams Rated Rookie #201 Aqua",
+         "2024 Donruss Optic Caleb Williams #201 Aqua"),
+        ("2025 Topps Chrome Caleb Williams Future Stars #NFS-1 Refractor",
+         "2025 Topps Chrome Caleb Williams #NFS-1 Refractor"),
+    ]:
+        assert card_key(parse_title(typed)) == card_key(parse_title(plain))
+        assert parse_title(typed).subset is None
+
+
+def test_rated_rookie_still_sets_the_flag_without_entering_the_key():
+    a = parse_title("2024 Donruss Optic Caleb Williams Rated Rookie #201")
+    assert a.is_rookie is True
+    assert a.subset is None
