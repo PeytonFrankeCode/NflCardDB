@@ -26,7 +26,9 @@ from .models import CardAttrs
 #          ending in a subset name, and #1/1 serial numbering.
 # title/3: named insert sets became part of the identity, because an insert
 #          restarts its numbering at one.
-PARSER_VERSION = "title/3"
+# title/4: more insert names -- Sunday Kings, Uptown, Rookie Kings and the rest
+#          of the Donruss Optic family that was still colliding.
+PARSER_VERSION = "title/4"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -106,6 +108,12 @@ INSERTS = (
     "Micro Mosaic", "Prized Footballers", "Bomb Squad", "Season's Best",
     "Sunday's Best", "Dawn of a Legend", "Contours", "Phoenician", "Genies",
     "Archetype", "Notoriety", "Illuminating", "Emoji",
+    # The second wave, from the groups still colliding after the first: one
+    # Donruss Optic number was shared by Uptown, Rookie Recruits and Sunday
+    # Kings, another by Uptowns, Sunday Kings and Rookie Kings.
+    "Sunday Kings", "Rookie Kings", "Rookie Recruits", "Uptowns", "Uptown",
+    "Downtowns", "Night Moves", "Elite Series", "Gridiron Kings",
+    "The Rookies", "Zero Gravity", "Full Throttle",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part

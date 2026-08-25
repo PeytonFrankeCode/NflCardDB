@@ -95,6 +95,36 @@ def coverage(db_path: str) -> dict:
         conn.close()
 
 
+def _one_typo_apart(a: str, b: str) -> bool:
+    """Whether two folded names differ by a single character.
+
+    "jaxsondart" and "jacksondart" are one player and one seller who cannot
+    spell him -- twelve sales reported as a grouping failure that was not one.
+
+    Deliberately confined to the audit rather than pushed down into
+    `normalize_player`: folding names this aggressively when *building* keys
+    would merge players who genuinely differ by a letter, and a wrong merge
+    silently averages two cards into one price history. Being lenient about
+    what to *report* costs nothing by comparison.
+    """
+    # "cks" and "xs" are the same sound and the commonest way a football name
+    # gets mistyped: Jaxson/Jackson, Dax/Dacks. Folding them is safe in a way
+    # that widening the edit distance is not -- distance two would merge Jalen
+    # Hurts with Jalen Hurd, who are two different players.
+    a, b = a.replace("cks", "xs"), b.replace("cks", "xs")
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > 1 or min(len(a), len(b)) < 8:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    short, long = (a, b) if len(a) < len(b) else (b, a)
+    for i in range(len(long)):
+        if long[:i] + long[i + 1:] == short:
+            return True
+    return False
+
+
 def _same_person(a: str, b: str) -> bool:
     """Whether two folded names are one player written two ways.
 
@@ -106,7 +136,7 @@ def _same_person(a: str, b: str) -> bool:
     Treating containment as agreement is what stopped this reporting 454
     correctly-grouped cards as grouping failures.
     """
-    return a in b or b in a
+    return a in b or b in a or _one_typo_apart(a, b)
 
 
 def contradictory_groups(db_path: str, limit: int = 25) -> list[dict]:

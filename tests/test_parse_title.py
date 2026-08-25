@@ -319,3 +319,21 @@ def test_rated_rookie_still_sets_the_flag_without_entering_the_key():
     a = parse_title("2024 Donruss Optic Caleb Williams Rated Rookie #201")
     assert a.is_rookie is True
     assert a.subset is None
+
+
+def test_the_donruss_optic_inserts_no_longer_share_a_number():
+    """The second collision wave: one Optic number held Uptown, Rookie Recruits
+    and Sunday Kings; another held Uptowns, Sunday Kings and Rookie Kings."""
+    keys = {card_key(parse_title(t)) for t in [
+        "2025 Donruss Optic Football Shedeur Sanders Uptown #18 (RC)",
+        "Panini 2025 Donruss Optic Pat Bryant Rookie Recruits Auto RC /199 #18",
+        "2025 Panini Donruss Optic Derrick Henry Sunday Kings #18",
+    ]}
+    assert len(keys) == 3
+
+
+def test_the_same_insert_in_either_word_order_is_one_card():
+    a = parse_title("2025 Panini Donruss Optic Derrick Henry Sunday Kings #18")
+    b = parse_title("2025 Panini Donruss Optic - Sunday Kings Derrick Henry #18 SSP")
+    assert card_key(a) == card_key(b)
+    assert a.player == b.player == "Derrick Henry"

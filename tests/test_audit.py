@@ -432,3 +432,33 @@ def test_the_audit_reports_which_parser_read_the_data(tmp_path):
 
     # A real parse stamps the live version, which is what the user compares.
     assert PARSER_VERSION.startswith("title/")
+
+
+def test_a_misspelled_name_is_not_a_grouping_failure():
+    """"jaxsondart" and "jacksondart" are one player and one seller who cannot
+    spell him. Twelve of Peyton's sales were reported as a contradiction."""
+    from nflcarddb.audit import _same_person
+
+    assert _same_person("jaxsondart", "jacksondart")
+    assert _same_person("patrickmahomes", "patrikmahomes")
+
+
+def test_two_real_players_are_not_merged_by_the_typo_rule():
+    """The rule must stay tight enough to keep genuine errors visible."""
+    from nflcarddb.audit import _same_person
+
+    assert not _same_person("jaydendaniels", "calebwilliams")
+    assert not _same_person("joeburrow", "joeflacco")
+    assert not _same_person("bonix", "bonic")          # too short to risk it
+    # Two real NFL players two edits apart. This is why the distance stays at
+    # one and the spelling variant is handled by folding instead.
+    assert not _same_person("jalenhurts", "jalenhurd")
+
+
+def test_the_typo_rule_does_not_reach_the_keys():
+    """Folding this aggressively when building keys would merge players who
+    genuinely differ by a letter, and a wrong merge is worse than a wrong
+    report -- it averages two cards into one price history."""
+    from nflcarddb.card_key import normalize_player
+
+    assert normalize_player("Jaxson Dart") != normalize_player("Jackson Dart")
