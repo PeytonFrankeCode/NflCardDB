@@ -7,6 +7,9 @@ cd /d "%~dp0"
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
 
+REM An out-of-date checkout reports old numbers that look perfectly normal.
+call "%~dp0_update.bat"
+
 echo.
 echo ==========================================================
 echo    Learning player names from your own data

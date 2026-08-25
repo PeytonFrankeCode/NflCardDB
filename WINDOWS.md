@@ -411,6 +411,16 @@ days, so it only works on recent ones.
 **Double-click `accuracy.bat`.** It matches up any sales collected before this
 feature existed, then reports two different things — and the difference matters.
 
+The report starts with a line like `read by parser  title/4`. That is which
+version of the code actually produced these numbers. If it names an older
+version than the one you were told to expect, **the report is describing old
+code** — everything below it will look perfectly normal and mean nothing. This
+happened twice before the line existed, which is why it is there.
+
+`accuracy.bat` and `names.bat` now check GitHub before they run and offer to
+update, so you should not have to think about it. If the check can't find git
+it quietly skips, and the version line is still your backstop.
+
 **What it can work out on its own** — how many sales got matched to a card at
 all, how confident the reading was, and which groups contradict themselves (one
 card whose sales name two different players is wrong without anyone checking).
