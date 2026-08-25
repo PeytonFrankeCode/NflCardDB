@@ -225,3 +225,32 @@ def test_ebays_not_specified_marker_is_not_a_value():
     """"!" appeared under Autographed, Graded, Material and Card Condition."""
     html = '<a href="/sch/i.html?_nkw=x&Autographed=%21">! (5)</a>'
     assert harvest(html) == {}
+
+
+def test_improving_a_filter_also_cleans_what_was_already_stored():
+    """Filtering only at harvest time made junk permanent: LH_AS and eBay's
+    "!" marker survived two rounds of being filtered, because they were already
+    in the accumulated file and nothing re-examined it."""
+    from nflcarddb.facets import clean
+
+    dirty = {
+        "LH_AS": {"1": None},
+        "imm": {"1": None},
+        "Autographed": {"!": 5, "Yes": 12},
+        "Parallel/Variety": {"[Base]": 9, "Genies": 3},
+    }
+    assert clean(dirty) == {"Autographed": {"Yes": 12},
+                            "Parallel/Variety": {"Genies": 3}}
+
+
+def test_a_stored_file_is_cleaned_when_it_is_loaded(tmp_path):
+    from nflcarddb.facets import FILE_VERSION, load_store
+    import json
+
+    path = tmp_path / "f.json"
+    path.write_text(json.dumps({
+        "version": FILE_VERSION,
+        "aspects": {"LH_BO": {"1": None}, "Set": {"1979 Topps": 20}},
+    }), encoding="utf-8")
+
+    assert load_store(path) == {"Set": {"1979 Topps": 20}}

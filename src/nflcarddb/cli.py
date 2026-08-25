@@ -372,6 +372,107 @@ def enable_setting(config_path: Optional[str], key: str, value) -> bool:
     return True
 
 
+def cmd_catalog(args) -> int:
+    """Build the card vocabulary from eBay's API instead of its HTML.
+
+    Same destination file as `facets`, because the API is a better source for
+    the same store rather than a second store. It returns every value of every
+    aspect where the sidebar renders eight, and it does it without a bot check.
+    """
+    from .ebay_api import (BrowseClient, EbayApiError, aspect_filter_for,
+                           aspects_from_payload, load_credentials,
+                           save_credentials)
+    from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
+                         drillable, load_store, merge, save_store)
+
+    credentials = load_credentials()
+    if args.app_id and args.cert_id:
+        save_credentials(args.app_id, args.cert_id)
+        credentials = (args.app_id, args.cert_id)
+    if not credentials:
+        print("No eBay API keys saved yet.\n", file=sys.stderr)
+        print("Get them from https://developer.ebay.com/my/keys -- the "
+              "Production\nApp ID (Client ID) and Cert ID (Client Secret) -- "
+              "then run:\n", file=sys.stderr)
+        print("  nflcarddb catalog --app-id <App ID> --cert-id <Cert ID>\n",
+              file=sys.stderr)
+        print("They are saved to data/ebay-api.txt, which is gitignored.",
+              file=sys.stderr)
+        return 2
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    queries = config.queries if config else []
+    if args.query:
+        queries = [q for q in queries if q.id == args.query]
+    if not queries:
+        print("no queries configured", file=sys.stderr)
+        return 2
+
+    client = BrowseClient(*credentials)
+    store_path = Path(args.out)
+    accumulated = {} if args.fresh else load_store(store_path)
+    calls = 0
+
+    try:
+        for query in queries:
+            payload = client.refinements(query.keywords or "football",
+                                         query.category)
+            calls += 1
+            found = aspects_from_payload(payload)
+            total = payload.get("total")
+            merge(accumulated, found)
+            print(f"{query.id}: {total or '?'} active listings, "
+                  + ", ".join(f"{bucket_of(k)} {len(v)}"
+                              for k, v in sorted(found.items())
+                              if not bucket_of(k).startswith("other:")))
+
+        # Narrowing works here too, and for the same reason -- but the API
+        # returns every value of every aspect, so it is needed far less. One
+        # pass per season is usually enough to reach the long tail of sets.
+        base = queries[0]
+        for stage in [s.strip() for s in (args.drill or "").split(",") if s.strip()]:
+            targets = drillable(accumulated, stage, limit=args.drill_limit)
+            if not targets:
+                print(f"\nNothing to drill for {stage!r} yet.")
+                continue
+            print(f"\nNarrowing by {len(targets)} {stage} value(s)...")
+            for aspect, value in targets:
+                if calls >= args.budget:
+                    print(f"  stopped at the {args.budget}-call budget")
+                    break
+                if "," in value or "{" in value or "}" in value:
+                    # aspect_filter uses braces and commas as syntax.
+                    continue
+                payload = client.refinements(
+                    base.keywords or "football", base.category,
+                    aspect_filter=aspect_filter_for(aspect, value))
+                calls += 1
+                before = sum(len(v) for v in accumulated.values())
+                merge(accumulated, aspects_from_payload(payload))
+                gained = sum(len(v) for v in accumulated.values()) - before
+                if gained:
+                    print(f"  {aspect}={value}: +{gained} new")
+    except EbayApiError as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        if accumulated:
+            save_store(accumulated, store_path)
+            print("Kept what was harvested before the failure.", file=sys.stderr)
+        return 1
+
+    save_store(accumulated, store_path)
+    vocab = as_vocabulary(accumulated, min_count=args.min_count)
+    print(f"\nHarvested by {HARVESTER_VERSION} via the API "
+          f"({calls} call(s)) -> {store_path}")
+    print("=" * 58)
+    for bucket, names in sorted(vocab.items()):
+        print(f"  {bucket:<16} {len(names):>6,}   e.g. {', '.join(names[:4])}")
+    print()
+    print("This is eBay's own classification, read from its API rather than")
+    print("scraped. Sold prices still come from collecting -- the API covers")
+    print("active listings only, which is why the scraper still exists.")
+    return 0
+
+
 def cmd_facets(args) -> int:
     """Harvest eBay's own card taxonomy from its search sidebar.
 
@@ -379,8 +480,8 @@ def cmd_facets(args) -> int:
     wrong the day a product ships. eBay classifies the same listings itself and
     exposes the result as search facets, so this reads them instead of guessing.
     """
-    from .facets import (as_vocabulary, bucket_of, drillable, harvest,
-                         load_store, merge, save_store)
+    from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
+                         drillable, harvest, load_store, merge, save_store)
 
     config = load_config(args.config)
     queries = ([q for q in config.queries if q.id == args.query] if args.query
@@ -439,6 +540,7 @@ def cmd_facets(args) -> int:
         # narrowed at all.
         baseline = baselines.get(base.id)
         unfiltered = 0
+        checked = 0
         for stage in [s.strip() for s in (args.drill or "").split(",") if s.strip()]:
             if stopped:
                 break
@@ -474,14 +576,19 @@ def cmd_facets(args) -> int:
                 # Whether the filter actually applied. An ignored filter is
                 # silent, so it is checked rather than assumed.
                 narrowed = parse_search_page(html, query_id=base.id).total_results
-                if baseline and narrowed and narrowed >= baseline:
-                    unfiltered += 1
+                if baseline and narrowed:
+                    checked += 1
+                    if narrowed >= baseline:
+                        unfiltered += 1
 
                 before = sum(len(v) for v in accumulated.values())
                 merge(accumulated, harvest(html))
                 gained = sum(len(v) for v in accumulated.values()) - before
                 if gained:
                     print(f"  {aspect}={value}: +{gained} new")
+        if checked:
+            print(f"\n  filter check: {checked - unfiltered} of {checked} narrowed "
+                  f"searches came back smaller")
         if unfiltered:
             print(f"\n  WARNING: {unfiltered} narrowed search(es) came back no "
                   f"smaller than the\n  unfiltered one, so eBay ignored the "
@@ -501,7 +608,7 @@ def cmd_facets(args) -> int:
     save_store(accumulated, store_path)
 
     vocab = as_vocabulary(accumulated, min_count=args.min_count)
-    print(f"\nHarvested from {pages} page(s) -> {store_path}")
+    print(f"\nHarvested by {HARVESTER_VERSION} from {pages} page(s) -> {store_path}")
     print("=" * 58)
     for bucket, names in sorted(vocab.items()):
         print(f"  {bucket:<16} {len(names):>6,}   e.g. {', '.join(names[:4])}")
@@ -1817,6 +1924,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-apply", action="store_true",
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("catalog",
+                       help="build the card vocabulary from eBay's API")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--query", help="one query id; default is every query")
+    p.add_argument("--out", default="data/ebay-facets.json")
+    p.add_argument("--app-id", help="eBay Production App ID (Client ID)")
+    p.add_argument("--cert-id", help="eBay Production Cert ID (Client Secret)")
+    p.add_argument("--fresh", action="store_true")
+    p.add_argument("--min-count", type=int, default=0)
+    p.add_argument("--drill", metavar="BUCKET", default="seasons")
+    p.add_argument("--drill-limit", type=int, default=40)
+    p.add_argument("--budget", type=int, default=120,
+                   help="stop after this many API calls")
+    p.set_defaults(func=cmd_catalog)
 
     p = sub.add_parser("facets",
                        help="harvest eBay's own set/parallel/player taxonomy")
