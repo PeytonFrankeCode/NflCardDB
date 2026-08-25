@@ -28,7 +28,10 @@ from .models import CardAttrs
 #          restarts its numbering at one.
 # title/4: more insert names -- Sunday Kings, Uptown, Rookie Kings and the rest
 #          of the Donruss Optic family that was still colliding.
-PARSER_VERSION = "title/4"
+# title/5: Oversized and Horizontal printings separated from the base insert,
+#          the Contenders insert names, and parallels put in a canonical order
+#          so word order stops splitting one card into two.
+PARSER_VERSION = "title/5"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -66,6 +69,12 @@ PARALLELS = (
     "Hyperplaid", "Light It Up", "My House", "Zoom",
     "Championship Ticket", "Playoff Ticket", "Cracked Ice Ticket",
     "Rookie Ticket", "Variation",
+    # Physical variants of an insert, which carry their own checklists. The
+    # data proves they are separate printings rather than descriptions: three
+    # Downtown numbers each held two different players, one seller saying
+    # Oversized or Horizontal and the other not. If it were one checklist the
+    # same number would be the same player.
+    "Oversized", "Horizontal", "Vertical",
     # Prizm / Optic / Mosaic finishes
     "Gold Vinyl", "Black Finite", "Silver Prizm", "Green Ice", "Red Ice",
     "Blue Ice", "Cracked Ice", "Tie-Dye", "Tie Dye", "Snakeskin", "Fast Break",
@@ -114,6 +123,10 @@ INSERTS = (
     "Sunday Kings", "Rookie Kings", "Rookie Recruits", "Uptowns", "Uptown",
     "Downtowns", "Night Moves", "Elite Series", "Gridiron Kings",
     "The Rookies", "Zero Gravity", "Full Throttle",
+    # Third wave: one Contenders number held Power Players, Rookie Stallions
+    # and Round Numbers.
+    "Power Players", "Rookie Stallions", "Round Numbers", "Legendary Lids",
+    "Ticket Stubs", "Hometown Heroes", "Rookie Phenoms",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -459,10 +472,13 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
             break
         found_parallels.append(_canonical(m.group(1)))
     if found_parallels:
-        # Restore source order; the matcher finds them longest-first.
-        lowered = work.original.lower()
-        found_parallels.sort(key=lambda p: lowered.find(p.lower()))
-        attrs.parallel = " ".join(dict.fromkeys(found_parallels))
+        # Alphabetical, NOT the order the seller wrote them in. This field is
+        # part of the key, and sellers put the same words in any order:
+        # "Downtown! Oversized" and "OVERSIZED ... Downtown!" are one card, and
+        # source order gave them two keys. A canonical order also means one card
+        # always renders the same name, which source order did not guarantee
+        # either.
+        attrs.parallel = " ".join(sorted(dict.fromkeys(found_parallels)))
         hits += 1
 
     # Flags are read off the remaining text and also blanked out, since words

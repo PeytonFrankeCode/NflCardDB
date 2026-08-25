@@ -462,3 +462,15 @@ def test_the_typo_rule_does_not_reach_the_keys():
     from nflcarddb.card_key import normalize_player
 
     assert normalize_player("Jaxson Dart") != normalize_player("Jackson Dart")
+
+
+def test_a_transposed_pair_of_letters_is_one_typo():
+    """"brettfavre" and "brettfarve": plain edit distance calls a swap two
+    changes, so ten sales were reported as a contradiction."""
+    from nflcarddb.audit import _same_person
+
+    assert _same_person("brettfavre", "brettfarve")
+    assert _same_person("justinherbert", "justinhebrert")
+    # ...without letting two different players through on a swap.
+    assert not _same_person("jalenhurts", "jalenhurd")
+    assert not _same_person("joeburrow", "joeflacco")

@@ -125,10 +125,38 @@ def test_card_number_wins_over_serial_reading():
     assert a.serial_number is None
 
 
-def test_stacked_parallels_collected_in_source_order():
+def test_stacked_parallels_are_collected_in_a_canonical_order():
+    """Deliberately not the order the seller wrote them in.
+
+    This field is part of the key, and "Downtown! Oversized" and "OVERSIZED ...
+    Downtown!" are one card -- source order gave them two keys and split three
+    real Donruss groups. Alphabetical costs a slightly odd display name and buys
+    a stable identity.
+    """
     a = parse_title("2024 Panini Prizm Caleb Williams RC Orange Lazer #301")
-    assert a.parallel == "Orange Lazer"
+    assert a.parallel == "Lazer Orange"
     assert a.player == "Caleb Williams"  # no parallel word leaks into the name
+
+
+def test_the_same_parallels_in_any_order_are_one_card():
+    a = parse_title("2024 Panini Prizm Caleb Williams #301 Silver Prizm Gold")
+    b = parse_title("2024 Panini Prizm Caleb Williams #301 Gold Silver Prizm")
+    assert card_key(a) == card_key(b)
+
+
+def test_an_oversized_insert_is_a_different_card_from_the_base_insert():
+    """Three Downtown numbers each held two different players, one seller
+    saying Oversized or Horizontal and the other not. If it were one checklist
+    the same number would be the same player -- the data proves the split."""
+    base = parse_title("2025 Panini Donruss Quinshon Judkins #17 Downtown Rookie")
+    over = parse_title("2025 Panini Donruss Downtown! Oversized Shedeur Sanders #17 RC")
+    assert card_key(base) != card_key(over)
+
+
+def test_word_order_does_not_split_an_oversized_insert():
+    a = parse_title("2025 Donruss Saquon Barkley OVERSIZED Downtown #7 Philadelphia")
+    b = parse_title("2025 Panini Donruss - Downtown! Oversized Saquon Barkley #7")
+    assert card_key(a) == card_key(b)
 
 
 def test_team_extracted_and_kept_out_of_player():
@@ -337,3 +365,13 @@ def test_the_same_insert_in_either_word_order_is_one_card():
     b = parse_title("2025 Panini Donruss Optic - Sunday Kings Derrick Henry #18 SSP")
     assert card_key(a) == card_key(b)
     assert a.player == b.player == "Derrick Henry"
+
+
+def test_the_contenders_inserts_no_longer_share_a_number():
+    """Power Players, Rookie Stallions and Round Numbers, all at #1."""
+    keys = {card_key(parse_title(t)) for t in [
+        "2024 Panini Contenders - Power Players Patrick Mahomes II, Joe Burrow #1",
+        "2024 Panini Contenders #1 Caleb Williams Rookie Stallions",
+        "Panini Contenders 2024 Round Numbers #1 Jayden Daniels/Drake Maye RC",
+    ]}
+    assert len(keys) == 3

@@ -117,7 +117,17 @@ def _one_typo_apart(a: str, b: str) -> bool:
     if abs(len(a) - len(b)) > 1 or min(len(a), len(b)) < 8:
         return False
     if len(a) == len(b):
-        return sum(x != y for x, y in zip(a, b)) == 1
+        differing = [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
+        if len(differing) == 1:
+            return True
+        # Two adjacent letters swapped: "brettfavre" and "brettfarve". Plain
+        # edit distance calls that two changes, so it slipped through -- but a
+        # transposition is one typo, and two different players whose full names
+        # differ by a single swap does not happen.
+        if len(differing) == 2:
+            i, j = differing
+            return j == i + 1 and a[i] == b[j] and a[j] == b[i]
+        return False
     short, long = (a, b) if len(a) < len(b) else (b, a)
     for i in range(len(long)):
         if long[:i] + long[i + 1:] == short:
