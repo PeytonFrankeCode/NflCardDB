@@ -307,6 +307,66 @@ def save_store(store: dict[str, dict[str, Optional[int]]], path) -> None:
     )
 
 
+def write_roster(store: dict[str, dict[str, Optional[int]]], path) -> int:
+    """Write eBay's player list as the roster the title parser reads.
+
+    Same file the learned roster used, so nothing downstream changes: the
+    config key, the loader and the parser all stay as they are. Only the source
+    is better -- eBay's list is the people who actually appear on cards, rather
+    than phrases inferred from how often they turn up beside a set name.
+    """
+    from pathlib import Path
+
+    names = as_vocabulary(store).get("players", [])
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "\n".join([
+            "# Player names from eBay's own Player/Athlete classification,",
+            "# fetched by `nflcarddb catalog`. Not hand-kept and not inferred.",
+            "# Re-run after a product ships and it is current again.",
+            "",
+            *names,
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    return len(names)
+
+
+def write_inserts(store: dict[str, dict[str, Optional[int]]], path) -> int:
+    """Write the insert names eBay knows that the built-in vocabulary does not.
+
+    Only the ones not already handled: a name that is already a PARALLEL keeps
+    being read as a parallel, because subsets are claimed before parallels and
+    moving a well-understood name across would rewrite working keys for no
+    gain. What is left is the long tail -- Genies, Sunday Kings and the several
+    hundred others that were being typed in by hand a dozen at a time.
+    """
+    from pathlib import Path
+
+    from .parse_title import DESIGNATIONS, INSERTS, PARALLELS
+
+    known = {t.lower() for t in (*PARALLELS, *INSERTS, *DESIGNATIONS)}
+    names = [n for n in as_vocabulary(store).get("parallels", [])
+             if n.lower() not in known]
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "\n".join([
+            "# Insert and parallel names from eBay's own Parallel/Variety",
+            "# classification, fetched by `nflcarddb catalog`.",
+            "#",
+            "# An insert restarts its numbering at one, so its name is part of",
+            "# a card's identity. Names already understood are left out.",
+            "",
+            *names,
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    return len(names)
+
+
 def drillable(store: dict[str, dict[str, Optional[int]]], bucket: str,
               limit: int = 50) -> list[tuple[str, str]]:
     """(aspect, value) pairs to search within, for one vocabulary bucket.

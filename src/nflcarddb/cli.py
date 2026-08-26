@@ -383,7 +383,8 @@ def cmd_catalog(args) -> int:
                            aspects_from_payload, load_credentials,
                            save_credentials)
     from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
-                         drillable, load_store, merge, save_store)
+                         drillable, load_store, merge, save_store,
+                         write_inserts, write_roster)
 
     credentials = load_credentials()
     if args.app_id and args.cert_id:
@@ -486,6 +487,48 @@ def cmd_catalog(args) -> int:
     print("This is eBay's own classification, read from its API rather than")
     print("scraped. Sold prices still come from collecting -- the API covers")
     print("active listings only, which is why the scraper still exists.")
+
+    if not args.apply:
+        print("\nTo make this the vocabulary:  nflcarddb catalog --apply")
+        return 0
+
+    # The roster and insert files already exist, are already wired into the
+    # config, and are already read by the parser. Only their source changes --
+    # from names inferred out of collected titles to eBay's own classification.
+    roster_path = Path("config/nfl_players.txt")
+    inserts_path = Path("config/nfl_inserts.txt")
+    players = write_roster(accumulated, roster_path)
+    inserts = write_inserts(accumulated, inserts_path)
+    print(f"\nWrote {players:,} player names -> {roster_path}")
+    print(f"Wrote {inserts:,} insert names   -> {inserts_path}")
+
+    for key, path in (("roster", roster_path), ("inserts", inserts_path)):
+        if not enable_setting(args.config, key, path):
+            print(f"\nCould not edit {args.config}; add:  {key}: "
+                  f"{path.as_posix()}", file=sys.stderr)
+            return 1
+
+    from .audit import coverage
+    from .parse_title import load_inserts, register_inserts
+
+    register_inserts(load_inserts(inserts_path))
+    db_path = config.database if config else "data/nflcarddb.sqlite"
+    before = coverage(db_path)
+    print("\nRe-reading every title. This takes a minute.")
+    reparse_titles(db_path, str(roster_path), all_rows=True)
+    after = coverage(db_path)
+
+    print("\nWhat changed")
+    print("=" * 58)
+    _delta("sales matched to a card", before.get("with_key", 0),
+           after.get("with_key", 0))
+    _delta("cards seen more than once",
+           before.get("groups", 0) - before.get("singleton_groups", 0),
+           after.get("groups", 0) - after.get("singleton_groups", 0))
+    _rate_delta("cards seen only once",
+                before.get("singleton_groups", 0), before.get("groups", 0),
+                after.get("singleton_groups", 0), after.get("groups", 0))
+    print("\nDouble-click accuracy.bat for the full picture.")
     return 0
 
 
@@ -1957,6 +2000,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="stop after this many API calls")
     p.add_argument("--sport", default="Football",
                    help="pin the sport; pass empty to harvest every sport")
+    p.add_argument("--apply", action="store_true",
+                   help="make it the vocabulary and re-read every title")
     p.set_defaults(func=cmd_catalog)
 
     p = sub.add_parser("facets",

@@ -46,12 +46,12 @@ echo.
 set /p APPID=Paste the App ID:
 set /p CERTID=Paste the Cert ID:
 echo.
-nflcarddb catalog --app-id "%APPID%" --cert-id "%CERTID%"
+nflcarddb catalog --app-id "%APPID%" --cert-id "%CERTID%" --apply
 if errorlevel 1 goto BROKEN
 goto DONE
 
 :RUN
-nflcarddb catalog
+nflcarddb catalog --apply
 if errorlevel 1 goto BROKEN
 
 :DONE
@@ -60,7 +60,9 @@ echo ==========================================================
 echo    Send the list above to Claude
 echo ==========================================================
 echo.
-echo Nothing was changed and no sales were touched.
+echo eBay's lists are now the vocabulary, and every title has
+echo been re-read with them. The hand-written lists are no
+echo longer used.
 echo.
 echo Your keys are saved in data\ebay-api.txt so this only asks
 echo once. That file is never uploaded to GitHub.

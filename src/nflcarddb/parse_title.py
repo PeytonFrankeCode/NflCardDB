@@ -594,10 +594,20 @@ def _infer_brand(set_name: str) -> Optional[str]:
 
 
 def load_roster(path: str) -> set[str]:
-    """Load a newline-delimited player-name list for exact-match boosting."""
+    """Load a newline-delimited player-name list for exact-match boosting.
+
+    Comments are skipped, which they were not before: every roster this project
+    has written carries a `#` header explaining where it came from, and each of
+    those lines was being loaded as a player's name. Harmless in practice --
+    no title contains "# player names learned from collected titles" -- but it
+    made the roster's size a lie and would bite the moment a comment happened
+    to contain a real name.
+    """
     names: set[str] = set()
     with open(path, encoding="utf-8") as fh:
         for line in fh:
+            if line.lstrip().startswith("#"):
+                continue
             name = line.strip().split(",")[0].strip()
             if name:
                 names.add(name.lower())
