@@ -410,7 +410,11 @@ def cmd_catalog(args) -> int:
 
     client = BrowseClient(*credentials)
     store_path = Path(args.out)
-    accumulated = {} if args.fresh else load_store(store_path)
+    # Fresh by default here, unlike scraping. One API call returns an aspect's
+    # whole list, so accumulating adds nothing and hides plenty: harvests made
+    # under a different filter linger, and a run pinned to Football kept
+    # reporting Premier League and Shohei Ohtani from earlier unpinned runs.
+    accumulated = load_store(store_path) if args.keep else {}
     calls = 0
 
     try:
@@ -427,6 +431,10 @@ def cmd_catalog(args) -> int:
             found = aspects_from_payload(payload)
             total = payload.get("total")
             merge(accumulated, found)
+            # The filter that was actually sent, and the count it produced. An
+            # ignored filter is silent, and guessing whether one applied has
+            # already cost several runs.
+            print(f"  filter: {aspect_filter_for(query.category, sport) or 'none'}")
             print(f"{query.id}: {total or '?'} active listings, "
                   + ", ".join(f"{bucket_of(k)} {len(v)}"
                               for k, v in sorted(found.items())
@@ -1940,7 +1948,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="data/ebay-facets.json")
     p.add_argument("--app-id", help="eBay Production App ID (Client ID)")
     p.add_argument("--cert-id", help="eBay Production Cert ID (Client Secret)")
-    p.add_argument("--fresh", action="store_true")
+    p.add_argument("--keep", action="store_true",
+                   help="add to the stored harvest instead of starting clean")
     p.add_argument("--min-count", type=int, default=0)
     p.add_argument("--drill", metavar="BUCKET", default="seasons")
     p.add_argument("--drill-limit", type=int, default=40)

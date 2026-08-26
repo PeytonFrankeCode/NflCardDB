@@ -24,6 +24,10 @@ echo.
 echo The same cards are on sale now as sold last week, so the
 echo names carry straight over.
 echo.
+echo This starts clean each time. One API call returns a whole
+echo list, so there is nothing to build up - and keeping old
+echo results only preserved mistakes from earlier attempts.
+echo.
 
 if not exist data\ebay-api.txt goto ASK
 goto RUN
