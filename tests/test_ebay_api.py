@@ -287,3 +287,48 @@ def test_the_ebay_roster_does_not_overwrite_the_learned_one(tmp_path):
     source = inspect.getsource(cli.cmd_catalog)
     assert "config/nfl_players_ebay.txt" in source
     assert 'Path("config/nfl_players.txt")' not in source
+
+
+def test_a_stale_inserts_setting_pointing_at_ebay_data_is_recognised(tmp_path):
+    """The bug that made a fix measure as doing nothing. eBay's parallels were
+    written over the insert file and keyed; moving them to a claim-only file
+    left the old setting pointing at the overwritten file, so they went on
+    being keyed."""
+    from nflcarddb.cli import _catalog_written_inserts
+    from nflcarddb.facets import write_designations
+
+    class Cfg:
+        pass
+
+    written = tmp_path / "nfl_inserts.txt"
+    write_designations({"Parallel/Variety": {"Moonstruck": 5}}, written)
+    cfg = Cfg()
+    cfg.inserts = str(written)
+    assert _catalog_written_inserts(cfg) == str(written)
+
+
+def test_a_hand_built_insert_list_is_left_alone(tmp_path):
+    """An insert list someone built themselves is theirs."""
+    from nflcarddb.cli import _catalog_written_inserts
+    from nflcarddb.roster import write_inserts
+
+    class Cfg:
+        pass
+
+    mine = tmp_path / "mine.txt"
+    write_inserts([{"name": "Moonstruck", "sightings": 9, "contexts": 1,
+                    "players": 5, "where": "2025 Donruss",
+                    "example": "x"}], mine)
+    cfg = Cfg()
+    cfg.inserts = str(mine)
+    assert _catalog_written_inserts(cfg) is None
+
+
+def test_a_missing_or_unset_inserts_path_is_not_a_crash():
+    from nflcarddb.cli import _catalog_written_inserts
+
+    class Cfg:
+        inserts = None
+
+    assert _catalog_written_inserts(Cfg()) is None
+    assert _catalog_written_inserts(None) is None

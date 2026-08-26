@@ -372,6 +372,28 @@ def enable_setting(config_path: Optional[str], key: str, value) -> bool:
     return True
 
 
+# The header every file this command writes carries, so a stale setting
+# pointing at one can be recognised rather than guessed at.
+CATALOG_HEADER = "from eBay's own"
+
+
+def _catalog_written_inserts(config) -> Optional[str]:
+    """The `inserts:` path, if it points at a file this command wrote.
+
+    An insert list someone built with `nflcarddb inserts` is theirs and must
+    be left alone; one this command wrote is eBay's parallels, which belong in
+    the claim-only list instead.
+    """
+    path = getattr(config, "inserts", None) if config else None
+    if not path or not Path(path).exists():
+        return None
+    try:
+        head = Path(path).read_text(encoding="utf-8")[:400]
+    except OSError:
+        return None
+    return path if CATALOG_HEADER in head else None
+
+
 def cmd_try_roster(args) -> int:
     """Re-read every title with each roster in turn and report the difference.
 
@@ -569,6 +591,19 @@ def cmd_catalog(args) -> int:
     print(f"Wrote {words:,} words to claim -> {words_path}")
     print("(claimed so they stay out of player names, NOT part of the key --")
     print(" keying them split 1,051 cards apart when it was tried)")
+
+    # An earlier version of this command wrote eBay's parallels over
+    # config/nfl_inserts.txt and pointed `inserts:` at them, which keyed the
+    # lot. Moving them to a claim-only file did not undo that: the old setting
+    # still pointed at the overwritten file, so they went on being keyed and
+    # the fix measured as having done nothing. Clear it here rather than trust
+    # anyone to notice.
+    stale = _catalog_written_inserts(config)
+    if stale:
+        enable_setting(args.config, "inserts", "")
+        print(f"\nCleared `inserts: {stale}` -- that file holds eBay's "
+              f"parallels,\nwhich are claim-only now. Run inserts.bat if you "
+              f"want a learned\ninsert list back.")
 
     for key, path in (("roster", roster_path), ("designations", words_path)):
         if not enable_setting(args.config, key, path):
@@ -832,6 +867,19 @@ def cmd_audit(args) -> int:
 
     print("How much of the data is identified")
     print("=" * 58)
+    # Which word lists were in force. A setting left pointing at the wrong
+    # file kept 760 names being keyed after they had supposedly been demoted,
+    # and nothing in this report would have shown it.
+    if config:
+        active = []
+        for label, path in (("roster", config.roster),
+                            ("inserts", config.inserts),
+                            ("words", getattr(config, "designations", None))):
+            if path and Path(path).exists():
+                from .parse_title import load_inserts
+                active.append(f"{label} {len(load_inserts(path)):,}")
+        if active:
+            print(f"  word lists in use     {', '.join(active):>9}")
     versions = report.get("parser_versions") or []
     if versions:
         print(f"  read by parser        {', '.join(versions):>9}")
