@@ -60,8 +60,8 @@ Prime
 Wood
 Gold Refractor
 Purple Refractor
-Orange Refractor
 Jersey
+Orange Refractor
 Red Zone
 Green Pulsar Prizm
 Holo Silver
@@ -152,8 +152,8 @@ Silver Holofoil
 Platinum Red
 Ruby Wave Prizm
 Jumbo Patch
-Silver Hyper
 Sepia Refractor
+Silver Hyper
 Promo
 Inception
 Gold Border
@@ -213,8 +213,8 @@ Masterpiece
 Gold Holofoil
 Orange Pulsar Prizm
 Gold Medallion Edition
-Neon Blue
 Artist Proof
+Neon Blue
 Gold Xs
 Holographic
 Mojo Refractor
@@ -239,10 +239,10 @@ Vintage Stock
 Silver Mojo
 Row 1
 Silver Script
-Gold Spotlight
 Purple Foil
-Red Disco Prizm
+Gold Spotlight
 Limited Edition
+Red Disco Prizm
 Foilboard
 Electric Etch Purple
 Blue Border
@@ -313,13 +313,13 @@ Platinum Medallion
 Blue Explosion
 Navy Blue
 Mirror Green
-Pink BCA
 Blue Pulsar
+Pink BCA
 Red Disco
 Royal Blue
 Crystal Purple
-Black Shimmer
 Gold Rainbow
+Black Shimmer
 Gold Vinyl Prizm
 Spectrum Gold
 Rapture
@@ -423,8 +423,8 @@ Crystal Gold
 Red White & Blue Mojo Prizm
 Mirror Black
 SP Limited
-Choice Red Green
 Shirt
+Choice Red Green
 Bronze Border
 Red White & Blue Crystals
 Orange Holo Laser
@@ -551,10 +551,10 @@ FOTL Platinum
 Spectrum FX
 SportsFest Chicago
 Super Rave
-Green Flood
 Artist Proof Red
 Blue Green Mosaic
 Choice Nebula
+Green Flood
 Rainbow Red Autographs
 Retro Blank Back
 Teal Explosion
