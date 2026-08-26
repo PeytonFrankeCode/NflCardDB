@@ -421,6 +421,77 @@ def _catalog_written_inserts(config) -> Optional[str]:
     return path if CATALOG_HEADER in head else None
 
 
+def cmd_try_vocab(args) -> int:
+    """Measure every combination of roster and word-list handling.
+
+    Two independent choices keep getting changed together and then argued
+    about: which player list to use, and whether the harvested insert names
+    belong in the key or only claimed out of the player's name. Each swap so
+    far has moved the numbers by a thousand cards in one direction or the
+    other, and no single run has ever isolated one of them.
+
+    So all four combinations get read, measured and reported. The database is
+    left as the config says, making this a measurement rather than a change.
+    """
+    from .audit import coverage
+    from .parse_title import (load_inserts, register_designations,
+                              register_inserts)
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    rosters = [(Path(p).name, p) for p in args.rosters if Path(p).is_file()]
+    if not rosters:
+        print("no roster files found to compare", file=sys.stderr)
+        return 2
+
+    words = load_inserts(args.words) if args.words else []
+    modes = [("claimed only", False)]
+    if words:
+        modes.append(("keyed", True))
+    else:
+        print(f"no words in {args.words!r}; comparing rosters only\n")
+
+    rows = []
+    for roster_name, roster_path in rosters:
+        for mode_name, keyed in modes:
+            register_inserts(words if keyed else [])
+            register_designations([] if keyed else words)
+            print(f"reading with {roster_name} / words {mode_name}...")
+            reparse_titles(db_path, roster_path, all_rows=True)
+            stats = coverage(db_path)
+            groups = stats.get("groups", 0)
+            singles = stats.get("singleton_groups", 0)
+            rows.append({
+                "label": f"{roster_name} + words {mode_name}",
+                "keyed": stats.get("with_key", 0),
+                "grouped": groups - singles,
+                "rate": singles / groups if groups else 0.0,
+            })
+
+    print()
+    print("Every combination, measured on the same titles")
+    print("=" * 72)
+    print(f"  {'setup':<44}{'keyed':>9}{'grouped':>9}{'one-off':>9}")
+    for row in sorted(rows, key=lambda r: -r["grouped"]):
+        print(f"  {row['label'][:43]:<44}{row['keyed']:>9,}"
+              f"{row['grouped']:>9,}{row['rate']:>8.1%}")
+
+    best = max(rows, key=lambda r: r["grouped"])
+    print(f"\nBest: {best['label']}  ({best['grouped']:,} grouped cards)")
+    print("More grouped cards is better -- sales that belong to one card")
+    print("landing on one key instead of several.")
+
+    # Put the database back the way the config describes it.
+    register_inserts(load_inserts(config.inserts) if config and config.inserts else [])
+    register_designations(
+        load_inserts(config.designations) if config and config.designations else [])
+    settled = config.roster if config else None
+    print(f"\nLeaving the database read with: {settled or 'no roster'}")
+    reparse_titles(db_path, settled, all_rows=True)
+    return 0
+
+
 def cmd_try_roster(args) -> int:
     """Re-read every title with each roster in turn and report the difference.
 
@@ -2136,6 +2207,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-apply", action="store_true",
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("try-vocab",
+                       help="measure every roster / word-list combination")
+    p.add_argument("rosters", nargs="+", help="roster files to compare")
+    p.add_argument("--words", default="config/nfl_words.txt",
+                   help="harvested word list to try keyed and claim-only")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.set_defaults(func=cmd_try_vocab)
 
     p = sub.add_parser("try-roster",
                        help="compare rosters by how well each groups cards")

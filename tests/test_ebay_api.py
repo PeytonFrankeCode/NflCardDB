@@ -407,3 +407,48 @@ def test_an_unreadable_word_list_is_an_absent_one_everywhere():
     assert load_inserts(".") == []
     assert load_inserts("") == []
     assert load_inserts("/nope/nope.txt") == []
+
+
+def test_every_combination_is_measured_and_nothing_is_left_changed(tmp_path,
+                                                                   capsys):
+    """Two choices kept being changed together and then argued about. Four
+    passes settle both at once, and the database is left as the config says."""
+    from nflcarddb import db as store
+    from nflcarddb.cli import main
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import parse_title
+
+    db = tmp_path / "v.db"
+    conn = store.connect(db)
+    run = store.start_run(conn, "2026-08-26")
+    titles = [f"2025 Panini Mosaic Josh Allen Moonstruck #{n} Insert"
+              for n in (9, 10)] + [
+              f"2025 Panini Mosaic Josh Allen #{n}" for n in (9, 10)]
+    sales = [Sale(item_id=str(9000 + i), title=t, price_cents=100,
+                  sold_date="2026-08-26") for i, t in enumerate(titles)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "t")
+    conn.close()
+
+    roster = tmp_path / "players.txt"
+    roster.write_text("Josh Allen\n", encoding="utf-8")
+    words = tmp_path / "words.txt"
+    words.write_text("Moonstruck\n", encoding="utf-8")
+    config = tmp_path / "q.yml"
+    config.write_text(f"database: {db.as_posix()}\nroster: {roster.as_posix()}\n"
+                      "queries:\n  - id: a\n    keywords: football\n",
+                      encoding="utf-8")
+
+    assert main(["try-vocab", str(roster), "--words", str(words),
+                 "--config", str(config)]) == 0
+
+    out = capsys.readouterr().out
+    assert "words keyed" in out
+    assert "words claimed only" in out
+    assert "Leaving the database read with" in out
+
+    # Keying the word splits the two spellings of one card apart; claim-only
+    # keeps them together. Whichever wins, the state afterwards is the
+    # config's, not the last combination tried.
+    from nflcarddb.parse_title import _LEARNED_INSERTS
+    assert _LEARNED_INSERTS == ()

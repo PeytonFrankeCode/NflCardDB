@@ -1,5 +1,5 @@
 @echo off
-REM Which player list actually groups the most cards? Measure, do not guess.
+REM Which combination actually groups the most cards? Measure, do not guess.
 cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat goto NOSETUP
@@ -8,20 +8,29 @@ call "%~dp0_update.bat"
 
 echo.
 echo ==========================================================
-echo    Which player list groups cards best?
+echo    Which setup groups the most cards?
 echo ==========================================================
 echo.
-echo Swapping the learned player list for eBay's 13,838 names
-echo lost about a thousand grouped cards. Nothing in that run
-echo said which change caused it.
+echo Two separate choices have been getting changed together
+echo and then argued about:
 echo.
-echo So this reads all your titles once with each list and
-echo reports which one groups the most sales onto one card.
-echo A few minutes. Nothing is changed permanently - it ends
-echo by putting things back the way your config says.
+echo   1. eBay's player list, or the one learned from your own
+echo      titles?
+echo   2. Do eBay's insert names ("Fireworks", "Touchdown
+echo      Masters") count as part of a card's identity, or are
+echo      they just kept out of the player's name?
+echo.
+echo Each swap has moved the numbers by about a thousand cards
+echo one way or the other, and no run has ever tested one on
+echo its own.
+echo.
+echo So this reads all your titles once for every combination
+echo and reports which wins. Four passes, a few minutes.
+echo Nothing is changed - it ends by putting things back the
+echo way your config says.
 echo.
 
-nflcarddb try-roster config\nfl_players_ebay.txt config\nfl_players.txt none
+nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt
 if errorlevel 1 goto BROKEN
 
 echo.
@@ -34,8 +43,8 @@ goto END
 echo.
 echo That did not finish. The message above says why.
 echo.
-echo "not found" for a list just means you have not built that
-echo one - the comparison still runs with the others.
+echo "no roster files found" means neither list exists yet -
+echo run names.bat and catalog.bat first.
 goto END
 
 :NOSETUP
