@@ -60,8 +60,8 @@ Prime
 Wood
 Gold Refractor
 Purple Refractor
-Jersey
 Orange Refractor
+Jersey
 Red Zone
 Green Pulsar Prizm
 Holo Silver
@@ -152,8 +152,8 @@ Silver Holofoil
 Platinum Red
 Ruby Wave Prizm
 Jumbo Patch
-Sepia Refractor
 Silver Hyper
+Sepia Refractor
 Promo
 Inception
 Gold Border
@@ -213,13 +213,13 @@ Masterpiece
 Gold Holofoil
 Orange Pulsar Prizm
 Gold Medallion Edition
-Artist Proof
 Neon Blue
+Artist Proof
 Gold Xs
 Holographic
 Mojo Refractor
-Orange Wave
 Blue Shimmer
+Orange Wave
 Chrome Purple Refractor
 Radiance
 Image Variations
@@ -241,8 +241,8 @@ Row 1
 Silver Script
 Gold Spotlight
 Purple Foil
-Limited Edition
 Red Disco Prizm
+Limited Edition
 Foilboard
 Electric Etch Purple
 Blue Border
@@ -313,8 +313,8 @@ Platinum Medallion
 Blue Explosion
 Navy Blue
 Mirror Green
-Blue Pulsar
 Pink BCA
+Blue Pulsar
 Red Disco
 Royal Blue
 Crystal Purple
@@ -444,8 +444,8 @@ Asia
 Target Red
 Rainbow Color Wheel
 FOTL Pink Swirl
-Gold Pulsar
 Gold Flash
+Gold Pulsar
 Green Explosion
 FOTL Blue
 Silver Scope
@@ -476,8 +476,8 @@ Purple Flood
 Gold Hyper
 FOTL Blue Scope
 Rainbow Prizm
-UD Exclusives Gold
 Dynamite
+UD Exclusives Gold
 Black Laser
 Gold Hologram
 Home Team Advantage
@@ -537,12 +537,12 @@ Red Mojo Refractor
 Silver Blue Foil
 Golden Rainbow
 Artist Proof Silver Frame
+Choice Tiger Stripe
 Neon Purple Pulsar Prizm
 Orange Mojo Refractor
 Silver Red Foil
 Speckled Rainbow Foil
 Black Prizm NFL Shield
-Choice Tiger Stripe
 Precious Metal Gems Green
 Winter Holo
 Black Flash Prizm
