@@ -407,12 +407,17 @@ def _catalog_written_inserts(config) -> Optional[str]:
     the claim-only list instead.
     """
     path = getattr(config, "inserts", None) if config else None
-    if not path or not Path(path).exists():
+    if not path:
         return None
+    # An unusable path counts too. The earlier version only recognised files it
+    # had written, so `inserts: .` -- which it wrote itself, by blanking the
+    # setting -- was not recognised and survived the very run meant to clear it.
+    if not Path(path).is_file():
+        return path
     try:
         head = Path(path).read_text(encoding="utf-8")[:400]
     except OSError:
-        return None
+        return path
     return path if CATALOG_HEADER in head else None
 
 
@@ -623,8 +628,8 @@ def cmd_catalog(args) -> int:
     stale = _catalog_written_inserts(config)
     if stale:
         disable_setting(args.config, "inserts")
-        print(f"\nCleared `inserts: {stale}` -- that file holds eBay's "
-              f"parallels,\nwhich are claim-only now. Run inserts.bat if you "
+        print(f"\nCleared `inserts: {stale}` -- unusable, or holding eBay's "
+              f"parallels\nwhich are claim-only now. Run inserts.bat if you "
               f"want a learned\ninsert list back.")
 
     # The roster is written but NOT switched on, because it measures worse.

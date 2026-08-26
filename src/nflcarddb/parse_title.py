@@ -13,6 +13,7 @@ tuned for the modern Panini/Topps football conventions that dominate the data.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Iterable, Optional
 
 from .models import CardAttrs
@@ -346,13 +347,25 @@ def register_inserts(names: Iterable[str]) -> int:
 
 
 def load_inserts(path: str) -> list[str]:
-    """Read a learned insert list, ignoring comments and blank lines."""
-    names = []
-    with open(path, encoding="utf-8") as handle:
-        for line in handle:
-            name = line.split("#", 1)[0].strip()
-            if name:
-                names.append(name)
+    """Read a word list, ignoring comments and blank lines.
+
+    An unreadable path yields an empty list rather than raising. Guarding this
+    at each call site is what let the same crash happen twice: a config holding
+    `inserts: .` was fixed in the startup path and then took the audit down
+    from a second call site added the same day. A word list that cannot be read
+    is an absent word list, and that is true wherever it is asked for.
+    """
+    names: list[str] = []
+    if not path or not Path(path).is_file():
+        return names
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                name = line.split("#", 1)[0].strip()
+                if name:
+                    names.append(name)
+    except OSError:
+        return []
     return names
 
 # Nickname -> full team name, so "Commanders" and "Washington Commanders"

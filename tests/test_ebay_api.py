@@ -379,3 +379,31 @@ def test_the_catalogue_does_not_switch_the_roster_over():
     source = inspect.getsource(cli.cmd_catalog)
     assert '("designations", words_path),' in source
     assert '("roster", roster_path)' not in source
+
+
+def test_an_unusable_inserts_path_is_cleared_too(tmp_path):
+    """`inserts: .` was written by the blanking bug and then survived the run
+    meant to clear it, because the detector only recognised files it could
+    read. An unusable path is exactly what needs clearing."""
+    from nflcarddb.cli import _catalog_written_inserts
+
+    class Cfg:
+        pass
+
+    cfg = Cfg()
+    cfg.inserts = "."
+    assert _catalog_written_inserts(cfg) == "."
+
+    cfg.inserts = str(tmp_path / "gone.txt")
+    assert _catalog_written_inserts(cfg) == str(tmp_path / "gone.txt")
+
+
+def test_an_unreadable_word_list_is_an_absent_one_everywhere():
+    """Guarding this at each call site is what let the same crash happen
+    twice: fixed in the startup path, then taking the audit down from a second
+    call site added the same day."""
+    from nflcarddb.parse_title import load_inserts
+
+    assert load_inserts(".") == []
+    assert load_inserts("") == []
+    assert load_inserts("/nope/nope.txt") == []
