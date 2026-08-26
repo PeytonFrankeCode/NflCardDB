@@ -372,6 +372,69 @@ def enable_setting(config_path: Optional[str], key: str, value) -> bool:
     return True
 
 
+def cmd_try_roster(args) -> int:
+    """Re-read every title with each roster in turn and report the difference.
+
+    Built because swapping the learned roster for eBay's 13,838 names lost
+    1,051 grouped cards, and nothing in the output said which of the two
+    changes in that run had done it. Guessing cost a round; measuring costs a
+    couple of minutes and settles it.
+
+    The database is left parsed with whichever roster the config names, so
+    running this changes nothing permanently.
+    """
+    from .audit import coverage
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    candidates: list[tuple[str, Optional[str]]] = []
+    for path in args.rosters:
+        if path.lower() in ("none", "-"):
+            candidates.append(("no roster", None))
+        elif Path(path).exists():
+            candidates.append((path, path))
+        else:
+            print(f"skipping {path}: not found", file=sys.stderr)
+    if not candidates:
+        print("nothing to compare", file=sys.stderr)
+        return 2
+
+    rows = []
+    for label, path in candidates:
+        print(f"re-reading with {label}...")
+        reparse_titles(db_path, path, all_rows=True)
+        stats = coverage(db_path)
+        groups = stats.get("groups", 0)
+        singles = stats.get("singleton_groups", 0)
+        rows.append({
+            "label": label,
+            "keyed": stats.get("with_key", 0),
+            "grouped_cards": groups - singles,
+            "one_off_rate": singles / groups if groups else 0.0,
+        })
+
+    print()
+    print("Which roster groups the most cards")
+    print("=" * 66)
+    print(f"  {'roster':<34}{'keyed':>9}{'grouped':>9}{'one-off':>9}")
+    for row in sorted(rows, key=lambda r: -r["grouped_cards"]):
+        print(f"  {row['label'][:33]:<34}{row['keyed']:>9,}"
+              f"{row['grouped_cards']:>9,}{row['one_off_rate']:>8.1%}")
+
+    best = max(rows, key=lambda r: r["grouped_cards"])
+    print(f"\nMost grouped cards: {best['label']}")
+    print("More grouped cards is better -- it means sales that belong to one")
+    print("card are landing on one key instead of several.")
+
+    # Leave the database as the config says it should be, so this is a
+    # measurement rather than a change.
+    settled = config.roster if config else None
+    print(f"\nLeaving the database read with: {settled or 'no roster'}")
+    reparse_titles(db_path, settled, all_rows=True)
+    return 0
+
+
 def cmd_catalog(args) -> int:
     """Build the card vocabulary from eBay's API instead of its HTML.
 
@@ -495,7 +558,10 @@ def cmd_catalog(args) -> int:
     # The roster and insert files already exist, are already wired into the
     # config, and are already read by the parser. Only their source changes --
     # from names inferred out of collected titles to eBay's own classification.
-    roster_path = Path("config/nfl_players.txt")
+    # A file of its own, not the learned roster's. Writing over that one
+    # destroyed the only thing the new list could be compared against, which
+    # is how a 1,051-card regression became impossible to attribute.
+    roster_path = Path("config/nfl_players_ebay.txt")
     words_path = Path("config/nfl_words.txt")
     players = write_roster(accumulated, roster_path)
     words = write_designations(accumulated, words_path)
@@ -1985,6 +2051,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-apply", action="store_true",
                    help="write the list but do not switch it on or reparse")
     p.set_defaults(func=cmd_roster)
+
+    p = sub.add_parser("try-roster",
+                       help="compare rosters by how well each groups cards")
+    p.add_argument("rosters", nargs="+",
+                   help="roster files to compare; 'none' for no roster")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.set_defaults(func=cmd_try_roster)
 
     p = sub.add_parser("catalog",
                        help="build the card vocabulary from eBay's API")
