@@ -332,3 +332,50 @@ def test_a_missing_or_unset_inserts_path_is_not_a_crash():
 
     assert _catalog_written_inserts(Cfg()) is None
     assert _catalog_written_inserts(None) is None
+
+
+def test_blanking_a_setting_removes_it_rather_than_writing_a_dot(tmp_path):
+    """`Path("").as_posix()` is ".", so blanking a setting wrote `inserts: .`
+    and every command died opening the current directory as a word list."""
+    from nflcarddb.cli import disable_setting
+    from nflcarddb.config import load_config
+
+    config = tmp_path / "q.yml"
+    config.write_text("database: x.sqlite\ninserts: config/old.txt\n"
+                      "queries:\n  - id: a\n    keywords: football\n",
+                      encoding="utf-8")
+
+    assert disable_setting(str(config), "inserts") is True
+    assert "inserts" not in config.read_text(encoding="utf-8")
+    assert load_config(str(config)).inserts is None
+
+
+def test_an_unusable_word_list_warns_instead_of_crashing(tmp_path, capsys):
+    """A directory exists and then raises on open. That took down every
+    command in the project before it had started."""
+    from nflcarddb.cli import _register_learned_vocabulary
+
+    config = tmp_path / "q.yml"
+    config.write_text(f"database: x.sqlite\ninserts: {tmp_path.as_posix()}\n"
+                      "queries:\n  - id: a\n    keywords: football\n",
+                      encoding="utf-8")
+
+    class Args:
+        pass
+
+    args = Args()
+    args.config = str(config)
+    _register_learned_vocabulary(args)          # must not raise
+    assert "not usable" in capsys.readouterr().err
+
+
+def test_the_catalogue_does_not_switch_the_roster_over():
+    """It measured worse: 4,395 grouped cards with the learned list against
+    4,187 with eBay's. The file is written; turning it on is a decision."""
+    import inspect
+
+    from nflcarddb import cli
+
+    source = inspect.getsource(cli.cmd_catalog)
+    assert '("designations", words_path),' in source
+    assert '("roster", roster_path)' not in source

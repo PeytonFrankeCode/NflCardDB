@@ -337,6 +337,28 @@ def enable_roster(config_path: Optional[str], roster_path) -> bool:
     return enable_setting(config_path, "roster", roster_path)
 
 
+def disable_setting(config_path: Optional[str], key: str) -> bool:
+    """Remove a top-level config key entirely.
+
+    Not "set it to empty": `Path("").as_posix()` is `"."`, so blanking a
+    setting wrote `inserts: .` and every command then died trying to open the
+    current directory as a word list.
+    """
+    path = Path(config_path or "")
+    if not path.exists():
+        return False
+    try:
+        original = path.read_text(encoding="utf-8")
+        kept = [line for line in original.splitlines()
+                if not line.strip().startswith(f"{key}:")]
+        if len(kept) == len(original.splitlines()):
+            return False
+        path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
 def enable_setting(config_path: Optional[str], key: str, value) -> bool:
     """Set a top-level config key to a path, editing the file in place.
 
@@ -600,12 +622,21 @@ def cmd_catalog(args) -> int:
     # anyone to notice.
     stale = _catalog_written_inserts(config)
     if stale:
-        enable_setting(args.config, "inserts", "")
+        disable_setting(args.config, "inserts")
         print(f"\nCleared `inserts: {stale}` -- that file holds eBay's "
               f"parallels,\nwhich are claim-only now. Run inserts.bat if you "
               f"want a learned\ninsert list back.")
 
-    for key, path in (("roster", roster_path), ("designations", words_path)):
+    # The roster is written but NOT switched on, because it measures worse.
+    # Head to head over the same 56,415 titles: the learned 995 names gave
+    # 48,813 keyed and 4,395 grouped cards; eBay's 13,838 gave 48,598 and
+    # 4,187. More names turned out to mean more ways to disagree about which
+    # name a title holds. try-roster is there to re-check that whenever either
+    # list changes -- this is a measurement, not a permanent verdict.
+    print(f"\nNot switching the roster over: the learned list currently")
+    print(f"groups more cards. Compare them yourself with try-rosters.bat.")
+
+    for key, path in (("designations", words_path),):
         if not enable_setting(args.config, key, path):
             print(f"\nCould not edit {args.config}; add:  {key}: "
                   f"{path.as_posix()}", file=sys.stderr)
@@ -616,9 +647,10 @@ def cmd_catalog(args) -> int:
 
     register_designations(load_inserts(words_path))
     db_path = config.database if config else "data/nflcarddb.sqlite"
+    roster_in_use = config.roster if config else None
     before = coverage(db_path)
     print("\nRe-reading every title. This takes a minute.")
-    reparse_titles(db_path, str(roster_path), all_rows=True)
+    reparse_titles(db_path, roster_in_use, all_rows=True)
     after = coverage(db_path)
 
     print("\nWhat changed")
@@ -2377,16 +2409,23 @@ def _register_learned_vocabulary(args) -> None:
         config = load_config(config_path)
     except (ValueError, OSError):
         return          # the command itself will report a bad config
-    if config.inserts and Path(config.inserts).exists():
-        register_inserts(load_inserts(config.inserts))
-    elif config.inserts:
-        print(f"warning: inserts file not found: {config.inserts}", file=sys.stderr)
-
-    if config.designations and Path(config.designations).exists():
-        register_designations(load_inserts(config.designations))
-    elif config.designations:
-        print(f"warning: words file not found: {config.designations}",
-              file=sys.stderr)
+    # is_file(), not exists(): a blanked setting became "." -- a directory,
+    # which exists and then raises PermissionError on open, taking down every
+    # command in the project before it had started.
+    for label, path, register in (
+        ("inserts", config.inserts, register_inserts),
+        ("words", getattr(config, "designations", None), register_designations),
+    ):
+        if not path:
+            continue
+        if not Path(path).is_file():
+            print(f"warning: {label} file not usable: {path}", file=sys.stderr)
+            continue
+        try:
+            register(load_inserts(path))
+        except OSError as exc:
+            print(f"warning: could not read {label} file {path}: {exc}",
+                  file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
