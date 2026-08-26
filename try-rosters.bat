@@ -19,14 +19,16 @@ echo      titles?
 echo   2. Do eBay's insert names ("Fireworks", "Touchdown
 echo      Masters") count as part of a card's identity, or are
 echo      they just kept out of the player's name?
+echo   3. Does eBay's list of 7,881 set names help, or does the
+echo      built-in list already cover what your sales contain?
 echo.
 echo Each swap has moved the numbers by about a thousand cards
 echo one way or the other, and no run has ever tested one on
 echo its own.
 echo.
 echo So this reads all your titles once for every combination,
-echo reports which wins, and switches to it. Four passes, a
-echo few minutes.
+echo reports which wins, and switches to it. Up to eight
+echo passes, so give it ten minutes or so.
 echo.
 
 nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt --apply

@@ -435,7 +435,7 @@ def cmd_try_vocab(args) -> int:
     """
     from .audit import coverage
     from .parse_title import (load_inserts, register_designations,
-                              register_inserts)
+                              register_inserts, register_sets)
 
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
@@ -452,22 +452,33 @@ def cmd_try_vocab(args) -> int:
     else:
         print(f"no words in {args.words!r}; comparing rosters only\n")
 
+    harvested_sets = load_inserts(args.sets) if args.sets else []
+    set_modes = [("", [])]
+    if harvested_sets:
+        set_modes.append((" + ebay sets", harvested_sets))
+
     rows = []
     for roster_name, roster_path in rosters:
         for mode_name, keyed in modes:
-            register_inserts(words if keyed else [])
-            register_designations([] if keyed else words)
-            print(f"reading with {roster_name} / words {mode_name}...")
-            reparse_titles(db_path, roster_path, all_rows=True)
-            stats = coverage(db_path)
-            groups = stats.get("groups", 0)
-            singles = stats.get("singleton_groups", 0)
-            rows.append({
-                "label": f"{roster_name} + words {mode_name}",
-                "keyed": stats.get("with_key", 0),
-                "grouped": groups - singles,
-                "rate": singles / groups if groups else 0.0,
-            })
+            for set_label, set_names in set_modes:
+                register_inserts(words if keyed else [])
+                register_designations([] if keyed else words)
+                register_sets(set_names)
+                label = f"{roster_name} + words {mode_name}{set_label}"
+                print(f"reading with {label}...")
+                reparse_titles(db_path, roster_path, all_rows=True)
+                stats = coverage(db_path)
+                groups = stats.get("groups", 0)
+                singles = stats.get("singleton_groups", 0)
+                rows.append({
+                    "label": label,
+                    "keyed": stats.get("with_key", 0),
+                    "grouped": groups - singles,
+                    "rate": singles / groups if groups else 0.0,
+                    "roster": roster_path,
+                    "words_keyed": keyed,
+                    "sets": bool(set_names),
+                })
 
     print()
     print("Every combination, measured on the same titles")
@@ -487,8 +498,11 @@ def cmd_try_vocab(args) -> int:
         # to translate a table into two config lines. The measurement and the
         # decision are the same act; splitting them is how the config ended up
         # on the third-best row while a report said which row was first.
-        winner_roster = next(p for name, p in rosters if best["label"].startswith(name))
-        keyed = best["label"].endswith("keyed")
+        # Read off the winning row rather than parsed back out of its label:
+        # a label is for people, and deriving behaviour from one is how
+        # "endswith('keyed')" would have quietly matched "words claimed only".
+        winner_roster = best["roster"]
+        keyed = best["words_keyed"]
         enable_setting(args.config, "roster", winner_roster)
         if keyed:
             enable_setting(args.config, "inserts", args.words)
@@ -496,11 +510,17 @@ def cmd_try_vocab(args) -> int:
         else:
             enable_setting(args.config, "designations", args.words)
             disable_setting(args.config, "inserts")
+        if best["sets"]:
+            enable_setting(args.config, "sets", args.sets)
+        else:
+            disable_setting(args.config, "sets")
         print(f"\nApplied. roster: {Path(winner_roster).as_posix()}")
         print(f"          words:  {'keyed' if keyed else 'claimed only'}")
+        print(f"          sets:   {'eBay list on' if best['sets'] else 'built-in only'}")
 
         register_inserts(words if keyed else [])
         register_designations([] if keyed else words)
+        register_sets(harvested_sets if best["sets"] else [])
         reparse_titles(db_path, winner_roster, all_rows=True)
         print("Every title re-read with it.")
         return 0
@@ -509,6 +529,7 @@ def cmd_try_vocab(args) -> int:
     register_inserts(load_inserts(config.inserts) if config and config.inserts else [])
     register_designations(
         load_inserts(config.designations) if config and config.designations else [])
+    register_sets(load_inserts(config.sets) if config and config.sets else [])
     settled = config.roster if config else None
     print(f"\nLeaving the database read with: {settled or 'no roster'}")
     print("(run again with --apply to switch to the winner)")
@@ -591,7 +612,7 @@ def cmd_catalog(args) -> int:
                            save_credentials)
     from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
                          drillable, load_store, merge, save_store,
-                         write_designations, write_roster)
+                         write_designations, write_roster, write_sets)
 
     credentials = load_credentials()
     if args.app_id and args.cert_id:
@@ -707,12 +728,17 @@ def cmd_catalog(args) -> int:
     # is how a 1,051-card regression became impossible to attribute.
     roster_path = Path("config/nfl_players_ebay.txt")
     words_path = Path("config/nfl_words.txt")
+    sets_path = Path("config/nfl_sets.txt")
     players = write_roster(accumulated, roster_path)
     words = write_designations(accumulated, words_path)
+    set_names = write_sets(accumulated, sets_path)
     print(f"\nWrote {players:,} player names      -> {roster_path}")
     print(f"Wrote {words:,} words to claim -> {words_path}")
+    print(f"Wrote {set_names:,} set names   -> {sets_path}")
     print("(claimed so they stay out of player names, NOT part of the key --")
     print(" keying them split 1,051 cards apart when it was tried)")
+    print("(set names are written but NOT switched on -- try-rosters.bat")
+    print(" measures whether they help before anything uses them)")
 
     # An earlier version of this command wrote eBay's parallels over
     # config/nfl_inserts.txt and pointed `inserts:` at them, which keyed the
@@ -2237,6 +2263,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("rosters", nargs="+", help="roster files to compare")
     p.add_argument("--words", default="config/nfl_words.txt",
                    help="harvested word list to try keyed and claim-only")
+    p.add_argument("--sets", default="config/nfl_sets.txt",
+                   help="harvested set list to try on and off")
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
     p.add_argument("--apply", action="store_true",
@@ -2511,7 +2539,7 @@ def _register_learned_vocabulary(args) -> None:
     broken path is reported rather than swallowed.
     """
     from .parse_title import (load_inserts, register_designations,
-                              register_inserts)
+                              register_inserts, register_sets)
 
     config_path = getattr(args, "config", None)
     if not config_path or not Path(config_path).exists():
@@ -2526,6 +2554,7 @@ def _register_learned_vocabulary(args) -> None:
     for label, path, register in (
         ("inserts", config.inserts, register_inserts),
         ("words", getattr(config, "designations", None), register_designations),
+        ("sets", getattr(config, "sets", None), register_sets),
     ):
         if not path:
             continue

@@ -520,3 +520,82 @@ def test_without_apply_the_config_is_left_alone(tmp_path):
     finally:
         register_inserts([])
         register_designations([])
+
+
+# --- eBay's set names, folded onto the ones the parser already knows --------
+
+
+def test_a_year_and_sport_come_off_an_ebay_set_name():
+    from nflcarddb.facets import normalise_set
+
+    assert normalise_set("2024 Panini Donruss") == "Panini Donruss"
+    assert normalise_set("2025 Topps Chrome Football") == "Topps Chrome"
+    assert normalise_set("2022-23 Panini Prizm") == "Panini Prizm"
+
+
+def test_a_brand_prefixed_spelling_folds_onto_the_known_set():
+    """eBay writes "Panini Donruss" where the parser holds "Donruss", and
+    titles use both. Registering the eBay spelling as a separate set would
+    split one card between sellers who typed the brand and sellers who did
+    not."""
+    from nflcarddb.card_key import card_key
+    from nflcarddb.parse_title import parse_title, register_sets
+
+    try:
+        register_sets(["Panini Donruss"])
+        with_brand = parse_title("2024 Panini Donruss Caleb Williams #201")
+        without = parse_title("2024 Donruss Caleb Williams #201")
+        assert with_brand.set_name == without.set_name == "Donruss"
+        assert card_key(with_brand) == card_key(without)
+    finally:
+        register_sets([])
+
+
+def test_a_brand_that_is_part_of_the_product_name_is_kept():
+    """"Topps Chrome" is the product. Stripping the brand would give "Chrome",
+    which is a different set."""
+    from nflcarddb.parse_title import parse_title, register_sets
+
+    try:
+        register_sets(["Topps Chrome"])
+        assert parse_title(
+            "2025 Topps Chrome Jaxson Dart #306").set_name == "Topps Chrome"
+    finally:
+        register_sets([])
+
+
+def test_a_genuinely_new_product_is_added(tmp_path):
+    from nflcarddb.parse_title import parse_title, register_sets
+
+    try:
+        assert register_sets(["Leaf Metal Draft"]) == 1
+        assert parse_title(
+            "2024 Leaf Metal Draft Travis Hunter #5").set_name == "Leaf Metal Draft"
+    finally:
+        register_sets([])
+
+
+def test_single_word_set_names_are_not_harvested(tmp_path):
+    """At this scale a one-word set name is far likelier to be a common word
+    that matches half the titles it sees than a product nobody has heard of."""
+    from nflcarddb.facets import write_sets
+
+    path = tmp_path / "sets.txt"
+    write_sets({"Set": {"2024 Panini Donruss": 90, "2024 Legacy": 40,
+                        "2024 Leaf Metal Draft": 20}}, path)
+    written = [l for l in path.read_text(encoding="utf-8").splitlines()
+               if l and not l.startswith("#")]
+    assert "Leaf Metal Draft" in written
+    assert "Legacy" not in written
+
+
+def test_registering_sets_replaces_rather_than_accumulates():
+    from nflcarddb.parse_title import parse_title, register_sets
+
+    try:
+        register_sets(["Leaf Metal Draft"])
+        register_sets(["Wild Card Matte"])
+        assert parse_title("2024 Leaf Metal Draft Travis Hunter #5").set_name != \
+            "Leaf Metal Draft"
+    finally:
+        register_sets([])
