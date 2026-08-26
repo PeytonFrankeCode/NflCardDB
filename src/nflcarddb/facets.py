@@ -333,14 +333,20 @@ def write_roster(store: dict[str, dict[str, Optional[int]]], path) -> int:
     return len(names)
 
 
-def write_inserts(store: dict[str, dict[str, Optional[int]]], path) -> int:
-    """Write the insert names eBay knows that the built-in vocabulary does not.
+def write_designations(store: dict[str, dict[str, Optional[int]]], path) -> int:
+    """Write eBay's Parallel/Variety list as words to claim, not to key.
 
-    Only the ones not already handled: a name that is already a PARALLEL keeps
-    being read as a parallel, because subsets are claimed before parallels and
-    moving a well-understood name across would rewrite working keys for no
-    gain. What is left is the long tail -- Genies, Sunday Kings and the several
-    hundred others that were being typed in by hand a dozen at a time.
+    Wired in as inserts, these 760 names cost a measured regression: grouped
+    cards fell from 5,238 to 4,187 and the one-off rate rose 3.6 points.
+
+    The reason is what the field is. Parallel/Variety is filled in on eBay's
+    listing *form*, and does not have to appear in the title at all -- so
+    keying it splits every card between sellers who typed the word and sellers
+    who only ticked the box. That is the "Rated Rookie" failure at 760x scale.
+
+    Claimed rather than keyed, they still do the job that started this: they
+    stop insert names being read as part of the player's name. Names already
+    understood are skipped, so the built-in decisions keep their meaning.
     """
     from pathlib import Path
 
@@ -354,11 +360,13 @@ def write_inserts(store: dict[str, dict[str, Optional[int]]], path) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         "\n".join([
-            "# Insert and parallel names from eBay's own Parallel/Variety",
+            "# Parallel and insert names from eBay's own Parallel/Variety",
             "# classification, fetched by `nflcarddb catalog`.",
             "#",
-            "# An insert restarts its numbering at one, so its name is part of",
-            "# a card's identity. Names already understood are left out.",
+            "# These are CLAIMED, not keyed: they are kept out of the player's",
+            "# name, but they do not become part of a card's identity. eBay's",
+            "# sellers tick this on a form without necessarily typing it in the",
+            "# title, so keying it splits one card into two.",
             "",
             *names,
         ]) + "\n",

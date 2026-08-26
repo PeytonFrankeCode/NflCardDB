@@ -275,6 +275,48 @@ _INSERT_LOOKUP = {t.lower() for t in INSERTS}
 _LEARNED_INSERTS: tuple[str, ...] = ()
 
 
+_LEARNED_DESIGNATIONS: tuple[str, ...] = ()
+
+
+def register_designations(names: Iterable[str]) -> int:
+    """Words to claim out of a title without letting them into the key.
+
+    This is where eBay's Parallel/Variety list belongs, and finding that out
+    cost a measured regression: wired in as inserts, those 760 names dropped
+    grouped cards from 5,238 to 4,187.
+
+    The reason is what the field is. Parallel/Variety is filled in on eBay's
+    listing *form*; it does not have to appear in the title at all. So keying
+    it splits every card between sellers who typed the word and sellers who
+    only ticked the box -- the same failure as "Rated Rookie", at 760x the
+    scale.
+
+    Claimed, they still earn their keep: they stop insert names being read as
+    part of the player's name, which is the bug that started all of this.
+    """
+    global _LEARNED_DESIGNATIONS
+    reserved = {t.lower() for t in (*INSERTS, *DESIGNATIONS)}
+    _LEARNED_DESIGNATIONS = tuple(
+        n.strip() for n in names
+        if n.strip() and n.strip().lower() not in reserved
+    )
+    _rebuild_vocabulary()
+    return len(_LEARNED_DESIGNATIONS)
+
+
+def _rebuild_vocabulary() -> None:
+    """Recompile the patterns after a learned list changes."""
+    global SUBSETS, SUBSET_PAT, _CANONICAL, _INSERT_LOOKUP
+
+    SUBSETS = (INSERTS + _LEARNED_INSERTS + DESIGNATIONS
+               + _LEARNED_DESIGNATIONS)
+    SUBSET_PAT = _vocab_pattern(SUBSETS)
+    _CANONICAL = {t.lower(): t
+                  for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
+    # Only inserts key. Learned designations are claimed and then dropped.
+    _INSERT_LOOKUP = {t.lower() for t in (*INSERTS, *_LEARNED_INSERTS)}
+
+
 def register_inserts(names: Iterable[str]) -> int:
     """Add learned insert names to the vocabulary, replacing any previous set.
 
@@ -286,7 +328,7 @@ def register_inserts(names: Iterable[str]) -> int:
     Replaces rather than accumulates so calling it twice is the same as calling
     it once, and so tests can clear it with an empty list.
     """
-    global _LEARNED_INSERTS, SUBSETS, SUBSET_PAT, _CANONICAL, _INSERT_LOOKUP
+    global _LEARNED_INSERTS
 
     # DESIGNATIONS are excluded as well as INSERTS, and that is the important
     # half. A built-in designation is a deliberate decision that a word is
@@ -299,11 +341,7 @@ def register_inserts(names: Iterable[str]) -> int:
         n.strip() for n in names
         if n.strip() and n.strip().lower() not in reserved
     )
-    SUBSETS = INSERTS + _LEARNED_INSERTS + DESIGNATIONS
-    SUBSET_PAT = _vocab_pattern(SUBSETS)
-    _CANONICAL = {t.lower(): t
-                  for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
-    _INSERT_LOOKUP = {t.lower() for t in (*INSERTS, *_LEARNED_INSERTS)}
+    _rebuild_vocabulary()
     return len(_LEARNED_INSERTS)
 
 
