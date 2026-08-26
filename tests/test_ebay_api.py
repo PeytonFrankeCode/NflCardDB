@@ -452,3 +452,71 @@ def test_every_combination_is_measured_and_nothing_is_left_changed(tmp_path,
     # config's, not the last combination tried.
     from nflcarddb.parse_title import _LEARNED_INSERTS
     assert _LEARNED_INSERTS == ()
+
+
+def _vocab_fixture(tmp_path):
+    from nflcarddb import db as store
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import parse_title
+
+    db = tmp_path / "v.db"
+    conn = store.connect(db)
+    run = store.start_run(conn, "2026-08-26")
+    # Two sales of one card, one seller naming the insert and one not. Keying
+    # the word splits them; claiming it keeps them together.
+    titles = ["2025 Panini Mosaic Josh Allen Moonstruck #9 Insert",
+              "2025 Panini Mosaic Josh Allen #9"]
+    sales = [Sale(item_id=str(9000 + i), title=t, price_cents=100,
+                  sold_date="2026-08-26") for i, t in enumerate(titles)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "t")
+    conn.close()
+
+    roster = tmp_path / "nfl_players.txt"
+    roster.write_text("Josh Allen\n", encoding="utf-8")
+    words = tmp_path / "words.txt"
+    words.write_text("Moonstruck\n", encoding="utf-8")
+    config = tmp_path / "q.yml"
+    config.write_text(
+        f"database: {db.as_posix()}\nroster: {roster.as_posix()}\n"
+        f"inserts: {words.as_posix()}\n"
+        "queries:\n  - id: a\n    keywords: football\n", encoding="utf-8")
+    return db, roster, words, config
+
+
+def test_applying_writes_the_winner_into_the_config(tmp_path):
+    """Measuring and deciding are the same act. Splitting them is how the
+    config ended up on the third-best row while a report named the first."""
+    from nflcarddb.cli import main
+    from nflcarddb.config import load_config
+    from nflcarddb.parse_title import register_designations, register_inserts
+
+    db, roster, words, config = _vocab_fixture(tmp_path)
+    try:
+        assert main(["try-vocab", str(roster), "--words", str(words),
+                     "--config", str(config), "--apply"]) == 0
+
+        settled = load_config(str(config))
+        # Claim-only wins here: it keeps the two sales on one card.
+        assert settled.designations == words.as_posix()
+        assert settled.inserts is None
+        assert settled.roster == roster.as_posix()
+    finally:
+        register_inserts([])
+        register_designations([])
+
+
+def test_without_apply_the_config_is_left_alone(tmp_path):
+    from nflcarddb.cli import main
+    from nflcarddb.config import load_config
+    from nflcarddb.parse_title import register_designations, register_inserts
+
+    db, roster, words, config = _vocab_fixture(tmp_path)
+    before = config.read_text(encoding="utf-8")
+    try:
+        assert main(["try-vocab", str(roster), "--words", str(words),
+                     "--config", str(config)]) == 0
+        assert config.read_text(encoding="utf-8") == before
+    finally:
+        register_inserts([])
+        register_designations([])

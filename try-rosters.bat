@@ -24,13 +24,12 @@ echo Each swap has moved the numbers by about a thousand cards
 echo one way or the other, and no run has ever tested one on
 echo its own.
 echo.
-echo So this reads all your titles once for every combination
-echo and reports which wins. Four passes, a few minutes.
-echo Nothing is changed - it ends by putting things back the
-echo way your config says.
+echo So this reads all your titles once for every combination,
+echo reports which wins, and switches to it. Four passes, a
+echo few minutes.
 echo.
 
-nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt
+nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt --apply
 if errorlevel 1 goto BROKEN
 
 echo.

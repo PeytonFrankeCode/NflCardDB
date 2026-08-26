@@ -482,12 +482,36 @@ def cmd_try_vocab(args) -> int:
     print("More grouped cards is better -- sales that belong to one card")
     print("landing on one key instead of several.")
 
+    if args.apply:
+        # Writing the winner in, rather than reporting it and leaving someone
+        # to translate a table into two config lines. The measurement and the
+        # decision are the same act; splitting them is how the config ended up
+        # on the third-best row while a report said which row was first.
+        winner_roster = next(p for name, p in rosters if best["label"].startswith(name))
+        keyed = best["label"].endswith("keyed")
+        enable_setting(args.config, "roster", winner_roster)
+        if keyed:
+            enable_setting(args.config, "inserts", args.words)
+            disable_setting(args.config, "designations")
+        else:
+            enable_setting(args.config, "designations", args.words)
+            disable_setting(args.config, "inserts")
+        print(f"\nApplied. roster: {Path(winner_roster).as_posix()}")
+        print(f"          words:  {'keyed' if keyed else 'claimed only'}")
+
+        register_inserts(words if keyed else [])
+        register_designations([] if keyed else words)
+        reparse_titles(db_path, winner_roster, all_rows=True)
+        print("Every title re-read with it.")
+        return 0
+
     # Put the database back the way the config describes it.
     register_inserts(load_inserts(config.inserts) if config and config.inserts else [])
     register_designations(
         load_inserts(config.designations) if config and config.designations else [])
     settled = config.roster if config else None
     print(f"\nLeaving the database read with: {settled or 'no roster'}")
+    print("(run again with --apply to switch to the winner)")
     reparse_titles(db_path, settled, all_rows=True)
     return 0
 
@@ -2215,6 +2239,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="harvested word list to try keyed and claim-only")
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
+    p.add_argument("--apply", action="store_true",
+                   help="switch to whichever combination groups the most")
     p.set_defaults(func=cmd_try_vocab)
 
     p = sub.add_parser("try-roster",
