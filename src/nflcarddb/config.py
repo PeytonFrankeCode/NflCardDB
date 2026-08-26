@@ -61,6 +61,7 @@ class Config:
     database: str = "data/nflcarddb.sqlite"
     roster: Optional[str] = None
     inserts: Optional[str] = None
+    designations: Optional[str] = None
     fetch: FetchConfig = field(default_factory=FetchConfig)
     price_bands: list[list[Optional[float]]] = field(default_factory=lambda: list(DEFAULT_BANDS))
     queries: list[QuerySpec] = field(default_factory=list)
@@ -100,6 +101,7 @@ def load_config(path: str | Path | None = None) -> Config:
         database=raw.get("database", "data/nflcarddb.sqlite"),
         roster=raw.get("roster"),
         inserts=raw.get("inserts"),
+        designations=raw.get("designations"),
         fetch=fetch,
         price_bands=raw.get("price_bands") or list(DEFAULT_BANDS),
         queries=queries,

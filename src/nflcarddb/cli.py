@@ -384,7 +384,7 @@ def cmd_catalog(args) -> int:
                            save_credentials)
     from .facets import (HARVESTER_VERSION, as_vocabulary, bucket_of,
                          drillable, load_store, merge, save_store,
-                         write_inserts, write_roster)
+                         write_designations, write_roster)
 
     credentials = load_credentials()
     if args.app_id and args.cert_id:
@@ -496,22 +496,24 @@ def cmd_catalog(args) -> int:
     # config, and are already read by the parser. Only their source changes --
     # from names inferred out of collected titles to eBay's own classification.
     roster_path = Path("config/nfl_players.txt")
-    inserts_path = Path("config/nfl_inserts.txt")
+    words_path = Path("config/nfl_words.txt")
     players = write_roster(accumulated, roster_path)
-    inserts = write_inserts(accumulated, inserts_path)
-    print(f"\nWrote {players:,} player names -> {roster_path}")
-    print(f"Wrote {inserts:,} insert names   -> {inserts_path}")
+    words = write_designations(accumulated, words_path)
+    print(f"\nWrote {players:,} player names      -> {roster_path}")
+    print(f"Wrote {words:,} words to claim -> {words_path}")
+    print("(claimed so they stay out of player names, NOT part of the key --")
+    print(" keying them split 1,051 cards apart when it was tried)")
 
-    for key, path in (("roster", roster_path), ("inserts", inserts_path)):
+    for key, path in (("roster", roster_path), ("designations", words_path)):
         if not enable_setting(args.config, key, path):
             print(f"\nCould not edit {args.config}; add:  {key}: "
                   f"{path.as_posix()}", file=sys.stderr)
             return 1
 
     from .audit import coverage
-    from .parse_title import load_inserts, register_inserts
+    from .parse_title import load_inserts, register_designations
 
-    register_inserts(load_inserts(inserts_path))
+    register_designations(load_inserts(words_path))
     db_path = config.database if config else "data/nflcarddb.sqlite"
     before = coverage(db_path)
     print("\nRe-reading every title. This takes a minute.")
@@ -2243,7 +2245,8 @@ def _register_learned_vocabulary(args) -> None:
     failure here would show up as inserts quietly not being recognised, so a
     broken path is reported rather than swallowed.
     """
-    from .parse_title import load_inserts, register_inserts
+    from .parse_title import (load_inserts, register_designations,
+                              register_inserts)
 
     config_path = getattr(args, "config", None)
     if not config_path or not Path(config_path).exists():
@@ -2252,12 +2255,16 @@ def _register_learned_vocabulary(args) -> None:
         config = load_config(config_path)
     except (ValueError, OSError):
         return          # the command itself will report a bad config
-    if not config.inserts:
-        return
-    if not Path(config.inserts).exists():
+    if config.inserts and Path(config.inserts).exists():
+        register_inserts(load_inserts(config.inserts))
+    elif config.inserts:
         print(f"warning: inserts file not found: {config.inserts}", file=sys.stderr)
-        return
-    register_inserts(load_inserts(config.inserts))
+
+    if config.designations and Path(config.designations).exists():
+        register_designations(load_inserts(config.designations))
+    elif config.designations:
+        print(f"warning: words file not found: {config.designations}",
+              file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

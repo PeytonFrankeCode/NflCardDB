@@ -177,25 +177,25 @@ def test_the_roster_is_written_from_ebays_player_list(tmp_path):
 
 
 def test_a_name_the_built_in_list_already_has_is_not_duplicated(tmp_path):
-    """Genies was typed in by hand two rounds ago. eBay has it too, and it
-    should be written once, not twice."""
-    from nflcarddb.facets import write_inserts
+    """Genies was typed in by hand two rounds ago, and keys correctly. eBay
+    has it too; re-writing it as a claim-only word would demote it."""
+    from nflcarddb.facets import write_designations
 
     path = tmp_path / "inserts.txt"
-    write_inserts({"Parallel/Variety": {"Genies": 9}}, path)
+    write_designations({"Parallel/Variety": {"Genies": 9}}, path)
     written = [l for l in path.read_text(encoding="utf-8").splitlines()
                if l and not l.startswith("#")]
     assert written == []
 
 
-def test_names_already_understood_are_left_out_of_the_insert_file(tmp_path):
-    """"Silver Prizm" and "Refractor" are already parallels. Subsets are
-    claimed before parallels, so moving them across would rewrite working keys
-    for no gain."""
-    from nflcarddb.facets import write_inserts
+def test_names_already_understood_are_left_out_of_the_file(tmp_path):
+    """"Silver Prizm" and "Refractor" are already parallels and already key.
+    Rewriting them as claim-only words would strip them out of identities that
+    currently work."""
+    from nflcarddb.facets import write_designations
 
     path = tmp_path / "inserts.txt"
-    write_inserts(STORE, path)
+    write_designations(STORE, path)
     written = [l for l in path.read_text(encoding="utf-8").splitlines()
                if l and not l.startswith("#")]
 
@@ -205,28 +205,35 @@ def test_names_already_understood_are_left_out_of_the_insert_file(tmp_path):
     assert "Refractor" not in written
 
 
-def test_the_insert_file_feeds_straight_back_into_the_parser(tmp_path):
-    """End to end: a name eBay knows and the built-in list does not becomes
-    part of the card's identity."""
+def test_a_claimed_word_is_kept_out_of_the_name_without_changing_the_key(tmp_path):
+    """The correction that cost a regression. Keyed, these 760 names dropped
+    grouped cards from 5,238 to 4,187 -- because eBay's Parallel/Variety is
+    ticked on a form and need not appear in the title at all. Claimed, they
+    still stop the word being read as part of the player's name."""
     from nflcarddb.card_key import card_key
-    from nflcarddb.facets import write_inserts
+    from nflcarddb.facets import write_designations
     from nflcarddb.parse_title import (load_inserts, parse_title,
-                                       register_inserts)
+                                       register_designations)
 
-    path = tmp_path / "inserts.txt"
-    write_inserts({"Parallel/Variety": {"Moonstruck": 50}}, path)
+    path = tmp_path / "words.txt"
+    write_designations({"Parallel/Variety": {"Moonstruck": 50}}, path)
     try:
-        base = parse_title("2025 Panini Donruss Optic Derrick Henry #11")
-        register_inserts(load_inserts(path))
-        insert = parse_title("2025 Panini Donruss Optic Derrick Henry Moonstruck #11")
-        assert card_key(base) != card_key(insert)
+        register_designations(load_inserts(path))
+        with_word = parse_title(
+            "2025 Panini Donruss Optic Derrick Henry Moonstruck #11")
+        without = parse_title("2025 Panini Donruss Optic Derrick Henry #11")
+
+        # Same card either way -- that is the whole point.
+        assert card_key(with_word) == card_key(without)
+        # ...and the word did not end up in the player's name.
+        assert with_word.player == "Derrick Henry"
     finally:
-        register_inserts([])
+        register_designations([])
 
 
 def test_placeholders_never_reach_the_vocabulary_files(tmp_path):
     """"Not Specified" as a player name would be a card belonging to nobody."""
-    from nflcarddb.facets import write_inserts, write_roster
+    from nflcarddb.facets import write_designations, write_roster
 
     dirty = {"Player/Athlete": {"Not Specified": 90000, "Tom Brady": 5},
              "Parallel/Variety": {"[Base]": 900, "Moonstruck": 5}}
@@ -236,5 +243,35 @@ def test_placeholders_never_reach_the_vocabulary_files(tmp_path):
     assert "Not Specified" not in roster.read_text(encoding="utf-8")
 
     inserts = tmp_path / "i.txt"
-    write_inserts(dirty, inserts)
+    write_designations(dirty, inserts)
     assert "[Base]" not in inserts.read_text(encoding="utf-8")
+
+
+def test_a_learned_word_can_never_become_part_of_a_key():
+    """The guard the regression bought. Whatever arrives in the claim-only
+    list, it must not reach card_key -- 760 of them cost 1,051 grouped cards."""
+    from nflcarddb.card_key import card_key
+    from nflcarddb.parse_title import parse_title, register_designations
+
+    try:
+        register_designations(["Moonstruck", "Stargazing", "Holo Foil"])
+        keys = {card_key(parse_title(t)) for t in [
+            "2025 Panini Donruss Optic Derrick Henry #11",
+            "2025 Panini Donruss Optic Derrick Henry Moonstruck #11",
+            "2025 Panini Donruss Optic Derrick Henry Holo Foil #11",
+        ]}
+        assert len(keys) == 1
+    finally:
+        register_designations([])
+
+
+def test_a_claimed_word_does_not_override_a_built_in_insert():
+    """Genies keys, and a claim-only list must not take that away."""
+    from nflcarddb.parse_title import parse_title, register_designations
+
+    try:
+        register_designations(["Genies"])
+        assert parse_title(
+            "2025 Panini Phoenix Bo Nix Genies #8").subset == "Genies"
+    finally:
+        register_designations([])
