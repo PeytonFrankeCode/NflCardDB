@@ -60,8 +60,8 @@ Prime
 Wood
 Gold Refractor
 Purple Refractor
-Orange Refractor
 Jersey
+Orange Refractor
 Red Zone
 Green Pulsar Prizm
 Holo Silver
@@ -213,13 +213,13 @@ Masterpiece
 Gold Holofoil
 Orange Pulsar Prizm
 Gold Medallion Edition
-Neon Blue
 Artist Proof
+Neon Blue
 Gold Xs
 Holographic
 Mojo Refractor
-Blue Shimmer
 Orange Wave
+Blue Shimmer
 Chrome Purple Refractor
 Radiance
 Image Variations
@@ -288,8 +288,8 @@ BCA Pink
 Choice Green
 Holo Purple
 Black Prismatic
-Bronze Refractor
 Orange Pulsar
+Bronze Refractor
 Electric Etch Yellow
 Nebula
 Laundry Tag
@@ -318,16 +318,16 @@ Pink BCA
 Red Disco
 Royal Blue
 Crystal Purple
-Gold Rainbow
 Black Shimmer
+Gold Rainbow
 Gold Vinyl Prizm
 Spectrum Gold
 Rapture
 Silver Portrait
 Thin Stock
 Premium Patch
-UD Exclusives
 Light Blue Die-Cut
+UD Exclusives
 Pink Hyper
 Holo Orange
 Teal Prizm
@@ -432,8 +432,8 @@ Red Explosion
 150th Anniversary
 Artist Proof Gold
 Emerald Foil
-Asia Red
 Red White & Blue Mojo
+Asia Red
 UD Exclusives Silver
 Lucky Envelopes Prizm
 FOTL Purple
@@ -476,8 +476,8 @@ Purple Flood
 Gold Hyper
 FOTL Blue Scope
 Rainbow Prizm
-Dynamite
 UD Exclusives Gold
+Dynamite
 Black Laser
 Gold Hologram
 Home Team Advantage
@@ -551,10 +551,10 @@ FOTL Platinum
 Spectrum FX
 SportsFest Chicago
 Super Rave
-Choice Nebula
 Green Flood
 Artist Proof Red
 Blue Green Mosaic
+Choice Nebula
 Rainbow Red Autographs
 Retro Blank Back
 Teal Explosion
@@ -583,12 +583,12 @@ MPH
 Asia Blue Orange
 Choice Black
 Premium FOTL Gold Shimmer
+Red RayWave Refractor
 Electric Etch Blue
 Holo Platinum Blue
 Micromotion Black
 Platinum Spotlight
 Premium FOTL Green Shimmer
-Red RayWave Refractor
 Retail Sapphire
 Blue Infinite
 Checker Flag Refractor
