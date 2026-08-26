@@ -1,277 +1,719 @@
-# Insert-set names learned from collected titles by `nflcarddb inserts`.
+# Insert and parallel names from eBay's own Parallel/Variety
+# classification, fetched by `nflcarddb catalog`.
 #
-# An insert restarts its numbering at one, so its name is part of a
-# card's identity -- without it, four different cards share a number.
-#
-# Delete any line that is not really the name of an insert set. A wrong
-# entry SPLITS a card between sellers who typed the word and sellers who
-# did not, which is worse than the merging this fixes.
-#
-# name  # seen N times, in M product(s), beside P different players
+# An insert restarts its numbering at one, so its name is part of
+# a card's identity. Names already understood are left out.
 
-Green Space  # 59 listings, 2025 Chrome, 2025 Topps Chrome, 47 players
-Space Dust  # 58 listings, 2025 Chrome, 2025 Topps Chrome, 47 players
-Pink Fractor  # 35 listings, 2024 Topps Chrome, 2025 Topps Chrome, 33 players
-Pulse  # 39 listings, 2025 Topps Chrome, 32 players
-Neon Pulse  # 38 listings, 2025 Topps Chrome, 31 players
-Thunderbirds  # 50 listings, 2025 Phoenix, 30 players
-Night Stn  # 210 listings, 2025 Chrome, 2025 Topps Chrome, 28 players
-Urban Legends  # 38 listings, 2024 Topps Chrome, 2025 Topps Chrome, 25 players
-Urban  # 38 listings, 2024 Topps Chrome, 2025 Topps Chrome, 25 players
-Lightboard  # 32 listings, 2025 Topps Chrome, 25 players
-Finest Autographs  # 40 listings, 2024 Finest, 2025 Finest, 24 players
-Starfractor  # 22 listings, 2025 Chrome, 2025 Topps Chrome, 22 players
-Winter  # 34 listings, 2025 Phoenix, 21 players
-Mosaic Micro  # 28 listings, 2024 Mosaic, 2025 Mosaic, 21 players
-Starry  # 31 listings, 2025 Chrome, 2025 Topps Chrome, 20 players
-Phoenix Thunderbirds  # 29 listings, 2025 Phoenix, 20 players
-Starry Night  # 26 listings, 2025 Chrome, 2025 Topps Chrome, 20 players
-Pyramids  # 25 listings, 2025 Phoenix, 20 players
-Fanatical  # 24 listings, 2025 Topps Chrome, 2026 Topps Chrome, 19 players
-Tecmo  # 36 listings, 2025 Topps Chrome, 2026 Fire, 18 players
-Jumbo Downtown  # 34 listings, 2024 Donruss, 2025 Donruss, 18 players
-Purple Lava  # 25 listings, 2025 Bowman, 2025 Topps Chrome, 18 players
-Finest Common  # 19 listings, 2024 Finest, 2025 Finest, 17 players
-Helix  # 18 listings, 2024 Topps Chrome, 2025 Topps Chrome, 17 players
-Torchers  # 27 listings, 2025 Finest, 16 players
-Finest Flashback  # 22 listings, 2024 Finest, 2025 Finest, 16 players
-Shadow Etch  # 19 listings, 2025 Topps Chrome, 16 players
-Blue Lava  # 17 listings, 2025 Phoenix, 2025 Topps Chrome, 16 players
-Proof Premium  # 18 listings, 2021 Donruss, 2022 Donruss, 15 players
-Extraterrestrial Talent  # 31 listings, 2025 Chrome, 2025 Topps Chrome, 14 players
-Super Futures  # 18 listings, 2025 Topps Chrome, 14 players
-Creators  # 17 listings, 2025 Finest, 14 players
-Divisional  # 17 listings, 2023 Contenders, 2024 Contenders, 13 players
-Crunch Time  # 13 listings, 2022 Donruss, 2023 Donruss, 13 players
-Fortune Blue  # 13 listings, 2025 Topps Chrome, 13 players
-Funkadelic  # 11 listings, 2022 Illusions, 2023 Illusions, 13 players
-Paragon  # 21 listings, 2025 Phoenix, 12 players
-Composite Topps  # 20 listings, 2023 Finest, 2023 Topps Chrome, 12 players
-Divisional Ticket  # 16 listings, 2023 Contenders, 2024 Contenders, 12 players
-Mercury  # 16 listings, 2025 Chrome, 2025 Topps Chrome, 12 players
-Black Rau  # 15 listings, 2025 Topps Chrome, 12 players
-Cosmic Stn  # 15 listings, 2025 Topps Chrome, 12 players
-Finest Torchers  # 14 listings, 2025 Finest, 12 players
-Glass Mosaic  # 13 listings, 2021 Mosaic, 2022 Mosaic, 12 players
-Mosaic Razzle  # 11 listings, 2022 Mosaic, 2023 Mosaic, 12 players
-Kangaroo  # 14 listings, 2025 Prizm, 11 players
-Game Genies  # 12 listings, 2025 Topps Chrome, 11 players
-White Hole  # 11 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
-Etch Variation  # 11 listings, 2025 Topps Chrome, 11 players
-Lightspeed  # 10 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
-Orange Lava  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 11 players
-Visionary  # 17 listings, 2025 Mosaic, 10 players
-Conference Ticket  # 15 listings, 2023 Contenders, 2024 Contenders, 10 players
-Midfield  # 14 listings, 2023 Contenders, 2024 Contenders, 10 players
-Tecmo Bowl  # 13 listings, 2025 Topps Chrome, 2026 Fire, 10 players
-Portals  # 12 listings, 2023 Prizm, 2024 Prizm, 10 players
-Yellow Lava  # 12 listings, 2025 Phoenix, 2025 Topps Chrome, 10 players
-Mirror Platinum  # 11 listings, 2024 Certified, 10 players
-Silver Pyramids  # 11 listings, 2025 Phoenix, 10 players
-Treat  # 11 listings, 2024 Score, 2025 Score, 10 players
-Blue Fractor  # 11 listings, 2025 Bowman Chrome, 2025 Finest, 10 players
-Bowl Downtown  # 8 listings, 2022 Donruss, 2023 Donruss Optic, 10 players
-Jackson Battle  # 23 listings, 2024 Fire, 2026 Fire, 9 players
-Contenders Ssd  # 18 listings, 1999 Contenders, 9 players
-White Stripe  # 14 listings, 2025 Mosaic, 9 players
-Chronicles Gridiron  # 14 listings, 2020 Chronicles, 2022 Chronicles, 9 players
-Triumvirate  # 13 listings, 1997 Stadium Club, 1998 Stadium Club, 9 players
-Mojo Trc  # 13 listings, 2026 Chrome, 2026 Topps Chrome, 9 players
-Midfield Ticket  # 12 listings, 2023 Contenders, 2024 Contenders, 9 players
-Prizms Gold  # 11 listings, 2023 Prizm Draft Picks, 2025 Prizm Draft Picks, 9 players
-Ultra Violet  # 11 listings, 2025 Topps Chrome, 9 players
-Ivory  # 10 listings, 2025 Chrome, 2025 Topps Chrome, 9 players
-Artistry  # 9 listings, 2024 Rookies & Stars, 2025 Rookies & Stars, 9 players
-Artistry Motion  # 9 listings, 2024 Rookies & Stars, 2025 Rookies & Stars, 9 players
-Spill  # 9 listings, 2024 Finest, 2025 Finest, 9 players
-Oil Spill  # 9 listings, 2024 Finest, 2025 Finest, 9 players
-Club Triumvirate  # 9 listings, 1997 Stadium Club, 1998 Stadium Club, 9 players
-Rpsfl  # 9 listings, 2024 Instant, 2025 Instant, 9 players
-Heirlooms  # 9 listings, 2023 National Treasures, 2025 National Treasures, 9 players
-Venus  # 9 listings, 2024 Chrome, 2025 Chrome, 9 players
-Abracadabra  # 8 listings, 2024 Illusions, 9 players
-Select Sparks  # 8 listings, 2024 Select, 2025 Select, 9 players
-Mosaic Glass  # 8 listings, 2021 Mosaic, 2022 Mosaic, 9 players
-Constellation  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 9 players
-Blue Checker  # 7 listings, 2021 Select, 2025 Prizm, 9 players
-Cosmic Light  # 7 listings, 2025 Topps Chrome, 9 players
-Anniversary Mojo  # 19 listings, 2026 Chrome, 2026 Topps Chrome, 8 players
-Mosaic Super  # 17 listings, 2021 Mosaic, 2022 Mosaic, 8 players
-Day Souvenirs  # 16 listings, 1999 Contenders, 8 players
-Souvenirs  # 16 listings, 1999 Contenders, 8 players
-Spx Finite  # 13 listings, 1998 SPx, 2014 SPx, 8 players
-Uno Elite  # 13 listings, 2025 Elite, 2026 Elite, 8 players
-Reflash  # 11 listings, 2025 Finest, 8 players
-Darkness  # 11 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
-Phoenix Paragon  # 10 listings, 2025 Phoenix, 8 players
-Hog Heaven  # 10 listings, 1995 Contenders, 2025 Absolute, 8 players
-Gear Neon  # 10 listings, 2023 Prizm, 2024 Prizm, 8 players
-Uncommon Blue  # 9 listings, 2025 Finest, 8 players
-International Downtown  # 9 listings, 2023 Donruss Optic, 8 players
-Score Treat  # 8 listings, 2024 Score, 2025 Score, 8 players
-Chronicles Clear  # 8 listings, 2020 Chronicles, 2022 Chronicles, 8 players
-Mosaic Money  # 8 listings, 2024 Mosaic, 8 players
-Flagship Trc  # 8 listings, 2026 Chrome, 8 players
-Planetarium  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
-Green Squares  # 7 listings, 2022 Select Draft Picks, 2022 Select, 8 players
-Purple Fractor  # 7 listings, 2025 Finest, 8 players
-Sapphire Image  # 7 listings, 2025 Topps Chrome, 8 players
-Surge  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 8 players
-Prizmania  # 7 listings, 2024 Prizm, 2025 Prizm, 8 players
-Instant Replay  # 7 listings, 1984 Instant, 1995 Instant, 8 players
-Replay  # 7 listings, 1984 Instant, 1995 Instant, 8 players
-Class Contenders  # 6 listings, 2023 Contenders, 2024 Contenders, 8 players
-Level Tri  # 6 listings, 2021 Select, 2025 Select, 8 players
-Light Board  # 6 listings, 2024 Topps Chrome, 2025 Topps Chrome, 8 players
-Metalists  # 16 listings, 1995 Stadium Club, 7 players
-Yellow Geometric  # 12 listings, 2024 Chrome, 2024 Topps Chrome, 7 players
-Club Metalists  # 12 listings, 1995 Stadium Club, 7 players
-Preferred Qbc  # 10 listings, 1999 Donruss, 2000 Donruss, 7 players
-Original Gridiron  # 9 listings, 2024 Origins, 2025 Origins, 7 players
-Bowman Reserve  # 9 listings, 2000 Bowman, 7 players
-Greats Autographs  # 9 listings, 2024 Finest, 2025 Finest, 7 players
-Pinnacle Certified  # 9 listings, 1997 Certified, 7 players
-Best Cuts  # 9 listings, 1996 Bowman, 1997 Bowman, 7 players
-Cosmic Purple  # 9 listings, 2025 Topps Chrome, 7 players
-Contenders Power  # 8 listings, 2024 Contenders, 7 players
-Finest Reflash  # 8 listings, 2025 Finest, 7 players
-Optic Hash  # 8 listings, 2024 Donruss Optic, 2025 Donruss Optic, 7 players
-Finest Creators  # 8 listings, 2025 Finest, 7 players
-Glass Oversized  # 8 listings, 2025 Mosaic, 7 players
-Genre Graphs  # 8 listings, 2025 National Treasures, 7 players
-Genre  # 8 listings, 2025 National Treasures, 7 players
-Frozenfractor  # 8 listings, 2024 Topps Chrome, 2025 Topps Chrome, 7 players
-Mosaic Visionary  # 7 listings, 2025 Mosaic, 7 players
-Photo Variation  # 7 listings, 2021 Donruss, 2025 Prizm, 7 players
-Selections Memorabilia  # 7 listings, 2024 Select, 2025 Select, 7 players
-Green Dust  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
-Finest Rfa  # 7 listings, 2024 Finest, 2025 Finest, 7 players
-Design Variation  # 7 listings, 2005 Heritage, 2025 Topps Chrome, 7 players
-White Geometric  # 7 listings, 2024 Topps Chrome, 7 players
-Orange Autographs  # 7 listings, 2022 Phoenix, 2025 Donruss, 7 players
-Sunday Treasures  # 7 listings, 2024 National Treasures, 2025 National Treasures, 7 players
-Variations Silver  # 7 listings, 2021 Prizm, 2024 Prizm, 7 players
-Donruss Crunch  # 6 listings, 2022 Donruss, 2023 Donruss, 7 players
-Signatures Nil  # 6 listings, 2024 Luminance, 2025 Luminance, 7 players
-Recon  # 6 listings, 2021 Chronicles, 2022 Chronicles, 7 players
-Remarkable Jerseys  # 6 listings, 2025 Immaculate Collection, 2025 Immaculate, 7 players
-Gance  # 6 listings, 2024 Impeccable, 2025 Impeccable, 7 players
-Night Green  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
-Solar Flare  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 7 players
-Select Drake  # 32 listings, 2024 Select, 2025 Select, 6 players
-Prizmatrix  # 22 listings, 2025 Prizm, 6 players
-Finesse  # 12 listings, 2024 Prizm, 2024 Topps Chrome, 6 players
-Masters Mosaic  # 12 listings, 2022 Mosaic, 2025 Mosaic, 6 players
-Square One  # 11 listings, 2023 Panini One, 2024 Panini One, 6 players
-Prodigies  # 10 listings, 2024 Finest, 2024 Topps Chrome, 6 players
-Showpieces  # 9 listings, 2025 Bowman, 6 players
-Depths  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 6 players
-Depths Darkness  # 9 listings, 2025 Chrome, 2025 Topps Chrome, 6 players
-Sunday Swag  # 8 listings, 2024 Topps Chrome, 6 players
-Shock Premier  # 8 listings, 2024 Select, 2025 Select, 6 players
-Silver Knight  # 8 listings, 2025 Mosaic, 6 players
-Risers  # 8 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
-Early Risers  # 8 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
-Black Prizmatrix  # 8 listings, 2025 Prizm, 6 players
-Wonderful Ones  # 8 listings, 2024 Panini One, 6 players
-Wonderful  # 8 listings, 2024 Panini One, 6 players
-Delights Early  # 7 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
-Delights  # 7 listings, 2023 Bowman Chrome, 2023 Bowman, 6 players
-Chronicles Dynagon  # 7 listings, 2020 Chronicles, 2021 Chronicles, 6 players
-Topps Mystery  # 7 listings, 1998 Finest, 1999 Chrome, 6 players
-Black Prospects  # 7 listings, 2025 Prizm, 6 players
-Workhorse  # 7 listings, 2025 Bowman, 6 players
-Optic International  # 7 listings, 2023 Donruss Optic, 6 players
-Thunderbirds Silver  # 6 listings, 2025 Phoenix, 6 players
-Marquee  # 6 listings, 2022 Chronicles, 2024 Zenith, 6 players
-Uncommon Sky  # 6 listings, 2025 Finest, 6 players
-Unexpected Delights  # 6 listings, 2023 Bowman, 6 players
-Unexpected  # 6 listings, 2023 Bowman, 6 players
-Bowman Sapphire  # 6 listings, 2023 Bowman, 2025 Bowman, 6 players
-Lightning Leaders  # 6 listings, 2025 Topps Chrome, 6 players
-Solar Swatches  # 6 listings, 2024 Obsidian, 6 players
-Storm Chasers  # 6 listings, 2021 Mosaic, 2022 Mosaic, 6 players
-Chasers  # 6 listings, 2021 Mosaic, 2022 Mosaic, 6 players
-Initials  # 6 listings, 2024 Obsidian, 6 players
-Atomic Initials  # 6 listings, 2024 Obsidian, 6 players
-Metalists Members  # 6 listings, 1995 Stadium Club, 6 players
-Start Ups  # 6 listings, 2023 Origins, 2024 Origins, 6 players
-Now Caleb  # 22 listings, 2024 Topps Now, 2026 Topps Now, 5 players
-Finest Cam  # 20 listings, 2011 Finest, 2025 Finest, 5 players
-Select Tyler  # 17 listings, 2025 Select, 5 players
-Youthquake  # 15 listings, 2024 Topps Chrome, 2025 Topps Chrome, 5 players
-Phoenix Cam  # 12 listings, 2020 Phoenix, 2025 Phoenix, 5 players
-Blue Mini  # 12 listings, 2025 Bowman Chrome, 2025 Bowman, 5 players
-Prizmatrix Signatures  # 11 listings, 2025 Prizm, 5 players
-Arena Tecmo  # 11 listings, 2026 Fire, 5 players
-Instant Nil  # 9 listings, 2024 Instant, 2025 Instant, 5 players
-Certified Ballers  # 9 listings, 2023 Certified, 2025 Certified, 5 players
-Optic Passing  # 8 listings, 2024 Donruss Optic, 2025 Donruss Optic, 5 players
-International Games  # 8 listings, 2025 Mosaic, 5 players
-Label Class  # 8 listings, 1998 Gold Label, 1999 Gold Label, 5 players
-Best Boa  # 7 listings, 2024 Bowman, 2025 Bowman, 5 players
-Zenith State  # 7 listings, 2024 Zenith, 5 players
-Capital Gains  # 7 listings, 2024 Mosaic, 5 players
-Capital  # 7 listings, 2024 Mosaic, 5 players
-Gains  # 7 listings, 2024 Mosaic, 5 players
-Cosmic Travis  # 7 listings, 2025 Topps Chrome, 5 players
-Deca Signatures  # 7 listings, 2024 Prizm, 5 players
-Flagship Mojo  # 7 listings, 2026 Chrome, 2026 Topps Chrome, 5 players
-Treasures Matthew  # 7 listings, 2025 National Treasures, 5 players
-Flagship Silver  # 6 listings, 2026 Chrome, 2026 Topps Chrome, 5 players
-Operation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
-Operation Detonation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
-Detonation  # 6 listings, 2022 Illusions, 2023 Illusions, 5 players
-Mosaic International  # 6 listings, 2024 Obsidian, 2025 Mosaic, 5 players
-One Wonderful  # 6 listings, 2024 Panini One, 5 players
-Got Game  # 6 listings, 2020 Mosaic, 5 players
-Clusters Cam  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 5 players
-Immortal  # 6 listings, 2024 Impeccable, 2025 Impeccable, 5 players
-Immortal Ink  # 6 listings, 2024 Impeccable, 2025 Impeccable, 5 players
-Select Turbocharged  # 6 listings, 2023 Select, 2024 Select, 5 players
-Black Lava  # 6 listings, 2025 Topps Chrome, 5 players
-Obsidian Caleb  # 6 listings, 2024 Obsidian, 5 players
-Pursuit Mercury  # 6 listings, 2025 Chrome, 2025 Topps Chrome, 5 players
-One Dual  # 6 listings, 2018 Panini One, 2024 Panini One, 5 players
-Level Drake  # 24 listings, 2022 Select, 2024 Select, 4 players
-Donruss Cam  # 22 listings, 2024 Donruss, 2025 Donruss, 4 players
-Mosaic Nix  # 22 listings, 2024 Mosaic, 2025 Mosaic, 4 players
-Donruss Jayden  # 21 listings, 2023 Donruss, 2024 Donruss, 4 players
-Stn Bengals  # 20 listings, 2025 Chrome, 4 players
-Select Shedeur  # 19 listings, 2024 Select, 2025 Select, 4 players
-Optic Stroud  # 17 listings, 2023 Donruss Optic, 2024 Donruss Optic, 4 players
-Mosaic Cam  # 15 listings, 2020 Mosaic, 2025 Mosaic, 4 players
-Phoenix Jayden  # 14 listings, 2024 Phoenix, 2025 Phoenix, 4 players
-Black Matthew  # 14 listings, 2025 Topps Chrome, 2026 Topps Chrome, 4 players
-Phoenician Penmanship  # 13 listings, 2024 Phoenix, 2025 Phoenix, 4 players
-Immaculate Joe  # 13 listings, 2020 Immaculate, 2024 Immaculate, 4 players
-Black Jordan  # 12 listings, 2023 Topps Chrome, 2025 Topps Chrome, 4 players
-Level Cam  # 10 listings, 2025 Select, 4 players
-Phoenix Omarion  # 9 listings, 2025 Phoenix, 4 players
-Treasures Jalen  # 9 listings, 2020 National Treasures, 2025 National Treasures, 4 players
-Raiders Trc  # 9 listings, 2026 Chrome, 2026 Topps Chrome, 4 players
-Black Jayden  # 9 listings, 2025 Topps Chrome, 2026 Chrome, 4 players
-Illusions Joe  # 8 listings, 2020 Illusions, 2023 Illusions, 4 players
-Downtown Matthew  # 8 listings, 2021 Donruss Optic, 2025 Donruss, 4 players
-Night Giants  # 8 listings, 2025 Chrome, 2025 Topps Chrome, 4 players
-Select Puka  # 7 listings, 2023 Select, 2025 Select, 4 players
-Select Jack  # 7 listings, 2025 Select, 4 players
-Black Jalen  # 7 listings, 2020 Prizm, 2025 Topps Chrome, 4 players
-Ward Caleb  # 7 listings, 2025 Chrome, 2025 Topps Chrome, 4 players
-South  # 7 listings, 2025 Bowman Chrome, 2025 Bowman, 4 players
-Finest Jordan  # 7 listings, 2023 Finest, 2025 Finest, 4 players
-Championship Fabric  # 7 listings, 2000 Contenders, 2022 Absolute, 4 players
-Black Drake  # 6 listings, 2025 National Treasures, 2025 Topps Chrome, 4 players
-Green Autographs  # 6 listings, 2020 Contenders Draft Picks, 2025 Donruss, 4 players
-Magnitude  # 6 listings, 2021 Chronicles, 2022 Chronicles, 4 players
-Prolific  # 6 listings, 2025 Prizm, 4 players
-Rps Variation  # 6 listings, 2023 Contenders, 2024 Contenders, 4 players
-Treasures Mason  # 6 listings, 2025 National Treasures, 4 players
-Spectra Sunday  # 6 listings, 2022 Spectra, 2024 Spectra, 4 players
-It'S Good  # 6 listings, 2024 Score, 2025 Score, 4 players
-South Carolina  # 6 listings, 2025 Bowman Chrome, 2025 Bowman, 4 players
-Contenders Mccarthy  # 6 listings, 2024 Contenders, 4 players
-Select Rome  # 6 listings, 2024 Select, 4 players
-One Quad  # 6 listings, 2021 Panini One, 2024 Panini One, 4 players
-Donruss Matthew  # 6 listings, 2009 Score, 2025 Donruss, 4 players
-Lotus  # 6 listings, 2025 Prizm, 4 players
+Prizm
+Optic
+Chrome
+Mosaic
+Signatures
+Mosaic Prizm
+Patch
+Die-Cut
+Retail
+Press Proof
+Green Prizm
+Holo Prizm
+Pink Prizm
+Red White & Blue Prizm
+Blue Prizm
+Red Prizm
+Finisher
+Lazer Prizm
+Orange Prizm
+Foil
+Chrome Refractor
+Press Proof Blue
+Diamond
+Relic
+Red Ice Prizm
+Disco Prizm
+Materials
+Purple Prizm
+Blue Refractor
+Blue Hyper
+Retro
+Red White Blue
+Emerald
+Power
+Premium
+Green Mosaic
+Mini
+Ice
+Throwback
+Pink Refractor
+Clear
+Scorecard
+Fire Burst
+Aqua
+Mirror
+Camo Pink
+Spectrum
+Lava
+Tiger
+Green Refractor
+Prime
+Wood
+Gold Refractor
+Purple Refractor
+Orange Refractor
+Jersey
+Red Zone
+Green Pulsar Prizm
+Holo Silver
+Mirror Red
+Green Pulsar
+Hyper Prizm
+RayWave Refractor
+Sapphire
+Blue Wave Prizm
+Holofoil
+Gold Medallion
+Scope Prizm
+Glossy
+Red Wave Prizm
+Ruby
+Tri-Color Prizm
+Limited
+Gold Zone
+Golden
+Rainbow
+Prism Refractor
+Black Refractor
+Purple Wave
+White Prizm
+1st Edition
+Gold Prizm
+Mirror Blue
+Aspirations
+Neon Green Prizm
+Red Foil
+Reactive Blue
+Silver Refractor
+Acetate
+Rainbow Foil
+Camo Prizm
+Purple Ice
+Prism
+Artist's Proof
+Orange Ice
+Green Foil
+Silver Prizms
+Black Prizm
+Green Ice Prizm
+Cosmic
+Red Refractor
+Light Blue Prizm
+Red Cracked Ice
+Green Disco
+Pulsar Prizm
+Checkerboard
+Gold Foil
+Press Proof Silver
+Members Only
+Blue Foil
+Green Hyper
+Minis
+Silver Foil
+Mirror Orange
+Blue Wave
+Impact
+Purple Prizm Die-Cut
+Red Autographs
+Spectrum Red
+Jersey Number
+Pink Wave Prizm
+Green Yellow
+Tie-Dye Prizm
+Light Blue
+Sky Blue
+Red Wave
+Maroon
+Prismatic
+Magenta
+Astro
+FOTL
+Holo Gold
+True Blue
+Class 1
+Platinum Blue
+Blue Wave Refractor
+Red Die-Cut
+Pyramids
+Press Proof Purple
+Blue Mosaic
+Mirror Gold
+Lime Green
+Silver Holofoil
+Platinum Red
+Ruby Wave Prizm
+Jumbo Patch
+Sepia Refractor
+Silver Hyper
+Promo
+Inception
+Gold Border
+Gold Cracked Ice
+Red Back
+Sepia
+Zebra Prizm
+Red Hyper
+International
+Winter
+Aspirations Die-Cut
+Photo Variations
+Power Prizm
+Premiere Date
+Red Mosaic
+Pink Pulsar Prizm
+White Refractor
+Black Gold
+White Sparkle Prizm
+BCA Pink Refractor
+Silver Spectrum
+Copper Prizm
+Silver Spotlight
+Orange Wave Prizm
+Silver Wave
+Sky Blue Refractor
+Red Mojo
+Blank Back
+Mirror Purple
+Tiffany
+Gold Spectrum
+Crystal
+Electric Etch Orange
+Blue Prismatic
+Black and White
+Black & White
+Silver Xs
+Collector's Edition (Tiffany)
+Purple Pulsar
+Red Border
+Inscriptions
+Fractal
+Mojo Prizm
+Onyx
+OPC
+Light Blue Prizm Die-Cut
+Orange Star
+STS Camo Refractor
+Black Gold Prizm
+Gold Shimmer
+Purple Prismatic
+NFL Shield
+Cubic
+Red Shimmer
+Flash Prizm
+Masterpiece
+Gold Holofoil
+Orange Pulsar Prizm
+Gold Medallion Edition
+Artist Proof
+Neon Blue
+Gold Xs
+Holographic
+Mojo Refractor
+Blue Shimmer
+Orange Wave
+Chrome Purple Refractor
+Radiance
+Image Variations
+Chrome Sapphire Edition
+Orange Die-Cut
+Electric Etch Green
+Blue Star
+Blue Disco Prizm
+Red Shimmer Prizm
+Green Shimmer
+Metal
+Marble
+Blue Cracked Ice
+Green Cracked Ice
+Mirror Silver
+Silver Mojo
+Vintage Stock
+Row 1
+Silver Script
+Gold Spotlight
+Purple Foil
+Limited Edition
+Red Disco Prizm
+Foilboard
+Electric Etch Purple
+Blue Border
+Blue Shimmer Prizm
+Black Foil
+Green Prismatic
+Holo Pink
+Galactic
+Red Ink
+Black Border
+Holo Red
+Purple Cracked Ice
+Blue Disco
+Gold Star
+Green Shimmer Refractor
+Neon Orange Prizm
+1st Day Issue
+Premium Blue
+Printing Plate Yellow
+Printing Plate Cyan
+Red Prismatic
+End Zone
+Printing Plate Black
+Gold Prismatic
+Blue Mojo
+Purple Stars Prizm
+Purple Mosaic
+Pink Prismatic
+Printing Plate Magenta
+Blue Pulsar Prizm
+Red White & Blue Kaleidoscope
+Bronze Foil
+Tag
+White Sparkle
+Neon Orange Pulsar Prizm
+Groove
+Blue Checkerboard
+First Down
+Holo Blue
+Silver Series
+Light Blue Shimmer
+BCA Pink
+Choice Green
+Holo Purple
+Black Prismatic
+Bronze Refractor
+Orange Pulsar
+Electric Etch Yellow
+Nebula
+Laundry Tag
+Blue Chip
+Gold Wave
+Dazzle
+Gold Wave Refractor
+Neon Orange
+Neon Pink
+Green Mojo
+Silver Jersey
+Red Pulsar Prizm
+Gold Green
+Purple Green
+Gold Red
+Holo Green
+Gold Shimmer Prizm
+Platinum Gold
+Crystal Blue
+Platinum Medallion
+Blue Explosion
+Navy Blue
+Mirror Green
+Pink BCA
+Blue Pulsar
+Red Disco
+Royal Blue
+Crystal Purple
+Black Shimmer
+Gold Rainbow
+Gold Vinyl Prizm
+Spectrum Gold
+Rapture
+Silver Portrait
+Thin Stock
+Premium Patch
+Light Blue Die-Cut
+UD Exclusives
+Pink Hyper
+Holo Orange
+Teal Prizm
+First Day Issue
+Green Shimmer Prizm
+White Mosaic
+Checkers
+Purple Winter
+Choice Prizm
+Press Proof Black
+Platinum Green
+Purple Disco
+Holo Platinum
+25th Anniversary
+Choice Red Prizm
+Platinum Xs
+Electric Etch Red
+Gold Prime
+Gold Mosaic
+Silver Laser
+Red Flash
+Precious Metal Gems
+Blue Laser
+Crystal Red
+Swirlorama
+Gold Disco Prizm
+Red Checkerboard
+Green Flash
+Escher Squares
+Amethyst
+Black Mojo
+Independence Day
+Gold Laser
+Red Pulsar
+Crystal Black
+Choice Red
+Electric Etch Red Flood
+Mini Gold
+Gold Blue
+23 Karat Gold
+FOTL Purple Stars
+Silver Signature
+All-Star Game
+Green Prime
+Micro
+Blue Mojo Prizm
+Precious Metal Gems Red
+Gold Mojo
+Spectrum Autographs
+Starburst
+Gold Spectrum Autographs
+Gold Wave Prizm
+Rave
+Orange Border
+Silver Steel
+Pink Ice
+Mini Black Border
+Sparkle Foil
+Choice Blue
+Blue RayWave Refractor
+Choice Gold
+Green Disco Prizm
+Blue Prime
+Hobby LTD
+Purple Laser
+Gold Disco
+Green Holo Laser
+MVP Gold
+Gold Flash Prizm
+Blue Yellow Green
+Red Prism
+Red White & Blue Wave
+Mirror Emerald
+Wild Card Ticket
+Holo Bronze
+Artist Proof Blue
+Mirror Platinum Red Die-Cut
+Red Wave Mosaic Prizm
+Gold Script
+Purple Flash
+To the Max
+STS Camo
+Red Wave Refractor
+Mirror Platinum Purple Die-Cut
+Blank Front
+High Gloss
+Black Finite Prizm
+Platinum Black
+Red White & Blue Prismatic
+Black Pulsar
+Teal Wave
+Crystal Gold
+Red White & Blue Mojo Prizm
+Mirror Black
+SP Limited
+Choice Red Green
+Shirt
+Bronze Border
+Red White & Blue Crystals
+Orange Holo Laser
+Red Explosion
+150th Anniversary
+Artist Proof Gold
+Emerald Foil
+Asia Red
+Red White & Blue Mojo
+UD Exclusives Silver
+Lucky Envelopes Prizm
+FOTL Purple
+Blue Silver Prizm
+Black Cracked Ice
+Electric Etch Contra
+Asia
+Target Red
+Rainbow Color Wheel
+FOTL Pink Swirl
+Gold Pulsar
+Gold Flash
+Green Explosion
+FOTL Blue
+Silver Scope
+Red White & Blue Rainbow
+Wal-Mart Blue
+UD Promo
+Hobby Orange
+Green White Purple
+Extreme Limited
+Red Memorabilia
+Mini Allen & Ginter Back
+On Fire
+Bronze Hyper
+Blue Flash
+Gold Memorabilia
+Choice Blue Yellow Green
+Carolina Blue Prizm
+Black Prime
+Gold Wave Mosaic
+Black & White RayWave Refractor
+Elephant
+Blue Mojo Refractor
+Blue Prism Refractor
+Yellow Red Mosaic
+Red X-Fractor
+Super Prime
+Purple Flood
+Gold Hyper
+FOTL Blue Scope
+Rainbow Prizm
+Dynamite
+UD Exclusives Gold
+Black Laser
+Gold Hologram
+Home Team Advantage
+FOTL Orange
+Lucky Envelopes
+Gold Green Foil
+FOTL Green Swirl
+Green RayWave Refractor
+Premium FOTL Blue Shimmer
+Red Prime
+Green Mojo Refractor
+Red Blank Back
+Purple Mojo Refractor
+Choice Black Gold
+Press Proof Red Laser
+Neon Black Light
+Red Black Snake Skin
+Bordered Refractor
+Memorial Day Camo
+Electric Etch Blue Finite
+Blue White Green Flash
+Operation Desert Shield
+Asia Gold
+Electric Etch Asia
+Pink Flash
+Crystal Platinum
+FOTL Purple Scope
+Mirror Camo
+Choice Nebula Prizm
+Precious Metal Gems Teal
+Black Foil Shield
+FoilFractor
+Gold RayWave Refractor
+Platinum Purple
+Black Disco Prizm
+Precious Metal Gems Blue
+Yellow RayWave Refractor
+Asia Red Gold
+Chrome Sapphire Edition Gold
+White Wave Prizm
+Mosaic Red Wave Prizm
+Pink Mojo Refractor
+Gold Mojo Refractor
+Red Holo Laser
+Silver Green Foil
+Black Mosaic
+First Gear
+Gold Blue Foil
+All-Black
+Black Disco
+Asia Green
+Gold Red Foil
+Fast Break Prizm
+Mega Box Mojo Refractor
+Holo Purple Laser
+Red Mojo Refractor
+Silver Blue Foil
+Golden Rainbow
+Artist Proof Silver Frame
+Neon Purple Pulsar Prizm
+Orange Mojo Refractor
+Silver Red Foil
+Speckled Rainbow Foil
+Black Prizm NFL Shield
+Choice Tiger Stripe
+Precious Metal Gems Green
+Winter Holo
+Black Flash Prizm
+Diamond Anniversary
+FOTL Platinum
+Spectrum FX
+SportsFest Chicago
+Super Rave
+Choice Nebula
+Green Flood
+Artist Proof Red
+Blue Green Mosaic
+Rainbow Red Autographs
+Retro Blank Back
+Teal Explosion
+Choice Green Prizm
+FOTL Red Scope
+Hydrogen
+Orange Explosion
+Red White Orange Flash
+Checkered Flag Prizm
+Platinum Prime
+Electric Etch White Mojo
+Artist Proof Green
+Black Flash
+Pink Holo Laser
+Platinum Cosmic
+Spectrum UD Exclusives
+Topps Vault Blank Back
+Electric Etch White Pulsar
+Sunset
+Blue Holo Laser
+Chinese New Year
+Red Wave Mosaic
+Red White Blue Mosaic
+FOTL Bronze
+MPH
+Asia Blue Orange
+Choice Black
+Premium FOTL Gold Shimmer
+Electric Etch Blue
+Holo Platinum Blue
+Micromotion Black
+Platinum Spotlight
+Premium FOTL Green Shimmer
+Red RayWave Refractor
+Retail Sapphire
+Blue Infinite
+Checker Flag Refractor
+Gold Prism Refractor
+Purple Explosion
+Red Blue Laser
+Asia Black
+Dazzle Purple
+Electric Etch Green Flood
+Prime Numbers A
+Purple Holo Laser
+Violet Pixels
+Green Yellow Holo Laser
+Light Blue Holo Laser
+Fifth Anniversary
+Red White Blue Pulsar
+Silver Etched Foil
+Fast Break Silver
+Micromotion
+Purple White Prizm
+Black Mojo Refractor
+Black Swirl
+FOTL Black Scope
+Gold Holo Laser
+MVP Platinum
+Precious Metal Gems Purple
+Red Script
+UD Midnight
+Asia Red Yellow Green
+Black Snake Skin Pulsar Prizm
+Black White Gold
+FOTL Green Crystal
+Precious Metal Gems Gold
+Pyro
+Yellow Holo Laser
+Artist Proof Black
+Black Holo Laser
+Electric Etch FOTL Contra
+Gold Swirl
+Press Proof Gold Laser
+Purple Gold Snakeskin
+Dazzle Gold
+Dazzle Pink
+First Run
+Green Quartz
+Platinum Laundry Tag
+Prime Numbers A Die-Cut
+Red Blue Holo Laser
+Asia Green Purple
+Clear Cut UD Exclusive
+Dazzle Green
+Fast Break Pink
+Fast Break Red
+Premium FOTL Black Shimmer
+Uncirculated X-Fractor
+Borderless Refractor
+Color Proof Magenta
+Electric Etch Yellow Flood
+FOTL Gold Scope
+FOTL Holo Orange
+Fast Break Pink Prizm
+Fast Break Purple
+Fast Break Purple Prizm
+Fast Break Red Prizm
+Gold and Purple Refractor
+Hoopla Plus
+Infinite Blue
+Retail Sapphire Foil
+Century Proof Dazzle
+Century Proof Dazzle Orange
+Fast Break Blue
+Mirror Platinum Gold Die-Cut
+Press Proof Blue Laser
+Black Mamba
+Bronze UD Exclusives Level 1
+Color Proof Yellow
+DK Challenge
+Dazzle Red
+FOTL Black Crystal
+Fast Break Orange
+Infinite Red
+Limited Black Stripe
+Mirror Platinum Blue Die-Cut
+Mirror Platinum Green Die-Cut
+Series 2 Orange
+Black Atomic Refractor
+Black Trophy Club
+Color Proof Cyan
+Fast Break Gold
+Fast Break Holo
+Infinite Gold
+Mirror Prime
+Par Single
+Platinum Bar
+Precious Metal Gems Emerald
+Purple Green Holo Laser
+Rookie Masterpiece Printing Plate Black
+Ruby Gold Proof
+Silver Slate
+Silver UD Exclusives
+UD Exclusives Spectrum
+Asia Black White
+Asia Holo Gold
+Associate Sponsor
+Black White Gold Flash
+Blue Cap
+Century Proof Holo
+Chrome Sapphire Edition Superfractor
+Dazzle Black
+Emerald Gold Proof
+Fast Break Blue Prizm
+Fast Break Bronze
+Fifth Anniversary Gold
+Gold UD Exclusive
+Infinite Black
+Mirror Holo Blue
+Mirror Platinum Black Die-Cut
+Octagon Prizm
+Press Proof Black Laser
+Printing Plate Mini Black Framed
+Printing Plate Mini Cyan Framed
+Printing Plate Mini Yellow Framed
+Pyro Autographs
+Red Gold Holo Laser
+Rookie Masterpiece Printing Plate Cyan
+Rookie Masterpiece Printing Plate Magenta
+Rookie Masterpiece Printing Plate Yellow
+Teal White Pink
+Transcendent VIP Party
+UD High Gloss

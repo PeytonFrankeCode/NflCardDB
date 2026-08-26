@@ -101,3 +101,4 @@ queries:
   - id: nfl_singles
     keywords: nfl card
     category: "261328"
+inserts: config/nfl_inserts.txt
