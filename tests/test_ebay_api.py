@@ -152,3 +152,89 @@ def test_only_the_read_scope_is_requested():
 
     assert SCOPE == "https://api.ebay.com/oauth/api_scope"
     assert "sell" not in SCOPE
+
+
+# --- turning the harvest into the parser's vocabulary -----------------------
+
+STORE = {
+    "Player/Athlete": {"Jayden Daniels": 1204, "Ja'Marr Chase": 892},
+    # Moonstruck and Stargazing are not in the built-in list; the other two
+    # are already understood as parallels.
+    "Parallel/Variety": {"Moonstruck": 312, "Stargazing": 208,
+                         "Silver Prizm": 5001, "Refractor": 4000},
+}
+
+
+def test_the_roster_is_written_from_ebays_player_list(tmp_path):
+    """Same file the learned roster used, so nothing downstream changes -- the
+    config key, the loader and the parser all stay as they are."""
+    from nflcarddb.facets import write_roster
+    from nflcarddb.parse_title import load_roster
+
+    path = tmp_path / "players.txt"
+    assert write_roster(STORE, path) == 2
+    assert load_roster(path) == {"jayden daniels", "ja'marr chase"}
+
+
+def test_a_name_the_built_in_list_already_has_is_not_duplicated(tmp_path):
+    """Genies was typed in by hand two rounds ago. eBay has it too, and it
+    should be written once, not twice."""
+    from nflcarddb.facets import write_inserts
+
+    path = tmp_path / "inserts.txt"
+    write_inserts({"Parallel/Variety": {"Genies": 9}}, path)
+    written = [l for l in path.read_text(encoding="utf-8").splitlines()
+               if l and not l.startswith("#")]
+    assert written == []
+
+
+def test_names_already_understood_are_left_out_of_the_insert_file(tmp_path):
+    """"Silver Prizm" and "Refractor" are already parallels. Subsets are
+    claimed before parallels, so moving them across would rewrite working keys
+    for no gain."""
+    from nflcarddb.facets import write_inserts
+
+    path = tmp_path / "inserts.txt"
+    write_inserts(STORE, path)
+    written = [l for l in path.read_text(encoding="utf-8").splitlines()
+               if l and not l.startswith("#")]
+
+    assert "Moonstruck" in written
+    assert "Stargazing" in written
+    assert "Silver Prizm" not in written
+    assert "Refractor" not in written
+
+
+def test_the_insert_file_feeds_straight_back_into_the_parser(tmp_path):
+    """End to end: a name eBay knows and the built-in list does not becomes
+    part of the card's identity."""
+    from nflcarddb.card_key import card_key
+    from nflcarddb.facets import write_inserts
+    from nflcarddb.parse_title import (load_inserts, parse_title,
+                                       register_inserts)
+
+    path = tmp_path / "inserts.txt"
+    write_inserts({"Parallel/Variety": {"Moonstruck": 50}}, path)
+    try:
+        base = parse_title("2025 Panini Donruss Optic Derrick Henry #11")
+        register_inserts(load_inserts(path))
+        insert = parse_title("2025 Panini Donruss Optic Derrick Henry Moonstruck #11")
+        assert card_key(base) != card_key(insert)
+    finally:
+        register_inserts([])
+
+
+def test_placeholders_never_reach_the_vocabulary_files(tmp_path):
+    """"Not Specified" as a player name would be a card belonging to nobody."""
+    from nflcarddb.facets import write_inserts, write_roster
+
+    dirty = {"Player/Athlete": {"Not Specified": 90000, "Tom Brady": 5},
+             "Parallel/Variety": {"[Base]": 900, "Moonstruck": 5}}
+
+    roster = tmp_path / "p.txt"
+    assert write_roster(dirty, roster) == 1
+    assert "Not Specified" not in roster.read_text(encoding="utf-8")
+
+    inserts = tmp_path / "i.txt"
+    write_inserts(dirty, inserts)
+    assert "[Base]" not in inserts.read_text(encoding="utf-8")

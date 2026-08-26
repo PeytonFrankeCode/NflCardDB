@@ -375,3 +375,18 @@ def test_the_contenders_inserts_no_longer_share_a_number():
         "Panini Contenders 2024 Round Numbers #1 Jayden Daniels/Drake Maye RC",
     ]}
     assert len(keys) == 3
+
+
+def test_a_comment_in_the_roster_is_not_a_player(tmp_path):
+    """Every roster this project writes carries a `#` header, and each of
+    those lines was being loaded as a name."""
+    from nflcarddb.parse_title import load_roster
+
+    path = tmp_path / "players.txt"
+    path.write_text("# Player names learned from collected titles.\n"
+                    "#\n"
+                    "\n"
+                    "Tom Brady\n"
+                    "Ja'Marr Chase\n", encoding="utf-8")
+
+    assert load_roster(path) == {"tom brady", "ja'marr chase"}
