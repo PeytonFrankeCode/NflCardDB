@@ -1,0 +1,721 @@
+# Parallel and insert names from eBay's own Parallel/Variety
+# classification, fetched by `nflcarddb catalog`.
+#
+# These are CLAIMED, not keyed: they are kept out of the player's
+# name, but they do not become part of a card's identity. eBay's
+# sellers tick this on a form without necessarily typing it in the
+# title, so keying it splits one card into two.
+
+Prizm
+Optic
+Chrome
+Mosaic
+Signatures
+Mosaic Prizm
+Patch
+Die-Cut
+Retail
+Press Proof
+Green Prizm
+Holo Prizm
+Pink Prizm
+Red White & Blue Prizm
+Blue Prizm
+Red Prizm
+Finisher
+Lazer Prizm
+Orange Prizm
+Foil
+Chrome Refractor
+Press Proof Blue
+Diamond
+Relic
+Red Ice Prizm
+Disco Prizm
+Materials
+Purple Prizm
+Blue Refractor
+Blue Hyper
+Retro
+Red White Blue
+Emerald
+Power
+Premium
+Green Mosaic
+Mini
+Ice
+Throwback
+Pink Refractor
+Clear
+Scorecard
+Fire Burst
+Aqua
+Mirror
+Camo Pink
+Spectrum
+Lava
+Tiger
+Green Refractor
+Prime
+Wood
+Gold Refractor
+Purple Refractor
+Orange Refractor
+Jersey
+Red Zone
+Green Pulsar Prizm
+Holo Silver
+Mirror Red
+Green Pulsar
+Hyper Prizm
+RayWave Refractor
+Sapphire
+Blue Wave Prizm
+Holofoil
+Gold Medallion
+Scope Prizm
+Glossy
+Red Wave Prizm
+Ruby
+Tri-Color Prizm
+Limited
+Gold Zone
+Golden
+Rainbow
+Prism Refractor
+Black Refractor
+Purple Wave
+White Prizm
+1st Edition
+Gold Prizm
+Mirror Blue
+Aspirations
+Neon Green Prizm
+Red Foil
+Reactive Blue
+Silver Refractor
+Acetate
+Rainbow Foil
+Camo Prizm
+Purple Ice
+Prism
+Artist's Proof
+Orange Ice
+Green Foil
+Silver Prizms
+Black Prizm
+Green Ice Prizm
+Cosmic
+Red Refractor
+Light Blue Prizm
+Red Cracked Ice
+Green Disco
+Pulsar Prizm
+Checkerboard
+Gold Foil
+Press Proof Silver
+Members Only
+Blue Foil
+Green Hyper
+Minis
+Silver Foil
+Mirror Orange
+Blue Wave
+Impact
+Purple Prizm Die-Cut
+Red Autographs
+Spectrum Red
+Jersey Number
+Pink Wave Prizm
+Green Yellow
+Tie-Dye Prizm
+Light Blue
+Sky Blue
+Red Wave
+Maroon
+Prismatic
+Magenta
+Astro
+FOTL
+Holo Gold
+True Blue
+Class 1
+Platinum Blue
+Blue Wave Refractor
+Red Die-Cut
+Pyramids
+Press Proof Purple
+Blue Mosaic
+Mirror Gold
+Lime Green
+Silver Holofoil
+Platinum Red
+Ruby Wave Prizm
+Jumbo Patch
+Sepia Refractor
+Silver Hyper
+Promo
+Inception
+Gold Border
+Red Back
+Gold Cracked Ice
+Sepia
+Zebra Prizm
+Red Hyper
+International
+Winter
+Aspirations Die-Cut
+Photo Variations
+Power Prizm
+Premiere Date
+Red Mosaic
+Pink Pulsar Prizm
+White Refractor
+Black Gold
+White Sparkle Prizm
+BCA Pink Refractor
+Silver Spectrum
+Copper Prizm
+Silver Spotlight
+Orange Wave Prizm
+Silver Wave
+Sky Blue Refractor
+Red Mojo
+Blank Back
+Mirror Purple
+Tiffany
+Gold Spectrum
+Crystal
+Electric Etch Orange
+Blue Prismatic
+Black and White
+Black & White
+Silver Xs
+Collector's Edition (Tiffany)
+Purple Pulsar
+Red Border
+Inscriptions
+Fractal
+Mojo Prizm
+Onyx
+OPC
+Light Blue Prizm Die-Cut
+Orange Star
+STS Camo Refractor
+Black Gold Prizm
+Gold Shimmer
+Purple Prismatic
+NFL Shield
+Cubic
+Red Shimmer
+Flash Prizm
+Masterpiece
+Gold Holofoil
+Orange Pulsar Prizm
+Gold Medallion Edition
+Neon Blue
+Artist Proof
+Gold Xs
+Holographic
+Mojo Refractor
+Blue Shimmer
+Orange Wave
+Chrome Purple Refractor
+Radiance
+Image Variations
+Chrome Sapphire Edition
+Orange Die-Cut
+Electric Etch Green
+Blue Star
+Blue Disco Prizm
+Red Shimmer Prizm
+Green Shimmer
+Metal
+Marble
+Blue Cracked Ice
+Green Cracked Ice
+Mirror Silver
+Vintage Stock
+Silver Mojo
+Row 1
+Silver Script
+Gold Spotlight
+Purple Foil
+Limited Edition
+Red Disco Prizm
+Foilboard
+Electric Etch Purple
+Blue Border
+Blue Shimmer Prizm
+Black Foil
+Green Prismatic
+Holo Pink
+Galactic
+Red Ink
+Black Border
+Holo Red
+Purple Cracked Ice
+Blue Disco
+Gold Star
+Green Shimmer Refractor
+Neon Orange Prizm
+1st Day Issue
+Premium Blue
+Printing Plate Yellow
+Printing Plate Cyan
+Red Prismatic
+End Zone
+Printing Plate Black
+Gold Prismatic
+Blue Mojo
+Purple Stars Prizm
+Purple Mosaic
+Pink Prismatic
+Printing Plate Magenta
+Blue Pulsar Prizm
+Red White & Blue Kaleidoscope
+Bronze Foil
+Tag
+White Sparkle
+Neon Orange Pulsar Prizm
+Groove
+Blue Checkerboard
+First Down
+Holo Blue
+Silver Series
+Light Blue Shimmer
+BCA Pink
+Choice Green
+Holo Purple
+Black Prismatic
+Bronze Refractor
+Orange Pulsar
+Electric Etch Yellow
+Nebula
+Laundry Tag
+Blue Chip
+Gold Wave
+Dazzle
+Gold Wave Refractor
+Neon Orange
+Neon Pink
+Green Mojo
+Silver Jersey
+Red Pulsar Prizm
+Gold Green
+Purple Green
+Gold Red
+Holo Green
+Gold Shimmer Prizm
+Platinum Gold
+Crystal Blue
+Platinum Medallion
+Blue Explosion
+Navy Blue
+Mirror Green
+Blue Pulsar
+Pink BCA
+Red Disco
+Royal Blue
+Crystal Purple
+Gold Rainbow
+Black Shimmer
+Gold Vinyl Prizm
+Spectrum Gold
+Rapture
+Silver Portrait
+Thin Stock
+Premium Patch
+UD Exclusives
+Light Blue Die-Cut
+Pink Hyper
+Holo Orange
+Teal Prizm
+First Day Issue
+Green Shimmer Prizm
+White Mosaic
+Checkers
+Purple Winter
+Choice Prizm
+Press Proof Black
+Platinum Green
+Purple Disco
+Holo Platinum
+25th Anniversary
+Choice Red Prizm
+Platinum Xs
+Electric Etch Red
+Gold Prime
+Gold Mosaic
+Silver Laser
+Red Flash
+Precious Metal Gems
+Blue Laser
+Crystal Red
+Swirlorama
+Gold Disco Prizm
+Red Checkerboard
+Green Flash
+Escher Squares
+Amethyst
+Black Mojo
+Independence Day
+Gold Laser
+Red Pulsar
+Crystal Black
+Choice Red
+Electric Etch Red Flood
+Mini Gold
+Gold Blue
+23 Karat Gold
+FOTL Purple Stars
+Silver Signature
+All-Star Game
+Green Prime
+Micro
+Blue Mojo Prizm
+Precious Metal Gems Red
+Gold Mojo
+Spectrum Autographs
+Starburst
+Gold Spectrum Autographs
+Gold Wave Prizm
+Rave
+Orange Border
+Silver Steel
+Pink Ice
+Mini Black Border
+Sparkle Foil
+Choice Blue
+Blue RayWave Refractor
+Choice Gold
+Green Disco Prizm
+Blue Prime
+Hobby LTD
+Purple Laser
+Gold Disco
+Green Holo Laser
+MVP Gold
+Gold Flash Prizm
+Blue Yellow Green
+Red Prism
+Red White & Blue Wave
+Mirror Emerald
+Wild Card Ticket
+Holo Bronze
+Artist Proof Blue
+Mirror Platinum Red Die-Cut
+Red Wave Mosaic Prizm
+Gold Script
+Purple Flash
+To the Max
+STS Camo
+Red Wave Refractor
+Mirror Platinum Purple Die-Cut
+High Gloss
+Blank Front
+Black Finite Prizm
+Platinum Black
+Red White & Blue Prismatic
+Black Pulsar
+Teal Wave
+Crystal Gold
+Red White & Blue Mojo Prizm
+Mirror Black
+SP Limited
+Choice Red Green
+Shirt
+Bronze Border
+Red White & Blue Crystals
+Orange Holo Laser
+Red Explosion
+150th Anniversary
+Artist Proof Gold
+Emerald Foil
+Asia Red
+Red White & Blue Mojo
+UD Exclusives Silver
+Lucky Envelopes Prizm
+FOTL Purple
+Blue Silver Prizm
+Black Cracked Ice
+Electric Etch Contra
+Asia
+Target Red
+Rainbow Color Wheel
+FOTL Pink Swirl
+Gold Pulsar
+Gold Flash
+Green Explosion
+FOTL Blue
+Silver Scope
+Red White & Blue Rainbow
+Wal-Mart Blue
+UD Promo
+Hobby Orange
+Green White Purple
+Red Memorabilia
+Extreme Limited
+Mini Allen & Ginter Back
+On Fire
+Bronze Hyper
+Blue Flash
+Gold Memorabilia
+Choice Blue Yellow Green
+Carolina Blue Prizm
+Black Prime
+Gold Wave Mosaic
+Black & White RayWave Refractor
+Elephant
+Blue Mojo Refractor
+Blue Prism Refractor
+Yellow Red Mosaic
+Red X-Fractor
+Super Prime
+Purple Flood
+Gold Hyper
+FOTL Blue Scope
+Rainbow Prizm
+Dynamite
+UD Exclusives Gold
+Black Laser
+Gold Hologram
+Home Team Advantage
+FOTL Orange
+Lucky Envelopes
+Gold Green Foil
+FOTL Green Swirl
+Green RayWave Refractor
+Premium FOTL Blue Shimmer
+Red Prime
+Green Mojo Refractor
+Red Blank Back
+Purple Mojo Refractor
+Choice Black Gold
+Press Proof Red Laser
+Neon Black Light
+Red Black Snake Skin
+Bordered Refractor
+Memorial Day Camo
+Electric Etch Blue Finite
+Blue White Green Flash
+Operation Desert Shield
+Asia Gold
+Electric Etch Asia
+Pink Flash
+Crystal Platinum
+FOTL Purple Scope
+Mirror Camo
+Choice Nebula Prizm
+Precious Metal Gems Teal
+Black Foil Shield
+FoilFractor
+Gold RayWave Refractor
+Platinum Purple
+Black Disco Prizm
+Precious Metal Gems Blue
+Yellow RayWave Refractor
+Asia Red Gold
+Chrome Sapphire Edition Gold
+White Wave Prizm
+Mosaic Red Wave Prizm
+Pink Mojo Refractor
+Gold Mojo Refractor
+Red Holo Laser
+Silver Green Foil
+Black Mosaic
+First Gear
+Gold Blue Foil
+All-Black
+Black Disco
+Asia Green
+Gold Red Foil
+Fast Break Prizm
+Mega Box Mojo Refractor
+Holo Purple Laser
+Red Mojo Refractor
+Silver Blue Foil
+Golden Rainbow
+Artist Proof Silver Frame
+Neon Purple Pulsar Prizm
+Orange Mojo Refractor
+Silver Red Foil
+Speckled Rainbow Foil
+Black Prizm NFL Shield
+Choice Tiger Stripe
+Precious Metal Gems Green
+Winter Holo
+Black Flash Prizm
+Diamond Anniversary
+FOTL Platinum
+Spectrum FX
+SportsFest Chicago
+Super Rave
+Choice Nebula
+Green Flood
+Artist Proof Red
+Blue Green Mosaic
+Rainbow Red Autographs
+Retro Blank Back
+Teal Explosion
+Choice Green Prizm
+FOTL Red Scope
+Hydrogen
+Orange Explosion
+Red White Orange Flash
+Checkered Flag Prizm
+Platinum Prime
+Electric Etch White Mojo
+Artist Proof Green
+Black Flash
+Pink Holo Laser
+Platinum Cosmic
+Spectrum UD Exclusives
+Topps Vault Blank Back
+Electric Etch White Pulsar
+Sunset
+Blue Holo Laser
+Chinese New Year
+Red Wave Mosaic
+Red White Blue Mosaic
+FOTL Bronze
+MPH
+Asia Blue Orange
+Choice Black
+Premium FOTL Gold Shimmer
+Electric Etch Blue
+Holo Platinum Blue
+Micromotion Black
+Platinum Spotlight
+Premium FOTL Green Shimmer
+Red RayWave Refractor
+Retail Sapphire
+Blue Infinite
+Checker Flag Refractor
+Gold Prism Refractor
+Purple Explosion
+Red Blue Laser
+Asia Black
+Dazzle Purple
+Electric Etch Green Flood
+Prime Numbers A
+Purple Holo Laser
+Violet Pixels
+Green Yellow Holo Laser
+Light Blue Holo Laser
+Fifth Anniversary
+Red White Blue Pulsar
+Silver Etched Foil
+Fast Break Silver
+Micromotion
+Purple White Prizm
+Black Mojo Refractor
+Black Swirl
+FOTL Black Scope
+Gold Holo Laser
+MVP Platinum
+Precious Metal Gems Purple
+Red Script
+UD Midnight
+Asia Red Yellow Green
+Black Snake Skin Pulsar Prizm
+Black White Gold
+FOTL Green Crystal
+Precious Metal Gems Gold
+Pyro
+Yellow Holo Laser
+Artist Proof Black
+Black Holo Laser
+Electric Etch FOTL Contra
+Gold Swirl
+Press Proof Gold Laser
+Purple Gold Snakeskin
+Dazzle Gold
+Dazzle Pink
+First Run
+Green Quartz
+Platinum Laundry Tag
+Prime Numbers A Die-Cut
+Red Blue Holo Laser
+Asia Green Purple
+Clear Cut UD Exclusive
+Dazzle Green
+Fast Break Pink
+Fast Break Red
+Premium FOTL Black Shimmer
+Uncirculated X-Fractor
+Borderless Refractor
+Color Proof Magenta
+Electric Etch Yellow Flood
+FOTL Gold Scope
+FOTL Holo Orange
+Fast Break Pink Prizm
+Fast Break Purple
+Fast Break Purple Prizm
+Fast Break Red Prizm
+Gold and Purple Refractor
+Hoopla Plus
+Infinite Blue
+Retail Sapphire Foil
+Century Proof Dazzle
+Century Proof Dazzle Orange
+Fast Break Blue
+Mirror Platinum Gold Die-Cut
+Press Proof Blue Laser
+Black Mamba
+Bronze UD Exclusives Level 1
+Color Proof Yellow
+DK Challenge
+Dazzle Red
+FOTL Black Crystal
+Fast Break Orange
+Infinite Red
+Limited Black Stripe
+Mirror Platinum Blue Die-Cut
+Mirror Platinum Green Die-Cut
+Series 2 Orange
+Black Atomic Refractor
+Black Trophy Club
+Color Proof Cyan
+Fast Break Gold
+Fast Break Holo
+Infinite Gold
+Mirror Prime
+Par Single
+Platinum Bar
+Precious Metal Gems Emerald
+Purple Green Holo Laser
+Rookie Masterpiece Printing Plate Black
+Ruby Gold Proof
+Silver Slate
+Silver UD Exclusives
+UD Exclusives Spectrum
+Asia Black White
+Asia Holo Gold
+Associate Sponsor
+Black White Gold Flash
+Blue Cap
+Century Proof Holo
+Chrome Sapphire Edition Superfractor
+Dazzle Black
+Emerald Gold Proof
+Fast Break Blue Prizm
+Fast Break Bronze
+Fifth Anniversary Gold
+Gold UD Exclusive
+Infinite Black
+Mirror Holo Blue
+Mirror Platinum Black Die-Cut
+Octagon Prizm
+Press Proof Black Laser
+Printing Plate Mini Black Framed
+Printing Plate Mini Cyan Framed
+Printing Plate Mini Yellow Framed
+Pyro Autographs
+Red Gold Holo Laser
+Rookie Masterpiece Printing Plate Cyan
+Rookie Masterpiece Printing Plate Magenta
+Rookie Masterpiece Printing Plate Yellow
+Teal White Pink
+Transcendent VIP Party
+UD High Gloss
