@@ -275,3 +275,15 @@ def test_a_claimed_word_does_not_override_a_built_in_insert():
             "2025 Panini Phoenix Bo Nix Genies #8").subset == "Genies"
     finally:
         register_designations([])
+
+
+def test_the_ebay_roster_does_not_overwrite_the_learned_one(tmp_path):
+    """Writing over the learned roster destroyed the only thing the new list
+    could be compared against, which is how a 1,051-card regression became
+    impossible to attribute to either change that caused it."""
+    from nflcarddb import cli
+    import inspect
+
+    source = inspect.getsource(cli.cmd_catalog)
+    assert "config/nfl_players_ebay.txt" in source
+    assert 'Path("config/nfl_players.txt")' not in source
