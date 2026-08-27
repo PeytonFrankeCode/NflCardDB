@@ -24,8 +24,8 @@ Blue Prizm
 Red Prizm
 Finisher
 Lazer Prizm
-Orange Prizm
 Foil
+Orange Prizm
 Chrome Refractor
 Press Proof Blue
 Diamond
@@ -43,8 +43,8 @@ Power
 Premium
 Green Mosaic
 Mini
-Ice
 Throwback
+Ice
 Pink Refractor
 Clear
 Scorecard
@@ -60,8 +60,8 @@ Prime
 Wood
 Gold Refractor
 Purple Refractor
-Jersey
 Orange Refractor
+Jersey
 Red Zone
 Green Pulsar Prizm
 Holo Silver
@@ -92,10 +92,10 @@ Mirror Blue
 Aspirations
 Neon Green Prizm
 Red Foil
+Rainbow Foil
 Reactive Blue
 Silver Refractor
 Acetate
-Rainbow Foil
 Camo Prizm
 Purple Ice
 Prism
@@ -117,16 +117,16 @@ Press Proof Silver
 Members Only
 Blue Foil
 Green Hyper
-Minis
 Silver Foil
+Minis
 Mirror Orange
 Blue Wave
 Impact
 Purple Prizm Die-Cut
 Red Autographs
 Spectrum Red
-Jersey Number
 Pink Wave Prizm
+Jersey Number
 Green Yellow
 Tie-Dye Prizm
 Light Blue
@@ -142,18 +142,18 @@ True Blue
 Class 1
 Platinum Blue
 Blue Wave Refractor
-Red Die-Cut
 Pyramids
 Press Proof Purple
+Red Die-Cut
 Blue Mosaic
 Mirror Gold
 Lime Green
 Silver Holofoil
 Platinum Red
-Ruby Wave Prizm
 Jumbo Patch
-Sepia Refractor
+Ruby Wave Prizm
 Silver Hyper
+Sepia Refractor
 Promo
 Inception
 Gold Border
@@ -164,30 +164,30 @@ Zebra Prizm
 Red Hyper
 International
 Winter
-Aspirations Die-Cut
 Photo Variations
-Power Prizm
+Aspirations Die-Cut
 Premiere Date
+Power Prizm
 Red Mosaic
 Pink Pulsar Prizm
 White Refractor
-Black Gold
 White Sparkle Prizm
+Black Gold
 BCA Pink Refractor
-Silver Spectrum
 Copper Prizm
+Silver Spectrum
 Silver Spotlight
-Orange Wave Prizm
 Silver Wave
+Orange Wave Prizm
 Sky Blue Refractor
 Red Mojo
-Blank Back
 Mirror Purple
+Blank Back
 Tiffany
 Gold Spectrum
 Crystal
-Electric Etch Orange
 Blue Prismatic
+Electric Etch Orange
 Black and White
 Black & White
 Silver Xs
@@ -197,8 +197,8 @@ Red Border
 Inscriptions
 Fractal
 Mojo Prizm
-Onyx
 OPC
+Onyx
 Light Blue Prizm Die-Cut
 Orange Star
 STS Camo Refractor
@@ -210,19 +210,19 @@ Cubic
 Red Shimmer
 Flash Prizm
 Masterpiece
+Mojo Refractor
 Gold Holofoil
 Orange Pulsar Prizm
 Gold Medallion Edition
-Artist Proof
 Neon Blue
 Gold Xs
 Holographic
-Mojo Refractor
+Artist Proof
 Blue Shimmer
 Orange Wave
 Chrome Purple Refractor
-Radiance
 Image Variations
+Radiance
 Chrome Sapphire Edition
 Orange Die-Cut
 Electric Etch Green
@@ -230,27 +230,27 @@ Blue Star
 Blue Disco Prizm
 Red Shimmer Prizm
 Green Shimmer
-Metal
 Marble
-Blue Cracked Ice
+Metal
 Green Cracked Ice
-Mirror Silver
-Vintage Stock
+Blue Cracked Ice
 Silver Mojo
+Mirror Silver
 Row 1
-Silver Script
 Purple Foil
+Vintage Stock
+Silver Script
 Gold Spotlight
 Limited Edition
 Red Disco Prizm
 Foilboard
-Electric Etch Purple
 Blue Border
-Blue Shimmer Prizm
+Electric Etch Purple
 Black Foil
+Blue Shimmer Prizm
+Galactic
 Green Prismatic
 Holo Pink
-Galactic
 Red Ink
 Black Border
 Holo Red
@@ -258,12 +258,12 @@ Purple Cracked Ice
 Blue Disco
 Gold Star
 Green Shimmer Refractor
-Neon Orange Prizm
 1st Day Issue
+Neon Orange Prizm
 Premium Blue
-Printing Plate Yellow
-Printing Plate Cyan
 Red Prismatic
+Printing Plate Cyan
+Printing Plate Yellow
 End Zone
 Printing Plate Black
 Gold Prismatic
@@ -272,11 +272,11 @@ Purple Stars Prizm
 Purple Mosaic
 Pink Prismatic
 Printing Plate Magenta
-Blue Pulsar Prizm
 Red White & Blue Kaleidoscope
-Bronze Foil
 Tag
+Blue Pulsar Prizm
 White Sparkle
+Bronze Foil
 Neon Orange Pulsar Prizm
 Groove
 Blue Checkerboard
@@ -288,8 +288,8 @@ BCA Pink
 Choice Green
 Holo Purple
 Black Prismatic
-Orange Pulsar
 Bronze Refractor
+Orange Pulsar
 Electric Etch Yellow
 Nebula
 Laundry Tag
@@ -300,128 +300,128 @@ Gold Wave Refractor
 Neon Orange
 Neon Pink
 Green Mojo
+Gold Green
 Silver Jersey
 Red Pulsar Prizm
-Gold Green
 Purple Green
 Gold Red
 Holo Green
 Gold Shimmer Prizm
 Platinum Gold
-Crystal Blue
 Platinum Medallion
-Blue Explosion
+Crystal Blue
 Navy Blue
+Blue Explosion
 Mirror Green
-Blue Pulsar
 Pink BCA
+Blue Pulsar
 Red Disco
 Royal Blue
 Crystal Purple
-Gold Rainbow
 Black Shimmer
+Gold Rainbow
 Gold Vinyl Prizm
 Spectrum Gold
 Rapture
 Silver Portrait
 Thin Stock
 Premium Patch
-Light Blue Die-Cut
 UD Exclusives
+Light Blue Die-Cut
 Pink Hyper
 Holo Orange
 Teal Prizm
 First Day Issue
 Green Shimmer Prizm
 White Mosaic
-Checkers
 Purple Winter
+Checkers
 Choice Prizm
 Press Proof Black
 Platinum Green
 Purple Disco
-Holo Platinum
 25th Anniversary
+Holo Platinum
 Choice Red Prizm
-Platinum Xs
 Electric Etch Red
+Platinum Xs
 Gold Prime
 Gold Mosaic
 Silver Laser
 Red Flash
-Precious Metal Gems
 Blue Laser
+Precious Metal Gems
 Crystal Red
 Swirlorama
 Gold Disco Prizm
+Independence Day
 Red Checkerboard
 Green Flash
 Escher Squares
 Amethyst
 Black Mojo
-Independence Day
 Gold Laser
 Red Pulsar
+Gold Blue
 Crystal Black
 Choice Red
 Electric Etch Red Flood
 Mini Gold
-Gold Blue
 23 Karat Gold
 FOTL Purple Stars
 Silver Signature
 All-Star Game
 Green Prime
-Micro
+Gold Mojo
 Blue Mojo Prizm
 Precious Metal Gems Red
-Gold Mojo
+Micro
 Spectrum Autographs
 Starburst
 Gold Spectrum Autographs
-Gold Wave Prizm
 Rave
-Orange Border
+Gold Wave Prizm
 Silver Steel
+Orange Border
 Pink Ice
-Mini Black Border
 Sparkle Foil
+Mini Black Border
 Choice Blue
 Blue RayWave Refractor
 Choice Gold
 Green Disco Prizm
 Blue Prime
 Hobby LTD
-Purple Laser
 Gold Disco
 Green Holo Laser
+Purple Laser
 MVP Gold
 Gold Flash Prizm
 Blue Yellow Green
 Red Prism
 Red White & Blue Wave
 Mirror Emerald
-Wild Card Ticket
 Holo Bronze
+Wild Card Ticket
+Red Wave Mosaic Prizm
 Artist Proof Blue
 Mirror Platinum Red Die-Cut
-Red Wave Mosaic Prizm
 Gold Script
 Purple Flash
 To the Max
 STS Camo
-Red Wave Refractor
 Mirror Platinum Purple Die-Cut
 High Gloss
-Blank Front
+Red Wave Refractor
 Black Finite Prizm
+Blank Front
 Platinum Black
 Red White & Blue Prismatic
 Black Pulsar
 Teal Wave
 Crystal Gold
-Red White & Blue Mojo Prizm
 Mirror Black
+Red White & Blue Mojo Prizm
 SP Limited
 Shirt
 Choice Red Green
@@ -429,13 +429,13 @@ Bronze Border
 Red White & Blue Crystals
 Orange Holo Laser
 Red Explosion
+Lucky Envelopes Prizm
 150th Anniversary
 Artist Proof Gold
-Emerald Foil
 Red White & Blue Mojo
-Asia Red
 UD Exclusives Silver
-Lucky Envelopes Prizm
+Emerald Foil
+Asia Red
 FOTL Purple
 Blue Silver Prizm
 Black Cracked Ice
@@ -444,8 +444,8 @@ Asia
 Target Red
 Rainbow Color Wheel
 FOTL Pink Swirl
-Gold Flash
 Gold Pulsar
+Gold Flash
 Green Explosion
 FOTL Blue
 Silver Scope
@@ -453,11 +453,11 @@ Red White & Blue Rainbow
 Wal-Mart Blue
 UD Promo
 Hobby Orange
-Green White Purple
 Red Memorabilia
+Green White Purple
 Extreme Limited
-Mini Allen & Ginter Back
 On Fire
+Mini Allen & Ginter Back
 Bronze Hyper
 Blue Flash
 Gold Memorabilia
@@ -471,31 +471,31 @@ Blue Mojo Refractor
 Blue Prism Refractor
 Yellow Red Mosaic
 Red X-Fractor
-Super Prime
 Purple Flood
+Super Prime
 Gold Hyper
 FOTL Blue Scope
 Rainbow Prizm
 Dynamite
 UD Exclusives Gold
-Black Laser
 Gold Hologram
 Home Team Advantage
+Black Laser
 FOTL Orange
 Lucky Envelopes
-Gold Green Foil
+Green Mojo Refractor
 FOTL Green Swirl
+Gold Green Foil
 Green RayWave Refractor
 Premium FOTL Blue Shimmer
 Red Prime
-Green Mojo Refractor
-Red Blank Back
 Purple Mojo Refractor
+Red Blank Back
 Choice Black Gold
 Press Proof Red Laser
 Neon Black Light
-Red Black Snake Skin
 Bordered Refractor
+Red Black Snake Skin
 Memorial Day Camo
 Electric Etch Blue Finite
 Blue White Green Flash
@@ -505,18 +505,18 @@ Electric Etch Asia
 Pink Flash
 Crystal Platinum
 FOTL Purple Scope
-Mirror Camo
 Choice Nebula Prizm
+Mirror Camo
 Precious Metal Gems Teal
-Black Foil Shield
 FoilFractor
+Black Foil Shield
 Gold RayWave Refractor
 Platinum Purple
-Black Disco Prizm
 Precious Metal Gems Blue
-Yellow RayWave Refractor
 Asia Red Gold
+Black Disco Prizm
 Chrome Sapphire Edition Gold
+Yellow RayWave Refractor
 White Wave Prizm
 Mosaic Red Wave Prizm
 Pink Mojo Refractor
@@ -524,25 +524,25 @@ Gold Mojo Refractor
 Red Holo Laser
 Silver Green Foil
 Black Mosaic
+All-Black
 First Gear
 Gold Blue Foil
-All-Black
 Black Disco
 Asia Green
-Gold Red Foil
 Fast Break Prizm
+Gold Red Foil
 Mega Box Mojo Refractor
 Holo Purple Laser
 Red Mojo Refractor
 Silver Blue Foil
 Golden Rainbow
-Artist Proof Silver Frame
 Choice Tiger Stripe
-Neon Purple Pulsar Prizm
 Orange Mojo Refractor
+Artist Proof Silver Frame
+Black Prizm NFL Shield
+Neon Purple Pulsar Prizm
 Silver Red Foil
 Speckled Rainbow Foil
-Black Prizm NFL Shield
 Precious Metal Gems Green
 Winter Holo
 Black Flash Prizm
@@ -551,81 +551,81 @@ FOTL Platinum
 Spectrum FX
 SportsFest Chicago
 Super Rave
+Green Flood
 Artist Proof Red
 Blue Green Mosaic
 Choice Nebula
-Green Flood
-Rainbow Red Autographs
 Retro Blank Back
 Teal Explosion
 Choice Green Prizm
 FOTL Red Scope
+Rainbow Red Autographs
 Hydrogen
 Orange Explosion
 Red White Orange Flash
 Checkered Flag Prizm
 Platinum Prime
 Electric Etch White Mojo
-Artist Proof Green
 Black Flash
+Artist Proof Green
 Pink Holo Laser
 Platinum Cosmic
 Spectrum UD Exclusives
 Topps Vault Blank Back
-Electric Etch White Pulsar
 Sunset
 Blue Holo Laser
 Chinese New Year
+Electric Etch White Pulsar
 Red Wave Mosaic
 Red White Blue Mosaic
+Asia Blue Orange
 FOTL Bronze
 MPH
-Asia Blue Orange
 Choice Black
 Premium FOTL Gold Shimmer
-Red RayWave Refractor
 Electric Etch Blue
 Holo Platinum Blue
 Micromotion Black
-Platinum Spotlight
 Premium FOTL Green Shimmer
 Retail Sapphire
 Blue Infinite
 Checker Flag Refractor
 Gold Prism Refractor
+Platinum Spotlight
 Purple Explosion
 Red Blue Laser
+Red RayWave Refractor
 Asia Black
-Dazzle Purple
 Electric Etch Green Flood
+Light Blue Holo Laser
 Prime Numbers A
 Purple Holo Laser
 Violet Pixels
-Green Yellow Holo Laser
-Light Blue Holo Laser
+Dazzle Purple
 Fifth Anniversary
+Green Yellow Holo Laser
 Red White Blue Pulsar
 Silver Etched Foil
 Fast Break Silver
-Micromotion
 Purple White Prizm
 Black Mojo Refractor
 Black Swirl
 FOTL Black Scope
+FOTL Green Crystal
 Gold Holo Laser
 MVP Platinum
+Micromotion
 Precious Metal Gems Purple
 Red Script
 UD Midnight
 Asia Red Yellow Green
 Black Snake Skin Pulsar Prizm
-Black White Gold
-FOTL Green Crystal
 Precious Metal Gems Gold
 Pyro
 Yellow Holo Laser
 Artist Proof Black
 Black Holo Laser
+Black White Gold
 Electric Etch FOTL Contra
 Gold Swirl
 Press Proof Gold Laser
