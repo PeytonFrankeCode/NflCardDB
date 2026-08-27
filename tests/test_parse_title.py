@@ -519,3 +519,29 @@ def test_the_second_gap_reports_words_are_recognised():
         "1994 Pinnacle Barry Sanders Detroit Lions #100").set_name == "Pinnacle"
     assert parse_title(
         "Von Miller 2021 Panini Mosaic Super Bowl #12").subset == "Super Bowl"
+
+
+def test_an_insert_name_containing_patch_still_flags_the_relic():
+    """Claiming "Rookie Patch" as an insert consumes the word before the relic
+    pass reaches it -- the same trap "Rated Rookie" set for the rookie flag."""
+    a = parse_title("2022 National Treasures Brock Purdy Rookie Patch Auto /99")
+    assert a.subset == "Rookie Patch"
+    assert a.is_relic is True
+    assert a.is_auto is True
+
+
+def test_the_two_word_spelling_of_a_known_insert():
+    """"Dragon Scale" and "Dragonscale" are one name; 423 sales were being lost
+    to the space between them."""
+    a = parse_title("2024 Panini Select Budda Baker Dragon Scale #12")
+    b = parse_title("2024 Panini Select Budda Baker Dragonscale #12")
+    assert a.subset == "Dragon Scale"
+    assert b.subset == "Dragonscale"
+    assert a.unparsed is None and b.unparsed is None
+
+
+def test_a_retired_team_name_is_not_a_players_name():
+    """Still printed on every card made before 2020."""
+    a = parse_title("Cody Hoffman 2014 Contenders #115 Rookie Washington Redskins")
+    assert a.team == "Washington Redskins"
+    assert "Redskins" not in (a.player or "")

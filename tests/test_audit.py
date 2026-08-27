@@ -544,3 +544,37 @@ def test_a_title_with_html_in_it_cannot_break_the_page(tmp_path):
     assert "u003cscript" in payload
     # ...and the renderer escapes it again on the way into the DOM.
     assert "esc(r.title)" in html
+
+
+def test_the_gap_report_uses_the_roster(tmp_path):
+    """Without it every player name falls to the run heuristic and the words
+    past the first two get reported as unrecognised -- which put a block of
+    surnames at the top of a report whose purpose is naming what is missing."""
+    from nflcarddb.audit import vocabulary_gaps
+
+    # An unknown phrase in front of the player. Without a roster the run scan
+    # takes the whole span, and everything past its first two words is
+    # reported as unrecognised -- so the player's own surname shows up.
+    path = _seed(tmp_path / "gaps.db", [
+        ("2023 Donruss Optic Wibblewobble Patrick Mahomes #8", 900),
+    ])
+    roster = tmp_path / "players.txt"
+    roster.write_text("Patrick Mahomes\n", encoding="utf-8")
+
+    without = {r["word"] for r in vocabulary_gaps(str(path))["words"]}
+    with_roster = {r["word"] for r in
+                   vocabulary_gaps(str(path), str(roster))["words"]}
+
+    assert "mahomes" in without            # the artifact
+    assert "mahomes" not in with_roster    # ...gone once the name is known
+    # ...and the genuinely unknown word survives either way, which is the
+    # whole point of the report.
+    assert "wibblewobble" in with_roster
+
+
+def test_the_gap_report_says_which_parser_read_it(tmp_path):
+    from nflcarddb.audit import vocabulary_gaps
+    from nflcarddb.parse_title import PARSER_VERSION
+
+    path = _seed(tmp_path / "gaps.db", [("nonsense wibble", 900)])
+    assert vocabulary_gaps(str(path))["parser"] == PARSER_VERSION

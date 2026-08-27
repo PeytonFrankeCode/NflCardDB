@@ -403,7 +403,8 @@ def messy_named_groups(db_path: str, limit: int = 25) -> list[dict]:
     return out[:limit]
 
 
-def vocabulary_gaps(db_path: str, limit: int = 40) -> list[dict]:
+def vocabulary_gaps(db_path: str, roster_path: Optional[str] = None,
+                    limit: int = 40) -> dict:
     """Words the parser could not account for, ranked by how often they appear.
 
     The honest replacement for guessing at insert names. Every round of this
@@ -418,7 +419,13 @@ def vocabulary_gaps(db_path: str, limit: int = 40) -> list[dict]:
     """
     from collections import Counter
 
-    from .parse_title import parse_title
+    from .parse_title import PARSER_VERSION, load_roster, parse_title
+
+    # With the roster, or every player name falls to the run heuristic and the
+    # words past the first two are reported as unrecognised. That artifact put
+    # a block of surnames -- jackson, mahomes, brady, sanders -- at the top of
+    # a report whose whole purpose is naming what the parser cannot read.
+    roster = load_roster(roster_path) if roster_path else None
 
     conn = store.connect(db_path)
     try:
@@ -429,7 +436,7 @@ def vocabulary_gaps(db_path: str, limit: int = 40) -> list[dict]:
     counts: Counter = Counter()
     example: dict[str, str] = {}
     for title in titles:
-        leftover = parse_title(title).unparsed
+        leftover = parse_title(title, roster).unparsed
         if not leftover:
             continue
         for word in leftover.split():
@@ -437,7 +444,13 @@ def vocabulary_gaps(db_path: str, limit: int = 40) -> list[dict]:
             counts[key] += 1
             example.setdefault(key, title)
 
-    return [
-        {"word": word, "sales": n, "example": example[word]}
-        for word, n in counts.most_common(limit)
-    ]
+    return {
+        # Stamped, because a report that looks the same as last time is
+        # ambiguous between "nothing changed" and "the change is not here".
+        "parser": PARSER_VERSION,
+        "roster": roster_path if roster else None,
+        "words": [
+            {"word": word, "sales": n, "example": example[word]}
+            for word, n in counts.most_common(limit)
+        ],
+    }

@@ -1014,13 +1014,17 @@ def cmd_gaps(args) -> int:
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
 
-    rows = vocabulary_gaps(db_path, limit=args.limit)
+    roster_path = args.roster or (config.roster if config else None)
+    report = vocabulary_gaps(db_path, roster_path, limit=args.limit)
+    rows = report["words"]
     if not rows:
         print("Nothing unaccounted for. Every title parsed cleanly.")
         return 0
 
     print("Words the parser does not recognise")
     print("=" * 70)
+    print(f"  read by {report['parser']}, roster: "
+          f"{report['roster'] or 'NONE -- surnames below are this, not a bug'}")
     print(f"  {'word':<24}{'sales':>8}   example")
     for row in rows:
         print(f"  {row['word'][:23]:<24}{row['sales']:>8,}   {row['example'][:38]}")
@@ -2388,6 +2392,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="words the parser cannot account for, ranked")
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
+    p.add_argument("--roster")
     p.add_argument("--limit", type=int, default=40)
     p.set_defaults(func=cmd_gaps)
 

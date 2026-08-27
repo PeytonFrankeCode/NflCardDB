@@ -39,7 +39,7 @@ from .models import CardAttrs
 # title/7: the first pass of the gap report -- Flagship and Resurgence as
 #          products, vintage condition shorthand and seller names as noise,
 #          game-worn as a relic, and the insert names the examples revealed.
-PARSER_VERSION = "title/9"
+PARSER_VERSION = "title/10"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -108,6 +108,7 @@ PARALLELS = (
     # From the gap report: "Color Match" was arriving as two unrecognised
     # words, 789 and 546 sales apiece.
     "Color Match", "Crackle", "Border", "Neon", "Metallix", "Dots",
+    "Static", "Image", "Premier", "Preview",
     # Topps refractor family
     "SuperFractor", "Super Fractor", "X-Fractor", "XFractor",
     "Atomic Refractor", "Mini Diamond", "RayWave", "Ray Wave", "Refractor",
@@ -166,6 +167,12 @@ INSERTS = (
     "Super Bowl", "Tecmo Bowl", "Old School", "Draft Night", "Black Ink",
     "Xtra Points", "Player of the Day", "Rising Suns", "Rising Sons",
     "Alumination", "Joker", "Quarter-Staff", "Surge", "Anniversary",
+    # Third gap report. "Dragon Scale" is the two-word spelling of a name
+    # already known as one word -- 228 and 195 sales were being lost to the
+    # space.
+    "Dragon Scale", "Draft Class", "Rookie Class", "Immortals", "Composite",
+    "Paramount Pairings", "Rookie Rush", "Conductors", "Rookie Patch",
+    "Art Card", "Select Future", "Five Card Draw", "Tuddys", "Rookie Gear",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -213,6 +220,9 @@ NOISE = {
     # in front of 240 sales.
     "autographs", "signature", "signatures", "dual", "triple", "quad",
     "inserts", "ebay", "live", "streaming", "show", "years", "best", "all",
+    # Colleges and materials: never a player's name.
+    "ohio", "texas", "alabama", "georgia", "material", "materials",
+    "jerseys", "authentic", "club", "art",
     "one", "better", "singles", "state", "university", "college",
     # Finishes and qualifiers that trail a name: "Jaxson Dart Leather".
     "future", "leather", "refractor", "refractors", "holo", "holofoil", "foil",
@@ -248,6 +258,9 @@ TEAMS = (
     "Jaguars", "Chiefs", "Raiders", "Chargers", "Rams", "Dolphins", "Vikings",
     "Patriots", "Saints", "Giants", "Jets", "Eagles", "Steelers", "49ers",
     "Niners", "Seahawks", "Buccaneers", "Bucs", "Titans", "Commanders",
+    # Retired, and still on every card printed before 2020.
+    "Washington Redskins", "Redskins", "Phoenix Cardinals",
+    "Oakland Raiders", "San Diego Chargers", "St. Louis Rams",
 )
 
 # --- regexes ----------------------------------------------------------------
@@ -684,6 +697,12 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # read off the match rather than lost.
     if subset_match and "rookie" in subset_match.group(1).lower():
         attrs.is_rookie = True
+    # Same trap, second flag: claiming "Rookie Patch" as an insert consumes the
+    # word before the relic pass reaches it, and the card stops being a relic.
+    if subset_match and RELIC_RE.search(subset_match.group(1)):
+        attrs.is_relic = True
+    if subset_match and AUTO_RE.search(subset_match.group(1)):
+        attrs.is_auto = True
 
     m = _take(work, BRAND_PAT)
     if m:
