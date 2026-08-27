@@ -13,7 +13,7 @@ database: data/nflcarddb.sqlite
 
 # Optional: newline- or CSV-delimited player names. When present, the title
 # parser matches against it and reports higher confidence on exact hits.
-roster: config/nfl_players_ebay.txt
+roster: config/nfl_players.txt
 
 fetch:
   # auto | impersonate | browser | requests
