@@ -393,13 +393,47 @@ def test_a_comment_in_the_roster_is_not_a_player(tmp_path):
 
 
 def test_a_word_no_vocabulary_knows_is_reported_rather_than_swallowed():
-    """"Dragonscale" is in no list, so the name scan absorbed it into the
-    player. Surfacing it is what turns guessing at insert names into a ranked
-    list of what is actually missing."""
-    a = parse_title("2024 Panini Select Ja'Marr Chase Dragonscale #12 /81 Auto")
-    assert a.unparsed == "Dragonscale"
+    """An unknown word gets absorbed into the player's name by the run scan.
+    Surfacing it is what turned guessing at insert names into a ranked list of
+    what is actually missing -- and that list is where "Dragonscale" came from,
+    which is why the example here has to be a word still nobody knows."""
+    a = parse_title("2024 Panini Select Ja'Marr Chase Wyvernhide #12 /81 Auto")
+    assert a.unparsed == "Wyvernhide"
     assert a.print_run == 81
     assert a.is_auto is True
+
+
+def test_the_gap_reports_findings_are_now_recognised():
+    """The words the report put at the top, no longer unaccounted for."""
+    a = parse_title("2024 Panini Select Ja'Marr Chase Dragonscale #12 /81")
+    assert a.subset == "Dragonscale"
+    assert a.unparsed is None
+
+    b = parse_title("2026 Topps Flagship Fernando Mendoza #25")
+    assert b.set_name == "Topps Flagship"
+
+    c = parse_title("2025 Topps Resurgence Bo Nix Voltaic #53")
+    assert c.set_name == "Topps Resurgence"
+    assert c.subset == "Voltaic"
+
+
+def test_vintage_condition_shorthand_is_not_a_players_name():
+    """"EX-EXMINT", "NR-MINT" and "VG-VGEX" were being read as names on more
+    than 1,200 sales between them."""
+    for title in ["1975 Topps #416 Joe Theismann (EX-EXMINT)",
+                  "1968 Topps #100 John Unitas (VG-VGEX)",
+                  "2001 Upper Deck #DU-GS Deuce McAllister NR-MINT"]:
+        player = (parse_title(title).player or "").lower()
+        assert "mint" not in player and "vgex" not in player, title
+
+
+def test_a_game_worn_card_is_a_relic():
+    """"GAME-WORN" describes a relic and was not flagged as one, so those
+    cards keyed as ordinary base cards."""
+    assert parse_title(
+        "2007 Absolute Michael Robinson GAME-WORN Jumbo #12").is_relic is True
+    assert parse_title(
+        "BAKER MAYFIELD 2024 DONRUSS THREADS #TA-BM").is_relic is True
 
 
 def test_a_fully_understood_title_leaves_nothing_over():
@@ -409,7 +443,35 @@ def test_a_fully_understood_title_leaves_nothing_over():
 
 def test_a_roster_name_is_not_reported_as_unrecognised():
     """The whole name is accounted for when it came from the roster."""
-    a = parse_title("2024 Panini Legacy Decade Dominance Tom Brady Silver #12",
+    a = parse_title("2024 Panini Legacy Wyvernhide Tom Brady Silver #12",
                     {"tom brady"})
     assert a.player == "Tom Brady"
-    assert a.unparsed == "Decade Dominance"
+    assert a.unparsed == "Wyvernhide"
+
+
+def test_a_vintage_card_belongs_to_the_makers_set():
+    """"1975 Topps #416" had no set at all, which is most of the pre-2000 data."""
+    a = parse_title("1975 Topps Set-Break #416 Joe Theismann (EX-EXMINT)")
+    assert a.set_name == "Topps"
+    assert a.year == 1975
+    assert a.card_number == "416"
+
+
+def test_the_makers_name_never_beats_its_own_product():
+    """Matching is longest-first by term, so adding "Panini" to the set list
+    made it beat "Prizm" and every modern Panini card lost its real set."""
+    assert parse_title(
+        "2021 Panini Prizm Ja'Marr Chase #220 PSA 10").set_name == "Prizm"
+    assert parse_title(
+        "1998 Topps Chrome Peyton Manning Refractor #165").set_name == "Topps Chrome"
+
+
+def test_a_card_number_with_letters_after_the_digits():
+    """Topps Flagship numbers like "25GH-LB" were dropped whole: the pattern
+    only allowed letters before the digits."""
+    assert parse_title(
+        "2026 Topps Flagship #25GH-LB Luther Burden").card_number == "25GH-LB"
+    # ...without costing the shape that already worked.
+    assert parse_title(
+        "2025 Topps Chrome Caleb Williams #NFS-1 Refractor").card_number == "NFS-1"
+    assert parse_title("2021 Prizm Ja'Marr Chase #220").card_number == "220"

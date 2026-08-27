@@ -36,7 +36,10 @@ from .models import CardAttrs
 #          display name gained the print run, auto, patch, the claimed variety
 #          and a Base tag, and whatever the parser could not account for is
 #          recorded so the vocabulary gaps can be ranked.
-PARSER_VERSION = "title/6"
+# title/7: the first pass of the gap report -- Flagship and Resurgence as
+#          products, vintage condition shorthand and seller names as noise,
+#          game-worn as a relic, and the insert names the examples revealed.
+PARSER_VERSION = "title/8"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -63,9 +66,21 @@ SETS = (
     "Stadium Club", "Museum Collection", "Allen & Ginter", "Gypsy Queen",
     "Heritage", "Finest", "Inception", "Five Star", "Gold Label", "Definitive",
     "Dynasty", "Tribute", "Fire", "Topps Now",
+    # Straight off the gap report: "Flagship" was unrecognised in 3,535 sales
+    # and "Resurgence" in 1,804. Both are products, not decoration.
+    "Topps Flagship", "Flagship", "Topps Resurgence", "Resurgence",
+    "Topps Midnight", "Bowman's Best", "Topps Update",
     # Upper Deck
     "SP Authentic", "Ultimate Collection", "Exquisite", "SPx",
     "Score", "Sage Hit",
+    # Makers that also shipped a base set under their own name, so a 1975
+    # Topps card belongs to the set "Topps". Without these the whole pre-2000
+    # era parses with no set at all.
+    #
+    # "Panini" is deliberately absent. It is a brand that never named a set,
+    # and matching is longest-first by term, so "Panini" (6) beat "Prizm" (5)
+    # and every modern Panini card lost its real set the moment it was added.
+    "Topps", "Fleer", "Upper Deck", "Pacific",
 )
 
 PARALLELS = (
@@ -132,6 +147,15 @@ INSERTS = (
     # and Round Numbers.
     "Power Players", "Rookie Stallions", "Round Numbers", "Legendary Lids",
     "Ticket Stubs", "Hometown Heroes", "Rookie Phenoms",
+    # Fourth wave, read off the gap report's examples rather than inferred from
+    # contradictory groups -- which is why there are more of them and why they
+    # are the ones actually appearing in sales.
+    "Thunderbirds", "Photogenic", "Brilliance", "Production Line", "Voltaic",
+    "Geometric", "Signature Class", "Year One", "Rookie Gear", "Star Quest",
+    "Primary Colors", "Allimination", "Battle Arena", "Kick-Off", "Game Gear",
+    "Transcendent", "Multiverse", "First Pitch", "Emergent", "Fireworks",
+    "Touchdown Masters", "Epic Performers", "Men of Mastery", "Kaleidoscopic",
+    "Prizmatic", "Aurora", "Decade Dominance", "Dragonscale", "Visionary",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -166,6 +190,14 @@ NOISE = {
     "die-cut", "1st", "first", "year", "debut", "prizm", "sale", "read", "look",
     "combined", "bundle", "you", "pick", "choice", "digital", "reprint", "custom",
     "gem-mt", "gemmt", "nm-mt", "nm", "ex", "vg",
+    # Vintage raw-condition shorthand, from the gap report: these were being
+    # read as parts of players' names on 1,200+ sales between them.
+    "ex-exmint", "exmint", "nr-mint", "nrmint", "vg-vgex", "vgex", "exnm",
+    "poor", "fair", "good",
+    # Sellers and listing styles, not cards. "gmcards" alone appeared in 1,438
+    # sales and "set-break" in 1,279.
+    "gmcards", "autographden", "set-break", "setbreak", "break", "auction",
+    "scan", "exact", "series", "update", "factory", "jumbo", "oversize",
     # Finishes and qualifiers that trail a name: "Jaxson Dart Leather".
     "future", "leather", "refractor", "refractors", "holo", "holofoil", "foil",
     "chrome",
@@ -235,7 +267,10 @@ CARD_NUM_RE = re.compile(
     # one-of-one as "#1/1" and a numbered parallel as "#8/10". A detached slash
     # is a print run belonging to a real card number, which is why this must not
     # span whitespace -- "#301 /249" has to keep reading as card 301.
-    r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}[A-Z]?)\b(?!/)"
+    # Letters may come before the digits ("NFS-1") or after them
+    # ("25GH-LB"); before this only the first shape parsed and Topps
+    # Flagship's whole numbering was being dropped.
+    r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}(?:-?[A-Z]{1,3})*)\b(?!/)"
     # "#1-330" is the range of a whole set being offered, not card one.
     r"(?!-\d)"
     rf"(?!\s+{_NOT_A_NUMBER}\b)",
@@ -251,7 +286,11 @@ MULTI_CARD_RE = re.compile(
 )
 ROOKIE_RE = re.compile(r"\b(RC|RY|ROOKIE|ROOKIE\s+CARD|1ST\s+YEAR)\b", re.I)
 AUTO_RE = re.compile(r"\b(AUTO(?:GRAPH(?:ED)?)?|SIGNED|ON[-\s]CARD)\b", re.I)
-RELIC_RE = re.compile(r"\b(PATCH|RELIC|JERSEY|RPA|MEM(?:ORABILIA)?|SWATCH|GLOVE)\b", re.I)
+RELIC_RE = re.compile(
+    r"\b(PATCH|RELIC|JERSEY|RPA|MEM(?:ORABILIA)?|SWATCH|GLOVE|THREADS|"
+    # "GAME-WORN" and "GAME USED" describe a relic and were not flagged as
+    # one, so those cards keyed as ordinary base cards.
+    r"GAME[-\s]?WORN|GAME[-\s]?USED|WORN)\b", re.I)
 NAME_TOKEN_RE = re.compile(r"^[A-Z][A-Za-z'’.\-]*$|^[A-Z]{2,4}$|^[A-Z]\.[A-Z]\.$")
 
 
@@ -685,7 +724,9 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # leaked in -- "Ja'Marr Chase Dragonscale" is a player plus the parallel
     # nobody has in a vocabulary yet, and that word is the whole point of
     # looking. Subtracting the full guessed name would hide it.
-    spoken_for = set(NOISE)
+    # "Joe Milton III" left "iii" behind on 916 sales -- a suffix travels with
+    # a name and is not a word nothing knows.
+    spoken_for = set(NOISE) | NAME_SUFFIXES
     if attrs.player:
         words = attrs.player.split()
         spoken_for |= {w.lower() for w in (words if roster_hit else words[:2])}
