@@ -5,6 +5,9 @@ cd /d "%~dp0"
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
 call "%~dp0_update.bat"
+REM Proof the helper returned. A silent window used to be ambiguous
+REM between "the update check hung" and "the program printed nothing".
+echo    [ready]
 
 echo.
 echo ==========================================================

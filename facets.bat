@@ -7,6 +7,9 @@ call venv\Scripts\activate.bat
 
 REM An out-of-date checkout reports old numbers that look perfectly normal.
 call "%~dp0_update.bat"
+REM Proof the helper returned. A silent window used to be ambiguous
+REM between "the update check hung" and "the program printed nothing".
+echo    [ready]
 
 echo.
 echo ==========================================================
