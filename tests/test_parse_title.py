@@ -390,3 +390,26 @@ def test_a_comment_in_the_roster_is_not_a_player(tmp_path):
                     "Ja'Marr Chase\n", encoding="utf-8")
 
     assert load_roster(path) == {"tom brady", "ja'marr chase"}
+
+
+def test_a_word_no_vocabulary_knows_is_reported_rather_than_swallowed():
+    """"Dragonscale" is in no list, so the name scan absorbed it into the
+    player. Surfacing it is what turns guessing at insert names into a ranked
+    list of what is actually missing."""
+    a = parse_title("2024 Panini Select Ja'Marr Chase Dragonscale #12 /81 Auto")
+    assert a.unparsed == "Dragonscale"
+    assert a.print_run == 81
+    assert a.is_auto is True
+
+
+def test_a_fully_understood_title_leaves_nothing_over():
+    assert parse_title(
+        "2021 Panini Prizm Ja'Marr Chase #220 PSA 10").unparsed is None
+
+
+def test_a_roster_name_is_not_reported_as_unrecognised():
+    """The whole name is accounted for when it came from the roster."""
+    a = parse_title("2024 Panini Legacy Decade Dominance Tom Brady Silver #12",
+                    {"tom brady"})
+    assert a.player == "Tom Brady"
+    assert a.unparsed == "Decade Dominance"

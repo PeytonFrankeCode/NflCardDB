@@ -103,14 +103,41 @@ def card_key(attrs: CardAttrs) -> Optional[str]:
     if attrs.parallel:
         parts.append(_slug(attrs.parallel))
 
+    # An autographed card and a patch card are different cards from the base,
+    # not conditions of it -- they are separately printed, separately
+    # numbered and worth many times more. Leaving them out of the key averaged
+    # a $700 auto into a $10 base card's price history, which is what most of
+    # the audit's 20x price spreads turn out to be.
+    if attrs.is_auto:
+        parts.append("auto")
+    if attrs.is_relic:
+        parts.append("patch")
+
     return "-".join(p for p in parts if p)
 
 
 def card_name(attrs: CardAttrs) -> Optional[str]:
-    """A readable name for the group: "2021 Prizm Ja'Marr Chase #220 Silver".
+    """A readable name for the group, carrying everything that makes it that card.
 
-    Built from the parsed attributes rather than picked from one seller's title,
-    so every sale in a group renders the same name however that seller wrote it.
+    "2024 Select Ja'Marr Chase #12 Dragonscale /81 Auto".
+
+    Every part here was missing at some point and each absence made the name
+    describe the wrong thing:
+
+    * **The print run.** A Select Dragonscale is a "Dragonscale /81", not a
+      "Dragonscale" and not a "/81". The colour without the run does not say
+      which of several numbered versions it is.
+    * **Auto and patch.** They were parsed and then never shown, so an
+      autographed card and a base card rendered identically -- while selling
+      for wildly different money, which is most of what the wide price spreads
+      in the audit turn out to be.
+    * **The claimed variety.** Words claimed out of the title used to be
+      discarded, so a "Decade Dominance Silver" came back as plain "Silver".
+    * **"Base".** Without it, a base card is named by what it lacks, and reads
+      as though something failed to parse.
+
+    Built from the parsed attributes rather than one seller's wording, so every
+    sale of a card renders the same name however it was written.
     """
     if attrs is None:
         return None
@@ -120,15 +147,41 @@ def card_name(attrs: CardAttrs) -> Optional[str]:
     if attrs.set_name:
         bits.append(attrs.set_name)
     if attrs.subset:
-        # Shown because it is what the card is: "2025 Phoenix Genies Bo Nix #8"
-        # tells a reader which #8 they are looking at, and the key now says so.
+        # What the card is: "2025 Phoenix Genies Bo Nix #8" tells a reader
+        # which #8 they are looking at, and the key says so too.
         bits.append(attrs.subset)
+    if attrs.variety:
+        bits.append(attrs.variety)
     if attrs.player:
         bits.append(attrs.player)
     if attrs.card_number:
         bits.append(f"#{attrs.card_number}")
+
+    # Below this there is not enough to name, and "Base" must not be what tips
+    # it over: a CardAttrs holding only a year would otherwise render as
+    # "2021 Base", which names a card that was never identified.
+    if len(bits) < 2:
+        return None
+
     if attrs.parallel:
         bits.append(attrs.parallel)
+    elif not attrs.subset and not attrs.variety and not attrs.unparsed:
+        # Named rather than left blank: a base card is a real thing, and an
+        # absence reads like a parse that gave up.
+        #
+        # But only when the whole title was accounted for. "No parallel found"
+        # and "this is the base card" are different claims, and a title holding
+        # an unrecognised word like "Dragonscale" is the first, not the second.
+        # Saying "Base" there states a fact that is not in evidence.
+        bits.append("Base")
+
+    if attrs.print_run:
+        bits.append(f"/{attrs.print_run}")
+    if attrs.is_auto:
+        bits.append("Auto")
+    if attrs.is_relic:
+        bits.append("Patch")
+
     return " ".join(bits) if len(bits) >= 2 else None
 
 

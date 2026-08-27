@@ -41,6 +41,7 @@ class CardAttrs:
     brand: Optional[str] = None
     set_name: Optional[str] = None
     subset: Optional[str] = None
+    variety: Optional[str] = None
     parallel: Optional[str] = None
     card_number: Optional[str] = None
     serial_number: Optional[int] = None
@@ -52,6 +53,10 @@ class CardAttrs:
     is_auto: bool = False
     is_relic: bool = False
     confidence: float = 0.0
+    # Words the parser could not account for. Not stored -- it exists so
+    # `card_name` knows whether "Base" is a fact or a failure, and so the
+    # vocabulary gaps can be ranked rather than guessed at.
+    unparsed: Optional[str] = None
 
     def as_row(self) -> dict:
         row = asdict(self)

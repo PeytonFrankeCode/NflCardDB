@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS cards (
     -- an insert restarts its numbering at one: Phoenix "Contours #8" and
     -- "Genies #8" are different cards sharing a number.
     subset        TEXT,
+    -- Claimed out of the title for display but deliberately not part of
+    -- the key: keying these split 1,051 cards apart when it was tried.
+    variety       TEXT,
     serial_number INTEGER,
     print_run     INTEGER,
     grader        TEXT,

@@ -32,7 +32,11 @@ from .models import CardAttrs
 # title/5: Oversized and Horizontal printings separated from the base insert,
 #          the Contenders insert names, and parallels put in a canonical order
 #          so word order stops splitting one card into two.
-PARSER_VERSION = "title/5"
+# title/6: autographs and patches became separate cards from the base, the
+#          display name gained the print run, auto, patch, the claimed variety
+#          and a Base tag, and whatever the parser could not account for is
+#          recorded so the vocabulary gaps can be ranked.
+PARSER_VERSION = "title/6"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -594,14 +598,28 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # "Contours #8", "Phoenician #8", "Genies #8" and "Archetype #8" are four
     # different cards that collapsed into a single fourteen-sale group naming
     # four different players. The insert name is part of the card's identity.
-    subset_match = _take(work, SUBSET_PAT)
-    if subset_match:
-        claimed = _canonical(subset_match.group(1))
-        # Only a named insert set becomes part of the identity. A designation is
-        # claimed purely to keep it out of the player's name.
+    # Up to two, because a title can carry both a keyed insert and a claim-only
+    # word -- "Decade Dominance Silver" needs both read, not whichever the
+    # matcher happened to reach first.
+    varieties: list[str] = []
+    subset_match = None
+    for _ in range(2):
+        found = _take(work, SUBSET_PAT)
+        if not found:
+            break
+        subset_match = subset_match or found
+        claimed = _canonical(found.group(1))
+        # Only a named insert set becomes part of the identity. A designation
+        # is claimed to keep it out of the player's name -- but it is still
+        # RECORDED, because claiming it and then dropping it is how a "Decade
+        # Dominance Silver" ended up displayed as plain "Silver".
         if claimed.lower() in _INSERT_LOOKUP:
             attrs.subset = claimed
             hits += 1
+        else:
+            varieties.append(claimed)
+    if varieties:
+        attrs.variety = " ".join(sorted(dict.fromkeys(varieties)))
     # "Rated Rookie" is a subset AND states the card is a rookie. Claiming the
     # phrase consumes the word before the flag pass sees it, so the flag is
     # read off the match rather than lost.
@@ -656,6 +674,27 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         (attrs.is_graded, 0.05),
     ]
     attrs.confidence = round(min(1.0, sum(w for ok, w in weights if ok)), 3)
+
+    # Whatever survived every matcher and the name scan. Noise words and stray
+    # fragments are dropped, so what is left is genuinely unrecognised -- the
+    # "Dragonscale" and "Decade Dominance" that no vocabulary knows yet.
+    #
+    # The player's own name is subtracted, but only as far as it is trustworthy.
+    # A roster hit is exactly a name, so all of it goes. A name from the run
+    # heuristic is a guess, and the words past the first two are usually what
+    # leaked in -- "Ja'Marr Chase Dragonscale" is a player plus the parallel
+    # nobody has in a vocabulary yet, and that word is the whole point of
+    # looking. Subtracting the full guessed name would hide it.
+    spoken_for = set(NOISE)
+    if attrs.player:
+        words = attrs.player.split()
+        spoken_for |= {w.lower() for w in (words if roster_hit else words[:2])}
+
+    leftovers = [
+        w for w in re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", work.remaining)
+        if w.lower() not in spoken_for
+    ]
+    attrs.unparsed = " ".join(dict.fromkeys(leftovers)) or None
 
     if MULTI_CARD_RE.search(title):
         # "Pick your card" sells one unspecified card out of a set. The price is
