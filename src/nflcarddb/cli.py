@@ -433,7 +433,7 @@ def cmd_try_vocab(args) -> int:
     So all four combinations get read, measured and reported. The database is
     left as the config says, making this a measurement rather than a change.
     """
-    from .audit import coverage
+    from .audit import contradictory_groups, coverage
     from .parse_title import (load_inserts, register_designations,
                               register_inserts, register_sets)
 
@@ -470,11 +470,19 @@ def cmd_try_vocab(args) -> int:
                 stats = coverage(db_path)
                 groups = stats.get("groups", 0)
                 singles = stats.get("singleton_groups", 0)
+                # Contradictions alongside the win, because ranking on grouped
+                # cards alone rewards anything that keys more sales -- including
+                # keying them wrongly. A vocabulary that invents identities
+                # would climb this table on coverage while quietly filing sales
+                # under cards they do not belong to.
+                bad = sum(r["sales"] for r in contradictory_groups(db_path,
+                                                                   limit=2000))
                 rows.append({
                     "label": label,
                     "keyed": stats.get("with_key", 0),
                     "grouped": groups - singles,
                     "rate": singles / groups if groups else 0.0,
+                    "wrong": bad,
                     "roster": roster_path,
                     "words_keyed": keyed,
                     "sets": bool(set_names),
@@ -483,10 +491,15 @@ def cmd_try_vocab(args) -> int:
     print()
     print("Every combination, measured on the same titles")
     print("=" * 72)
-    print(f"  {'setup':<44}{'keyed':>9}{'grouped':>9}{'one-off':>9}")
+    print(f"  {'setup':<44}{'keyed':>9}{'grouped':>9}{'wrong':>8}")
     for row in sorted(rows, key=lambda r: -r["grouped"]):
+        share = row["wrong"] / row["keyed"] if row["keyed"] else 0.0
         print(f"  {row['label'][:43]:<44}{row['keyed']:>9,}"
-              f"{row['grouped']:>9,}{row['rate']:>8.1%}")
+              f"{row['grouped']:>9,}{share:>8.1%}")
+    print("\n  'wrong' is the share of keyed sales in groups that name two")
+    print("  different players -- a floor on how often a setup files a sale")
+    print("  under a card it does not belong to. A setup that keys more sales")
+    print("  AND contradicts itself more is buying coverage with accuracy.")
 
     best = max(rows, key=lambda r: r["grouped"])
     print(f"\nBest: {best['label']}  ({best['grouped']:,} grouped cards)")
