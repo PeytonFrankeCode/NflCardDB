@@ -136,7 +136,9 @@ def test_the_key_is_url_safe():
 
 def test_the_name_reads_the_same_however_the_seller_wrote_it():
     attrs = parse_title("2021 Panini Prizm Ja'Marr Chase RC #220 PSA 10")
-    assert card_name(attrs) == "2021 Prizm Ja'Marr Chase #220"
+    # "Base" is part of the name now: without it a base card is described by
+    # what it lacks, and reads as though something failed to parse.
+    assert card_name(attrs) == "2021 Prizm Ja'Marr Chase #220 Base"
 
 
 def test_no_name_from_almost_nothing():
@@ -217,3 +219,65 @@ def test_a_named_grade_narrows_the_history(tmp_path):
     only_tens = card_history(str(path), key, grade="PSA 10")
     assert set(only_tens["by_grade"]) == {"PSA 10"}
     assert only_tens["sales"] == 1
+
+
+def test_the_name_carries_the_print_run():
+    """A Select Dragonscale is a "Dragonscale /81", not a "Dragonscale" and not
+    a "/81". The colour alone does not say which numbered version it is."""
+    from nflcarddb.models import CardAttrs
+
+    name = card_name(CardAttrs(year=2024, set_name="Select", player="Ja'Marr Chase",
+                               card_number="12", parallel="Dragonscale",
+                               print_run=81))
+    assert name == "2024 Select Ja'Marr Chase #12 Dragonscale /81"
+
+
+def test_an_auto_is_a_different_card_from_the_base():
+    """Separately printed, separately numbered, worth many times more. Leaving
+    them in one group averaged a $700 auto into a $10 card's price history."""
+    from nflcarddb.models import CardAttrs
+
+    base = CardAttrs(year=2024, set_name="Prizm", card_number="301",
+                     player="Caleb Williams", confidence=0.9)
+    auto = CardAttrs(year=2024, set_name="Prizm", card_number="301",
+                     player="Caleb Williams", is_auto=True, confidence=0.9)
+    patch = CardAttrs(year=2024, set_name="Prizm", card_number="301",
+                      player="Caleb Williams", is_relic=True, confidence=0.9)
+
+    assert len({card_key(base), card_key(auto), card_key(patch)}) == 3
+    assert card_name(auto).endswith("Auto")
+    assert card_name(patch).endswith("Patch")
+
+
+def test_a_claimed_word_still_shows_in_the_name():
+    """Claiming a word and then dropping it is how a "Decade Dominance Silver"
+    came back as plain "Silver"."""
+    from nflcarddb.models import CardAttrs
+
+    name = card_name(CardAttrs(year=2024, set_name="Legacy", player="Tom Brady",
+                               card_number="12", variety="Decade Dominance",
+                               parallel="Silver"))
+    assert "Decade Dominance" in name
+    assert "Silver" in name
+
+
+def test_base_is_claimed_only_when_the_whole_title_was_understood():
+    """"No parallel found" and "this is the base card" are different claims. A
+    title holding an unrecognised word is the first, not the second."""
+    from nflcarddb.models import CardAttrs
+
+    clean = CardAttrs(year=2024, set_name="Prizm", player="Caleb Williams",
+                      card_number="301")
+    murky = CardAttrs(year=2024, set_name="Select", player="Ja'Marr Chase",
+                      card_number="12", unparsed="Dragonscale")
+
+    assert card_name(clean).endswith("Base")
+    assert not card_name(murky).endswith("Base")
+
+
+def test_base_never_makes_an_unidentified_card_nameable():
+    """A CardAttrs holding only a year rendered as "2021 Base", naming a card
+    that was never identified."""
+    from nflcarddb.models import CardAttrs
+
+    assert card_name(CardAttrs(year=2021)) is None

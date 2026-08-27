@@ -401,3 +401,43 @@ def messy_named_groups(db_path: str, limit: int = 25) -> list[dict]:
 
     out.sort(key=lambda r: -r["sales"])
     return out[:limit]
+
+
+def vocabulary_gaps(db_path: str, limit: int = 40) -> list[dict]:
+    """Words the parser could not account for, ranked by how often they appear.
+
+    The honest replacement for guessing at insert names. Every round of this
+    project so far has added vocabulary by reading a handful of contradictory
+    groups and inferring what was missing -- which found "Genies" and "Sunday
+    Kings" a dozen at a time while "Dragonscale" and "Decade Dominance" sat
+    unrecognised in thousands of titles.
+
+    A word left over after every matcher and the name scan is, by definition,
+    something no vocabulary knows. Counting them across the whole database puts
+    the gaps in the order they actually cost something.
+    """
+    from collections import Counter
+
+    from .parse_title import parse_title
+
+    conn = store.connect(db_path)
+    try:
+        titles = [r[0] for r in conn.execute("SELECT title FROM sales")]
+    finally:
+        conn.close()
+
+    counts: Counter = Counter()
+    example: dict[str, str] = {}
+    for title in titles:
+        leftover = parse_title(title).unparsed
+        if not leftover:
+            continue
+        for word in leftover.split():
+            key = word.lower()
+            counts[key] += 1
+            example.setdefault(key, title)
+
+    return [
+        {"word": word, "sales": n, "example": example[word]}
+        for word, n in counts.most_common(limit)
+    ]

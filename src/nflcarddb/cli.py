@@ -1007,6 +1007,31 @@ def cmd_inserts(args) -> int:
     return 0
 
 
+def cmd_gaps(args) -> int:
+    """What the parser cannot account for, ranked by how much it costs."""
+    from .audit import vocabulary_gaps
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    rows = vocabulary_gaps(db_path, limit=args.limit)
+    if not rows:
+        print("Nothing unaccounted for. Every title parsed cleanly.")
+        return 0
+
+    print("Words the parser does not recognise")
+    print("=" * 70)
+    print(f"  {'word':<24}{'sales':>8}   example")
+    for row in rows:
+        print(f"  {row['word'][:23]:<24}{row['sales']:>8,}   {row['example'][:38]}")
+    print()
+    print("These are leftovers after every vocabulary and the name scan, so")
+    print("each one is something nothing knows about. The ones near the top")
+    print("are insert or parallel names worth adding; further down it turns")
+    print("into seller chatter. Send the list to Claude.")
+    return 0
+
+
 def cmd_audit(args) -> int:
     """What can be measured about parsing quality without labelling anything."""
     from .audit import audit
@@ -2358,6 +2383,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cache", default="data/photo-cache",
                    help="where downloaded photos are kept; safe to delete")
     p.set_defaults(func=cmd_vision)
+
+    p = sub.add_parser("gaps",
+                       help="words the parser cannot account for, ranked")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--limit", type=int, default=40)
+    p.set_defaults(func=cmd_gaps)
 
     p = sub.add_parser("audit", help="parsing quality that needs no human review")
     p.add_argument("--config", default="config/queries.yml")
