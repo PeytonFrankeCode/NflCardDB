@@ -474,3 +474,73 @@ def test_a_transposed_pair_of_letters_is_one_typo():
     # ...without letting two different players through on a swap.
     assert not _same_person("jalenhurts", "jalenhurd")
     assert not _same_person("joeburrow", "joeflacco")
+
+
+def test_the_sample_is_written_as_a_page_to_mark_in_a_browser(tmp_path):
+    """A spreadsheet turned out not to be a safe assumption: Windows offered
+    Notepad for the CSV, and a hundred rows of quoted CSV hand-edited in
+    Notepad is a corrupted sample waiting to happen."""
+    from nflcarddb.review import write_html
+
+    path = _seed(tmp_path / "page.db", [
+        ("2021 Panini Prizm Ja'Marr Chase #220 PSA 10", 9000),
+    ])
+    out = write_html(draw_sample(str(path), size=1, seed=1), tmp_path / "r.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert "Ja'Marr Chase" in html            # the seller's title
+    assert "ebay.com/itm/" in html            # a way back to the listing
+    assert "__ROWS__" not in html             # the data actually got embedded
+
+
+def test_the_page_needs_no_network_of_its_own(tmp_path):
+    """It is opened as a local file, so anything it had to fetch would be a
+    blank page. The listing photo is the one remote thing, and it degrades to
+    a caption when eBay has dropped it."""
+    from nflcarddb.review import write_html
+
+    path = _seed(tmp_path / "page.db", [
+        ("2021 Panini Prizm Ja'Marr Chase #220 PSA 10", 9000),
+    ])
+    out = write_html(draw_sample(str(path), size=1, seed=1), tmp_path / "r.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert "<script src=" not in html
+    assert "<link rel=\"stylesheet\"" not in html
+    assert "no photo" in html                 # the fallback exists
+
+
+def test_the_page_computes_the_same_margin_the_scorer_does(tmp_path):
+    """The number it reports has to be the number `--score` would report, or
+    two ways of measuring the same sample would disagree."""
+    from nflcarddb.review import write_html
+
+    path = _seed(tmp_path / "page.db", [
+        ("2021 Panini Prizm Ja'Marr Chase #220 PSA 10", 9000),
+    ])
+    out = write_html(draw_sample(str(path), size=1, seed=1), tmp_path / "r.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert "1.96 * Math.sqrt(rate * (1 - rate) / judged)" in html
+
+
+def test_a_title_with_html_in_it_cannot_break_the_page(tmp_path):
+    """Seller titles contain anything at all, including angle brackets."""
+    from nflcarddb.review import write_html
+
+    out = write_html([{
+        "item_id": "1", "correct": "", "notes": "",
+        "title": '<script>alert("x")</script> & "quoted"',
+        "card_name": "x", "card_key": "k", "player": "p", "year": 2024,
+        "set_name": "s", "card_number": "1", "parallel": "", "grade": "Raw",
+        "confidence": 0.9, "price": "1.00", "image_url": "", "listing": "u",
+    }], tmp_path / "r.html")
+    html = out.read_text(encoding="utf-8")
+
+    # No raw "<" anywhere in the payload: JSON does not escape it, so a title
+    # containing "</script>" would close the tag early and blank the page.
+    payload = html.split("const ROWS = ")[1].split("\n")[0]
+    assert "<" not in payload
+    assert "u003cscript" in payload
+    # ...and the renderer escapes it again on the way into the DOM.
+    assert "esc(r.title)" in html

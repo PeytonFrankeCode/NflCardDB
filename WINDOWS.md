@@ -466,10 +466,12 @@ That last figure is a *floor*: everything it finds is definitely wrong, but a
 group can be wrong and still look consistent.
 
 **A real percentage** needs you. Choose option **1** and it pulls 100 random
-sales into a spreadsheet, which opens automatically. Each row shows the seller's
-title, what we read it as, and a link to the listing. Put **y** or **n** in the
-`correct` column — **?** if you genuinely cannot tell — save, then choose option
-**2**:
+sales into a page that opens in your browser. Each one shows the card's photo
+beside the seller's title and what we read it as. Press **Y** if that's the
+right card, **N** if it isn't, **S** if you can't tell — about a second each.
+
+It remembers your place if you close it, and works out the percentage itself
+when you reach the end. Nothing to save, nothing to score afterwards:
 
 ```
   ACCURACY: 91.0%  (somewhere between 85.4% and 96.6%)
@@ -479,6 +481,12 @@ title, what we read it as, and a link to the listing. Put **y** or **n** in the
 That range is the honest part. 100 rows gets you within about 10 points; 400
 gets you within 5. Anyone quoting "91%" off 100 rows is quoting more precision
 than they bought.
+
+(The same sample is also written as `review-sample.csv`, and option **2** scores
+that file if you'd rather mark it in a spreadsheet. The browser page exists
+because a spreadsheet turned out not to be a safe assumption — Windows offered
+Notepad, and a hundred rows of CSV hand-edited in Notepad is a corrupted sample
+waiting to happen.)
 
 **When a title is too vague to read**, nothing is invented — the sale is stored
 with its price and title, but gets no card identity, so it never joins a group

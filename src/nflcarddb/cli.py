@@ -1230,7 +1230,7 @@ def cmd_vision(args) -> int:
 
 def cmd_review(args) -> int:
     """Draw a sample to check by hand, or score one that has been checked."""
-    from .review import draw_sample, score, write_sample
+    from .review import draw_sample, score, write_html, write_sample
 
     if args.score:
         try:
@@ -1275,17 +1275,15 @@ def cmd_review(args) -> int:
         return 1
 
     path = write_sample(rows, args.out)
-    print(f"Wrote {len(rows)} sales to {path}\n")
-    print("Open it in Excel. For each row, look at the `title` (and the")
-    print("`listing` link if you need the photo), then put y or n in the")
-    print("`correct` column:")
+    page = write_html(rows, Path(args.out).with_suffix(".html"))
+    print(f"Wrote {len(rows)} sales.\n")
+    print(f"  {page}   <- open this one")
+    print(f"  {path}   (the same sample as a spreadsheet file)")
     print()
-    print("  y  the card_name and card_key describe this listing")
-    print("  n  they do not")
-    print("  ?  you cannot tell -- not counted either way")
-    print()
-    print("Save it, then:")
-    print(f"  nflcarddb review --score {path}")
+    print("The page shows each sale's photo beside what we read it as. Press")
+    print("Y if that is the right card, N if it is not, S if you cannot tell.")
+    print("It keeps your place if you close it, and works out the percentage")
+    print("itself -- there is nothing to save and nothing to score afterwards.")
     return 0
 
 
