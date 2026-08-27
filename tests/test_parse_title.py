@@ -545,3 +545,38 @@ def test_a_retired_team_name_is_not_a_players_name():
     a = parse_title("Cody Hoffman 2014 Contenders #115 Rookie Washington Redskins")
     assert a.team == "Washington Redskins"
     assert "Redskins" not in (a.player or "")
+
+
+def test_a_card_number_with_no_hash_in_front():
+    """"TRC-15" and "TF-7" carried a card number that was lost entirely,
+    because every pattern required the hash."""
+    a = parse_title("2026 Topps Flagship 35th Anniversary TRC-15 Luther Burden")
+    assert a.card_number == "TRC-15"
+
+
+def test_a_bare_number_alone_is_not_treated_as_a_card_number():
+    """Letters-hyphen-digits is specific enough to be safe without a hash. A
+    bare number is not -- it would swallow years, runs and grades."""
+    a = parse_title("2021 Panini Prizm Ja'Marr Chase 220 PSA 10")
+    assert a.card_number is None
+
+
+def test_parsing_stays_fast_with_a_large_roster():
+    """The dual-player scan folded every roster name for every title: a
+    thousand names across eighty thousand titles is a hundred and sixty
+    million normalisations, and it turned a re-read of the database from
+    seconds into five minutes."""
+    import time
+
+    roster = {f"player{i} surname{i}" for i in range(1000)} | {"caleb williams"}
+    title = "2024 Panini Prizm Caleb Williams #301 Silver Prizm"
+
+    start = time.perf_counter()
+    for _ in range(500):
+        parse_title(title, roster)
+    elapsed = time.perf_counter() - start
+
+    # Generous: the cached version does this in well under a second, the
+    # uncached one took nearly two. The point is to fail loudly if the fold
+    # ever moves back inside the per-title path.
+    assert elapsed < 1.5, f"{elapsed:.2f}s for 500 titles against 1,000 names"

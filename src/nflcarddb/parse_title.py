@@ -13,6 +13,7 @@ tuned for the modern Panini/Topps football conventions that dominate the data.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -39,7 +40,7 @@ from .models import CardAttrs
 # title/7: the first pass of the gap report -- Flagship and Resurgence as
 #          products, vintage condition shorthand and seller names as noise,
 #          game-worn as a relic, and the insert names the examples revealed.
-PARSER_VERSION = "title/10"
+PARSER_VERSION = "title/11"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -173,6 +174,12 @@ INSERTS = (
     "Dragon Scale", "Draft Class", "Rookie Class", "Immortals", "Composite",
     "Paramount Pairings", "Rookie Rush", "Conductors", "Rookie Patch",
     "Art Card", "Select Future", "Five Card Draw", "Tuddys", "Rookie Gear",
+    # Fourth gap report, all named insert sets from its examples.
+    "Protonyx", "Electro Lights", "Sandglitter", "Honeycomb", "Diamante",
+    "Amped", "Clusters", "Monster Hits", "Splash of Color", "Sunday Swatches",
+    "Fantasy Flashback", "Prizm Flashback", "Big Numbers", "Goodwin Champions",
+    "Gridiron Legends", "Super Powers", "Rookie Redemption", "Epix",
+    "Sensational Swatches", "Century Collection", "Fortune", "Rookie Rush",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -223,6 +230,12 @@ NOISE = {
     # Colleges and materials: never a player's name.
     "ohio", "texas", "alabama", "georgia", "material", "materials",
     "jerseys", "authentic", "club", "art",
+    # Fourth gap report: plurals of things already understood, and words that
+    # only ever appear inside a phrase the vocabulary already holds.
+    "class", "night", "swatches", "patches", "relics", "autos", "prizms",
+    "hits", "fabric", "exclusive", "redemption", "season", "day", "now",
+    "real", "nil", "nscc", "collegiate", "greats", "heroes", "flashback",
+    "draw", "numbers", "player", "players", "kings",
     "one", "better", "singles", "state", "university", "college",
     # Finishes and qualifiers that trail a name: "Jaxson Dart Leather".
     "future", "leather", "refractor", "refractors", "holo", "holofoil", "foil",
@@ -236,6 +249,28 @@ NAME_SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
 # A second roster name shorter than this is more likely a coincidence inside
 # another word than a second player on the card.
 MIN_DUAL_NAME = 8
+
+
+@lru_cache(maxsize=4)
+def _folded_roster_cached(names: frozenset) -> tuple:
+    from .card_key import normalize_player as _fold
+
+    return tuple(sorted(
+        (folded, name) for folded, name in
+        ((_fold(n), n) for n in names) if len(folded) >= MIN_DUAL_NAME
+    ))
+
+
+def _folded_roster(roster: set) -> tuple:
+    """The roster folded once, not once per title.
+
+    Folding it inline cost a normalize per name per title: a thousand names
+    across eighty thousand titles is a hundred and sixty million of them, and
+    it turned a re-read of the database from seconds into five minutes. The
+    same roster object arrives for every title in a run, so it is folded once
+    and kept.
+    """
+    return _folded_roster_cached(frozenset(roster))
 
 # Team names get blanked before the player scan so "Jayden Daniels Commanders"
 # does not turn into a three-word player. Full "City Nickname" forms come first
@@ -317,6 +352,12 @@ MULTI_CARD_RE = re.compile(
     r"\b(?:pick\s+your|you\s+pick|complete\s+your|choose\s+your|"
     r"your\s+choice|build\s+your)\b", re.I
 )
+# "TRC-15" and "TF-7" with no "#" in front. 1,000+ sales carried a card number
+# in this shape and lost it entirely, because every pattern required the hash.
+# Letters-hyphen-digits is specific enough to be safe on its own; a bare number
+# is not, which is why only the prefixed form is accepted here.
+BARE_CARD_NUM_RE = re.compile(r"\b([A-Z]{2,4}-\d{1,4})\b")
+
 ROOKIE_RE = re.compile(r"\b(RC|RY|ROOKIE|ROOKIE\s+CARD|1ST\s+YEAR)\b", re.I)
 AUTO_RE = re.compile(r"\b(AUTO(?:GRAPH(?:ED)?)?|SIGNED|ON[-\s]CARD)\b", re.I)
 RELIC_RE = re.compile(
@@ -623,6 +664,12 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # Serial numbering: "12/99" -> serial 12 of a 99 print run. A numerator
     # larger than the run is not a serial at all -- "202/99" is card 202 from a
     # /99 parallel, written without the space that would have made it obvious.
+    if not attrs.card_number:
+        m = _take(work, BARE_CARD_NUM_RE)
+        if m:
+            attrs.card_number = m.group(1).upper()
+            hits += 1
+
     m = _take(work, SERIAL_RE)
     if m:
         num, run = int(m.group("num")), int(m.group("run"))
@@ -757,9 +804,8 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         haystack = _fold(work.remaining)
         taken = _fold(attrs.player)
         also = sorted(
-            name for name in roster
-            if len(_fold(name)) >= MIN_DUAL_NAME
-            and _fold(name) in haystack and _fold(name) not in taken
+            name for folded, name in _folded_roster(roster)
+            if folded in haystack and folded not in taken
         )
         if also:
             names = sorted({attrs.player.title()} | {n.title() for n in also})
