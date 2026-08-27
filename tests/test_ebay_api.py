@@ -599,3 +599,44 @@ def test_registering_sets_replaces_rather_than_accumulates():
             "Leaf Metal Draft"
     finally:
         register_sets([])
+
+
+def test_the_comparison_reports_contradictions_beside_the_win(tmp_path, capsys):
+    """Ranking on grouped cards alone rewards anything that keys more sales,
+    including keying them wrongly. A vocabulary that invented identities would
+    climb the table on coverage while filing sales under the wrong cards."""
+    from nflcarddb import db as store
+    from nflcarddb.cli import main
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import (parse_title, register_designations,
+                                       register_inserts, register_sets)
+
+    db = tmp_path / "v.db"
+    conn = store.connect(db)
+    run = store.start_run(conn, "2026-08-26")
+    titles = [f"2025 Panini Mosaic Josh Allen #{n}" for n in (9, 9, 10)]
+    sales = [Sale(item_id=str(9000 + i), title=t, price_cents=100,
+                  sold_date="2026-08-26") for i, t in enumerate(titles)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "t")
+    conn.close()
+
+    roster = tmp_path / "nfl_players.txt"
+    roster.write_text("Josh Allen\n", encoding="utf-8")
+    config = tmp_path / "q.yml"
+    config.write_text(f"database: {db.as_posix()}\nroster: {roster.as_posix()}\n"
+                      "queries:\n  - id: a\n    keywords: football\n",
+                      encoding="utf-8")
+
+    try:
+        assert main(["try-vocab", str(roster), "--words", str(tmp_path / "none.txt"),
+                     "--sets", str(tmp_path / "none.txt"),
+                     "--config", str(config)]) == 0
+    finally:
+        register_inserts([])
+        register_designations([])
+        register_sets([])
+
+    out = capsys.readouterr().out
+    assert "wrong" in out
+    assert "buying coverage with accuracy" in out
