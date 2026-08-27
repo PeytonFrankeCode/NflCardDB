@@ -39,7 +39,7 @@ from .models import CardAttrs
 # title/7: the first pass of the gap report -- Flagship and Resurgence as
 #          products, vintage condition shorthand and seller names as noise,
 #          game-worn as a relic, and the insert names the examples revealed.
-PARSER_VERSION = "title/8"
+PARSER_VERSION = "title/9"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -81,6 +81,9 @@ SETS = (
     # and matching is longest-first by term, so "Panini" (6) beat "Prizm" (5)
     # and every modern Panini card lost its real set the moment it was added.
     "Topps", "Fleer", "Upper Deck", "Pacific",
+    # More products the gap report named: 1967 Philadelphia is a set, and
+    # Pinnacle and Sage were being read as parts of players' names.
+    "Philadelphia", "Pinnacle", "Sage", "Wild Card", "Bowman's Best",
 )
 
 PARALLELS = (
@@ -102,6 +105,9 @@ PARALLELS = (
     "Sparkle", "Speckle", "Scope", "Lazer", "Laser", "Choice", "Genesis",
     "Reactive", "Fusion", "Flash", "Wave", "Velocity", "Shock", "Fluorescent",
     "Holo", "Camo",
+    # From the gap report: "Color Match" was arriving as two unrecognised
+    # words, 789 and 546 sales apiece.
+    "Color Match", "Crackle", "Border", "Neon", "Metallix", "Dots",
     # Topps refractor family
     "SuperFractor", "Super Fractor", "X-Fractor", "XFractor",
     "Atomic Refractor", "Mini Diamond", "RayWave", "Ray Wave", "Refractor",
@@ -156,6 +162,10 @@ INSERTS = (
     "Transcendent", "Multiverse", "First Pitch", "Emergent", "Fireworks",
     "Touchdown Masters", "Epic Performers", "Men of Mastery", "Kaleidoscopic",
     "Prizmatic", "Aurora", "Decade Dominance", "Dragonscale", "Visionary",
+    # Second gap report.
+    "Super Bowl", "Tecmo Bowl", "Old School", "Draft Night", "Black Ink",
+    "Xtra Points", "Player of the Day", "Rising Suns", "Rising Sons",
+    "Alumination", "Joker", "Quarter-Staff", "Surge", "Anniversary",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -198,6 +208,12 @@ NOISE = {
     # sales and "set-break" in 1,279.
     "gmcards", "autographden", "set-break", "setbreak", "break", "auction",
     "scan", "exact", "series", "update", "factory", "jumbo", "oversize",
+    # Second gap report. Plurals and qualifiers of things already understood,
+    # plus a live-stream seller whose listings put "eBay Live streaming show"
+    # in front of 240 sales.
+    "autographs", "signature", "signatures", "dual", "triple", "quad",
+    "inserts", "ebay", "live", "streaming", "show", "years", "best", "all",
+    "one", "better", "singles", "state", "university", "college",
     # Finishes and qualifiers that trail a name: "Jaxson Dart Leather".
     "future", "leather", "refractor", "refractors", "holo", "holofoil", "foil",
     "chrome",
@@ -206,6 +222,10 @@ NOISE = {
 }
 
 NAME_SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
+
+# A second roster name shorter than this is more likely a coincidence inside
+# another word than a second player on the card.
+MIN_DUAL_NAME = 8
 
 # Team names get blanked before the player scan so "Jayden Daniels Commanders"
 # does not turn into a three-word player. Full "City Nickname" forms come first
@@ -700,6 +720,32 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         attrs.is_relic = True
 
     attrs.player, roster_hit = _extract_player(work.remaining, roster)
+
+    # Cards with two players on them. "C.J. Stroud Cam Ward" and "Bo Nix
+    # Courtland Sutton" are single cards, and the scan takes one name and
+    # leaves the other -- which is why surnames dominated the second gap
+    # report. Both are found by looking the rest of the text up in the roster.
+    #
+    # Sorted, because a dual card is written in either order by different
+    # sellers and an unsorted pair would be two keys for one card. This is the
+    # same reasoning that put the parallels in a canonical order.
+    if roster and attrs.player:
+        # Compared with the punctuation removed, the same fold the card key
+        # uses. "C.J. Stroud" and "cj stroud" are one name written two ways,
+        # and a plain substring search matches neither against the other.
+        from .card_key import normalize_player as _fold
+
+        haystack = _fold(work.remaining)
+        taken = _fold(attrs.player)
+        also = sorted(
+            name for name in roster
+            if len(_fold(name)) >= MIN_DUAL_NAME
+            and _fold(name) in haystack and _fold(name) not in taken
+        )
+        if also:
+            names = sorted({attrs.player.title()} | {n.title() for n in also})
+            attrs.player = " / ".join(names)
+            roster_hit = True
     if attrs.player:
         hits += 2 if roster_hit else 1
 

@@ -475,3 +475,47 @@ def test_a_card_number_with_letters_after_the_digits():
     assert parse_title(
         "2025 Topps Chrome Caleb Williams #NFS-1 Refractor").card_number == "NFS-1"
     assert parse_title("2021 Prizm Ja'Marr Chase #220").card_number == "220"
+
+
+DUAL_ROSTER = {"cj stroud", "cam ward", "bo nix", "courtland sutton",
+               "patrick mahomes", "caleb williams"}
+
+
+def test_a_card_with_two_players_keeps_both():
+    """Surnames dominated the second gap report because the name scan took one
+    player and dropped the other: "C.J. Stroud Cam Ward" is one card."""
+    a = parse_title("C.J. Stroud Cam Ward 2025 Panini Mosaic #12", DUAL_ROSTER)
+    assert "Stroud" in a.player and "Ward" in a.player
+    assert a.unparsed is None
+
+
+def test_two_players_in_either_order_are_one_card():
+    """Different sellers write the pair either way round, so the names are
+    sorted -- the same reasoning that put the parallels in a canonical order."""
+    a = parse_title("C.J. Stroud Cam Ward 2025 Panini Mosaic #12", DUAL_ROSTER)
+    b = parse_title("Cam Ward CJ Stroud 2025 Panini Mosaic #12", DUAL_ROSTER)
+    assert a.player == b.player
+    assert card_key(a) == card_key(b)
+
+
+def test_punctuation_does_not_hide_the_second_player():
+    """"C.J. Stroud" and "cj stroud" are one name written two ways, and a plain
+    substring search matches neither against the other."""
+    a = parse_title("C.J. Stroud Cam Ward 2025 Panini Mosaic #12", DUAL_ROSTER)
+    assert a.player.count("/") == 1
+
+
+def test_a_single_player_card_is_left_alone():
+    a = parse_title("2025 Panini Mosaic Cam Ward #12", DUAL_ROSTER)
+    assert "/" not in a.player
+
+
+def test_the_second_gap_reports_words_are_recognised():
+    """Color Match arrived as two unrecognised words, 789 and 546 sales."""
+    assert parse_title(
+        "2025 Panini Mosaic Emeka Egbuka Color Match #12").parallel == "Color Match"
+    assert parse_title("1967 Philadelphia - Gale Sayers #35").set_name == "Philadelphia"
+    assert parse_title(
+        "1994 Pinnacle Barry Sanders Detroit Lions #100").set_name == "Pinnacle"
+    assert parse_title(
+        "Von Miller 2021 Panini Mosaic Super Bowl #12").subset == "Super Bowl"
