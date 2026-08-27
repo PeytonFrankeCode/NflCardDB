@@ -102,3 +102,4 @@ queries:
     keywords: nfl card
     category: "261328"
 designations: config/nfl_words.txt
+sets: config/nfl_sets.txt
