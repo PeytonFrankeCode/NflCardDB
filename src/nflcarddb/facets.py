@@ -333,6 +333,62 @@ def write_roster(store: dict[str, dict[str, Optional[int]]], path) -> int:
     return len(names)
 
 
+_SEASON_PREFIX = re.compile(r"^(?:19|20)\d{2}(?:\s*-\s*\d{2,4})?\s+")
+_SPORT_SUFFIX = re.compile(r"\s+(?:football|cards?)$", re.I)
+
+
+def normalise_set(name: str) -> str:
+    """Strip the year and sport off an eBay set name.
+
+    eBay writes "2024 Panini Donruss" and "2025 Topps Chrome Football", where
+    the parser holds "Donruss" and "Topps Chrome". The year is already read
+    separately and the sport is noise, so both come off; what is left is the
+    product, in the form a title actually contains.
+    """
+    return _SPORT_SUFFIX.sub("", _SEASON_PREFIX.sub("", name)).strip()
+
+
+def write_sets(store: dict[str, dict[str, Optional[int]]], path) -> int:
+    """Write eBay's set list in the form a title parser can match.
+
+    Only the names not already known, and only ones with at least two words:
+    a single-word set name harvested at this scale is far more likely to be a
+    common word that will match half the titles it sees than a product nobody
+    has heard of. The known list already covers the single-word products.
+    """
+    from pathlib import Path
+
+    from .parse_title import SETS
+
+    known = {t.lower() for t in SETS}
+    seen: set[str] = set()
+    names: list[str] = []
+    for raw in as_vocabulary(store).get("sets", []):
+        name = normalise_set(raw)
+        key = name.lower()
+        if not name or key in known or key in seen or len(name.split()) < 2:
+            continue
+        seen.add(key)
+        names.append(name)
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "\n".join([
+            "# Set names from eBay's own Set classification, fetched by",
+            "# `nflcarddb catalog`, with the year and sport stripped off.",
+            "#",
+            "# Matched longest-first, and folded onto an existing set name",
+            "# where one exists -- so 'Panini Donruss' and 'Donruss' stay one",
+            "# card rather than becoming two.",
+            "",
+            *names,
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    return len(names)
+
+
 def write_designations(store: dict[str, dict[str, Optional[int]]], path) -> int:
     """Write eBay's Parallel/Variety list as words to claim, not to key.
 

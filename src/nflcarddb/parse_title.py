@@ -271,6 +271,9 @@ _CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSET
 
 _INSERT_LOOKUP = {t.lower() for t in INSERTS}
 
+# Harvested set spellings mapped onto the name they resolve to.
+_SET_ALIASES: dict[str, str] = {}
+
 # Insert names learned from collected titles, registered at startup. Kept apart
 # from INSERTS so re-registering replaces them rather than piling up.
 _LEARNED_INSERTS: tuple[str, ...] = ()
@@ -305,15 +308,66 @@ def register_designations(names: Iterable[str]) -> int:
     return len(_LEARNED_DESIGNATIONS)
 
 
-def _rebuild_vocabulary() -> None:
+_LEARNED_SETS: tuple[str, ...] = ()
+
+
+def register_sets(names: Iterable[str]) -> int:
+    """Add harvested set names, folding each onto a known set where one exists.
+
+    The folding is the whole difficulty. eBay writes "Panini Donruss" where the
+    parser holds "Donruss", and titles use both -- so registering the eBay
+    spelling as a *separate* set would split one card between sellers who typed
+    the brand and sellers who did not. Instead both spellings are matched and
+    both resolve to the same canonical name.
+
+    "Topps Chrome" is why the brand is not simply stripped: the brand is part
+    of that product's name. So a known set is preferred where one matches, and
+    only a genuinely new product keeps its full harvested spelling.
+    """
+    global _LEARNED_SETS
+
+    known = {t.lower(): t for t in SETS}
+    brands = sorted(BRANDS, key=len, reverse=True)
+    folded: dict[str, str] = {}
+    kept: list[str] = []
+
+    for raw in names:
+        name = raw.strip()
+        if not name or name.lower() in known:
+            continue
+        without_brand = name
+        for brand in brands:
+            if name.lower().startswith(brand.lower() + " "):
+                without_brand = name[len(brand) + 1:].strip()
+                break
+        # A known set wins, whichever spelling reaches it.
+        canonical = known.get(name.lower()) or known.get(without_brand.lower())
+        if canonical is None:
+            canonical = name
+            kept.append(name)
+        folded[name.lower()] = canonical
+
+    _LEARNED_SETS = tuple(dict.fromkeys(kept))
+    _rebuild_vocabulary(folded)
+    return len(_LEARNED_SETS)
+
+
+def _rebuild_vocabulary(set_aliases: Optional[dict] = None) -> None:
     """Recompile the patterns after a learned list changes."""
-    global SUBSETS, SUBSET_PAT, _CANONICAL, _INSERT_LOOKUP
+    global SUBSETS, SUBSET_PAT, SET_PAT, _CANONICAL, _INSERT_LOOKUP
+    global _SET_ALIASES
+
+    if set_aliases is not None:
+        _SET_ALIASES = set_aliases
 
     SUBSETS = (INSERTS + _LEARNED_INSERTS + DESIGNATIONS
                + _LEARNED_DESIGNATIONS)
     SUBSET_PAT = _vocab_pattern(SUBSETS)
+    # Every spelling is matchable; `_canonical` collapses them afterwards.
+    SET_PAT = _vocab_pattern(tuple(SETS) + tuple(_SET_ALIASES))
     _CANONICAL = {t.lower(): t
                   for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
+    _CANONICAL.update(_SET_ALIASES)
     # Only inserts key. Learned designations are claimed and then dropped.
     _INSERT_LOOKUP = {t.lower() for t in (*INSERTS, *_LEARNED_INSERTS)}
 
