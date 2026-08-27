@@ -28,8 +28,8 @@ if errorlevel 1 goto END
 echo.
 echo ==========================================================
 echo.
-echo   1  Draw 100 sales to check by hand (gives a real %%)
-echo   2  Score a sample you have already filled in
+echo   1  Check 100 sales in your browser (gives a real %%)
+echo   2  Score a spreadsheet you filled in by hand
 echo   3  Nothing, just close
 echo.
 set /p PICK=Type a number and press Enter:
@@ -41,9 +41,10 @@ goto END
 :DRAW
 echo.
 nflcarddb review --sample 100
+if errorlevel 1 goto END
 echo.
-echo Opening it for you...
-start "" review-sample.csv
+echo Opening it in your browser...
+start "" review-sample.html
 goto END
 
 :SCORE
