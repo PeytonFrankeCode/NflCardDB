@@ -164,3 +164,51 @@ def test_every_command_can_render_its_help():
 
     # Guard against the loop silently covering nothing.
     assert "review" in names and "scrape" in names
+
+
+def test_cards_lists_the_grouping(tmp_path, capsys):
+    """`cards` is the only place the grouping is visible without a browser.
+
+    Two listings that are the same card must come back as one line, or the
+    command is reporting on titles rather than on cards.
+    """
+    from nflcarddb import db as store
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import parse_title
+
+    db_path = tmp_path / "cards.db"
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2025-07-30")
+    titles = [
+        # Same card, two sellers, different wording and different grade.
+        "2023 Panini Prizm CJ Stroud Silver Prizm RC #339 PSA 10",
+        "2023 Prizm CJ Stroud #339 Silver Prizm Rookie",
+        # Sold once: a price, not a history.
+        "1998 Topps Chrome Peyton Manning Refractor #165",
+    ]
+    sales = [
+        Sale(item_id=f"40000000000{i}", title=t, price_cents=5000 + i * 1000,
+             shipping_cents=0, sold_date=f"2025-07-2{i + 1}", currency="USD",
+             best_offer=False, query_id="q1")
+        for i, t in enumerate(titles)
+    ]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "title/1")
+    store.finish_run(conn, run, "ok", 3, 3, 3)
+    conn.close()
+
+    assert main(["cards", "--db", str(db_path)]) == 0
+    out = capsys.readouterr().out
+    assert "CJ Stroud" in out
+    assert "Manning" not in out          # one sale is not a history
+    assert "1 card(s) shown" in out
+
+
+def test_cards_says_so_when_nothing_has_a_history(tmp_path, capsys):
+    from nflcarddb import db as store
+
+    db_path = tmp_path / "empty.db"
+    store.connect(db_path).close()
+
+    assert main(["cards", "--db", str(db_path)]) == 0
+    assert "No card has sold more than once" in capsys.readouterr().out

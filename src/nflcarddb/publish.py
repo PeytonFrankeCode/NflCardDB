@@ -31,6 +31,15 @@ MAX_SETS = 60
 MAX_RECENT = 1500
 MAX_DAILY = 400
 
+# Cards published with a price history. Every keyed card would be 35,000 of
+# them and most sold once, which is a point rather than a trend -- so this is
+# the cards that actually have a history, ordered by how much of one.
+MAX_CARDS = 2500
+
+# A card needs at least this many sales before a trend means anything. Two
+# points make a line through anything.
+MIN_SALES_FOR_TREND = 4
+
 # Rows counted in price statistics: any published price, in a single currency.
 #
 # Best offers are included by choice. On those, the number eBay publishes is the
@@ -171,6 +180,89 @@ def _recent(conn: sqlite3.Connection) -> list[dict]:
     return rows
 
 
+def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dict]:
+    """One entry per physical card, with its sales over time.
+
+    This is what the whole identity layer was built for. The database has
+    grouped sales under a shared `card_key` since the beginning, and nothing
+    ever published it -- so the dashboard could show what sold yesterday and
+    which players are hot, but never "this card, over time", which is the only
+    thing that makes a price a market rather than an anecdote.
+
+    Every sale carries its own grade label rather than being split into a
+    separate card by it. A PSA 10 and a raw copy are the same cardboard and
+    different market items, so the page filters the line down to one grade --
+    but keying on grade would hide the fact that they are one card at all.
+    """
+    by_card: dict[str, dict] = {}
+    for r in conn.execute(
+        f"SELECT c.card_key, c.card_name, c.player, c.year, c.set_name, "
+        f"       c.grader, c.grade, s.sold_date, s.price_cents, s.image_url "
+        f"FROM cards c JOIN sales s USING (item_id) "
+        f"WHERE c.card_key IS NOT NULL AND s.sold_date IS NOT NULL "
+        f"  AND s.{PRICE_FILTER} "
+        # item_id breaks ties within a day. Without it two sales on the same
+        # date come back in whatever order SQLite chooses, and the trend --
+        # which compares the older half against the newer -- would change
+        # between publishes of an unchanged database.
+        f"ORDER BY s.sold_date, s.item_id"
+    ):
+        card = by_card.setdefault(r["card_key"], {
+            "key": r["card_key"],
+            "name": r["card_name"] or r["card_key"],
+            "player": r["player"],
+            "year": r["year"],
+            "set": r["set_name"],
+            "img": None,
+            "sales": [],
+        })
+        if card["img"] is None and r["image_url"]:
+            card["img"] = r["image_url"]
+        grade = (f"{r['grader']} {r['grade']:g}"
+                 if r["grader"] and r["grade"] is not None
+                 else (r["grader"] or "Raw"))
+        card["sales"].append([r["sold_date"], round(r["price_cents"] / 100.0, 2),
+                              grade])
+
+    out = []
+    for card in by_card.values():
+        sales = card["sales"]
+        if len(sales) < 2:
+            # One sale is a price, not a history. Publishing it as a chart
+            # would draw a trend line through a single point.
+            continue
+        prices = [s[1] for s in sales]
+        card["n"] = len(sales)
+        card["median"] = round(statistics.median(prices), 2)
+        card["low"] = min(prices)
+        card["high"] = max(prices)
+        card["first"] = sales[0][0]
+        card["last"] = sales[-1][0]
+        card["trend"] = _trend(prices)
+        out.append(card)
+
+    # Most sales first: those are the cards with something to say.
+    out.sort(key=lambda c: (-c["n"], -(c["median"] or 0)))
+    return out[:limit]
+
+
+def _trend(prices: list[float]) -> Optional[float]:
+    """Percent change from the older half of a card's sales to the newer.
+
+    Halves rather than first-versus-last, because a single unusual sale at
+    either end would otherwise be the entire trend. Below a handful of sales
+    no number is reported at all -- two points make a line through anything.
+    """
+    if len(prices) < MIN_SALES_FOR_TREND:
+        return None
+    middle = len(prices) // 2
+    older = statistics.median(prices[:middle])
+    newer = statistics.median(prices[middle:])
+    if not older:
+        return None
+    return round(100.0 * (newer - older) / older, 1)
+
+
 def _top(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     """The biggest sales across everything collected.
 
@@ -257,6 +349,7 @@ def publish(db_path: str | Path, out_dir: str | Path) -> dict:
             # day. The biggest sales of the window would be invisible without
             # their own file.
             "top.json": _top(conn),
+            "cards.json": card_histories(conn),
         }
         meta = _meta(conn, daily)
         payloads["meta.json"] = meta

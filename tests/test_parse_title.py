@@ -580,3 +580,32 @@ def test_parsing_stays_fast_with_a_large_roster():
     # uncached one took nearly two. The point is to fail loudly if the fold
     # ever moves back inside the per-title path.
     assert elapsed < 1.5, f"{elapsed:.2f}s for 500 titles against 1,000 names"
+
+
+def test_one_player_spelled_three_ways_is_credited_once():
+    """A learned roster holds "Ja'Marr Chase", "Jamarr Chase" and the curly
+    apostrophe version -- three spellings of one man. The dual-player scan
+    matched all three and produced a two-player card credited to four people."""
+    roster = {"ja'marr chase", "jamarr chase", "ja’marr chase", "joe burrow"}
+    a = parse_title(
+        "2024 Panini Donruss Optic - Best Tuddys Joe Burrow, Ja'Marr Chase #14 /24",
+        roster)
+
+    assert a.player.count("/") == 1
+    assert "Joe Burrow" in a.player
+    assert a.player.lower().count("chase") == 1
+
+
+def test_a_named_patch_auto_is_a_different_card_from_a_plain_one():
+    """A "Stars and Stripes" patch auto and a plain patch auto sit at the same
+    number with the same flags. Only the name separates them."""
+    named = parse_title(
+        "2024 Panini Absolute Stars and Stripes Patch Auto Caleb Williams #12 /25")
+    plain = parse_title(
+        "2024 Panini Absolute Patch Auto Caleb Williams #12 /25")
+
+    assert named.subset == "Stars and Stripes"
+    assert card_key(named) != card_key(plain)
+    # ...and both are still recognised as an autographed relic.
+    assert named.is_auto and named.is_relic
+    assert plain.is_auto and plain.is_relic
