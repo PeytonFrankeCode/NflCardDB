@@ -212,3 +212,43 @@ def test_cards_says_so_when_nothing_has_a_history(tmp_path, capsys):
 
     assert main(["cards", "--db", str(db_path)]) == 0
     assert "No card has sold more than once" in capsys.readouterr().out
+
+
+# ------------------------------------------------------- how Windows runs it
+#
+# Installing the package writes an `nflcarddb.exe` launcher into the venv.
+# Nobody signs that file -- pip generates it -- so a machine running Device
+# Guard refuses to start it, and every double-click in the project died with
+# "blocked by your organization's Device Guard policy". Running the module
+# through the interpreter avoids the question entirely: python.exe is signed by
+# the people who publish Python, and a venv copies that signature with the file.
+
+
+def test_the_module_can_be_run_by_the_interpreter():
+    """`python -m nflcarddb` is what every .bat calls, so it must work."""
+    import subprocess
+    import sys
+
+    done = subprocess.run([sys.executable, "-m", "nflcarddb", "--help"],
+                          capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    assert "usage: nflcarddb" in done.stdout
+
+
+def test_no_batch_file_calls_the_unsigned_launcher():
+    """The regression this guards is a whole afternoon of dead double-clicks.
+
+    whatswrong.bat is exempt: it runs the launcher on purpose to record whether
+    the policy is what is blocking it, which is the diagnosis nobody had.
+    """
+    root = Path(__file__).resolve().parent.parent
+    offenders = []
+    for bat in sorted(root.glob("*.bat")):
+        if bat.name == "whatswrong.bat":
+            continue
+        for lineno, line in enumerate(bat.read_text().splitlines(), 1):
+            if line.lstrip().startswith("nflcarddb "):
+                offenders.append(f"{bat.name}:{lineno}")
+    assert not offenders, (
+        "these call the unsigned launcher instead of `python -m nflcarddb`: "
+        + ", ".join(offenders))

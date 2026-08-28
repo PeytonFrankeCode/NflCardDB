@@ -25,7 +25,7 @@ call venv\Scripts\activate.bat
 
 REM ---- collect -------------------------------------------------------------
 call :log "collecting..."
-nflcarddb -v scrape --save-html data\html >> "!LOG!" 2>&1
+python -m nflcarddb -v scrape --save-html data\html >> "!LOG!" 2>&1
 set CODE=!errorlevel!
 
 if "!CODE!"=="8" (
@@ -56,7 +56,7 @@ if "%NFLCARDDB_CATCHUP_MINUTES%"=="" set NFLCARDDB_CATCHUP_MINUTES=180
 if "%NFLCARDDB_CATCHUP_MINUTES%"=="0" goto SKIPCATCHUP
 
 call :log "catching up on older days (up to !NFLCARDDB_CATCHUP_MINUTES! minutes)..."
-nflcarddb -v backfill --days 90 --max-minutes !NFLCARDDB_CATCHUP_MINUTES! >> "!LOG!" 2>&1
+python -m nflcarddb -v backfill --days 90 --max-minutes !NFLCARDDB_CATCHUP_MINUTES! >> "!LOG!" 2>&1
 set BCODE=!errorlevel!
 if "!BCODE!"=="8" call :log "catch-up stopped: session expired -- run login.bat"
 if "!BCODE!"=="4" call :log "catch-up stopped: eBay human check. Days already collected are kept."
@@ -66,12 +66,12 @@ goto CATCHUPDONE
 call :log "catch-up disabled (NFLCARDDB_CATCHUP_MINUTES=0)"
 
 :CATCHUPDONE
-nflcarddb coverage >> "!LOG!" 2>&1
+python -m nflcarddb coverage >> "!LOG!" 2>&1
 
 REM ---- photos + dashboard files -------------------------------------------
 call :log "sizing photos and refreshing the dashboard..."
-nflcarddb images --upgrade >> "!LOG!" 2>&1
-nflcarddb publish >> "!LOG!" 2>&1
+python -m nflcarddb images --upgrade >> "!LOG!" 2>&1
+python -m nflcarddb publish >> "!LOG!" 2>&1
 
 REM ---- upload to Cloudflare ------------------------------------------------
 REM Skipped rather than prompted when no credentials are stored: an unattended
@@ -81,8 +81,8 @@ if "%CF_ACCOUNT_ID%"=="" goto NOCLOUD
 
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 call :log "uploading to Cloudflare..."
-nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only >> "!LOG!" 2>&1
-nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% >> "!LOG!" 2>&1
+python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only >> "!LOG!" 2>&1
+python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% >> "!LOG!" 2>&1
 if errorlevel 1 (
   call :log "WARNING: upload failed -- the data is safe on this PC, see above"
 ) else (
@@ -94,7 +94,7 @@ goto DONE
 call :log "skipped Cloudflare upload -- no credentials stored (run connect-cloudflare.bat once)"
 
 :DONE
-nflcarddb stats >> "!LOG!" 2>&1
+python -m nflcarddb stats >> "!LOG!" 2>&1
 call :log "=== run finished ==="
 exit /b 0
 

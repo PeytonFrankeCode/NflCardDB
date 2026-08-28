@@ -19,12 +19,12 @@ echo.
 
 
 echo Creating the tables (safe if they already exist)...
-nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --schema api\schema.sql --schema-only
+python -m nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --schema api\schema.sql --schema-only
 if errorlevel 1 goto FAILED
 echo.
 
 echo Uploading the sales...
-nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID%
+python -m nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID%
 if errorlevel 1 goto FAILED
 
 echo.

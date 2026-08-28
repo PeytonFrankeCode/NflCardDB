@@ -44,7 +44,7 @@ echo.
 :RUN
 echo Reading 50 photos. About a second each.
 echo.
-nflcarddb vision --limit 50
+python -m nflcarddb vision --limit 50
 if errorlevel 1 goto BROKEN
 
 echo.
@@ -56,7 +56,7 @@ echo.
 set /p MORE=Now try sales the title could NOT identify? (y/n):
 if /i not "%MORE%"=="y" goto END
 echo.
-nflcarddb vision --limit 50 --unclear
+python -m nflcarddb vision --limit 50 --unclear
 goto END
 
 :SKIPPED

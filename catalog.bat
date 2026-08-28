@@ -49,12 +49,12 @@ echo.
 set /p APPID=Paste the App ID:
 set /p CERTID=Paste the Cert ID:
 echo.
-nflcarddb catalog --app-id "%APPID%" --cert-id "%CERTID%" --apply
+python -m nflcarddb catalog --app-id "%APPID%" --cert-id "%CERTID%" --apply
 if errorlevel 1 goto BROKEN
 goto DONE
 
 :RUN
-nflcarddb catalog --apply
+python -m nflcarddb catalog --apply
 if errorlevel 1 goto BROKEN
 
 :DONE

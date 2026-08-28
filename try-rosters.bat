@@ -34,7 +34,7 @@ echo reports which wins, and switches to it. Up to eight
 echo passes, so give it ten minutes or so.
 echo.
 
-nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt --apply
+python -m nflcarddb try-vocab config\nfl_players.txt config\nfl_players_ebay.txt --apply
 if errorlevel 1 goto BROKEN
 
 echo.

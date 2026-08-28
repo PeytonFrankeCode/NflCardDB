@@ -21,14 +21,14 @@ echo.
 
 
 
-nflcarddb d1-pull --account-id "!CF_ACCOUNT_ID!" --database-id %DBID%
+python -m nflcarddb d1-pull --account-id "!CF_ACCOUNT_ID!" --database-id %DBID%
 if errorlevel 1 goto FAILED
 
 echo.
 echo Refreshing your dashboard...
-nflcarddb publish
+python -m nflcarddb publish
 echo.
-nflcarddb coverage
+python -m nflcarddb coverage
 
 echo.
 echo ==========================================================

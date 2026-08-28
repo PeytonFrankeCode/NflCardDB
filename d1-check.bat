@@ -17,7 +17,7 @@ echo.
 
 
 
-nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --verify-only
+python -m nflcarddb d1-push --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --verify-only
 if errorlevel 1 goto EMPTY
 
 echo.

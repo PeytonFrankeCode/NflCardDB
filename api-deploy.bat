@@ -16,7 +16,7 @@ echo ==========================================================
 echo.
 
 echo Building the upload file...
-nflcarddb export-api --out api\import.sql
+python -m nflcarddb export-api --out api\import.sql
 if errorlevel 1 goto EXPORTFAIL
 echo.
 

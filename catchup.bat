@@ -11,9 +11,9 @@ echo ==========================================================
 echo    Catching up on past sales
 echo ==========================================================
 echo.
-nflcarddb coverage
+python -m nflcarddb coverage
 echo.
-nflcarddb recheck
+python -m nflcarddb recheck
 echo.
 echo eBay only keeps sold listings for about 90 days. Days that
 echo age out are gone for good, so the sooner these are
@@ -35,7 +35,7 @@ goto END
 
 :REDO
 echo.
-nflcarddb recheck --fix
+python -m nflcarddb recheck --fix
 echo.
 echo Those days will be collected again next time something
 echo runs - the daily schedule, or option 1 or 2 here. Sales
@@ -51,7 +51,7 @@ echo.
 echo Collecting for !HRS! hour(s). You can close this window at
 echo any time - finished days are saved as they go.
 echo.
-nflcarddb -v backfill --days 90 --max-minutes !MINS!
+python -m nflcarddb -v backfill --days 90 --max-minutes !MINS!
 goto FINISH
 
 :ALL
@@ -60,7 +60,7 @@ echo Collecting everything still missing. This can take many
 echo hours. Closing the window is safe - finished days are
 echo saved as they go, and running this again resumes.
 echo.
-nflcarddb -v backfill --days 90
+python -m nflcarddb -v backfill --days 90
 goto FINISH
 
 :SCHEDULED
@@ -77,10 +77,10 @@ if "!CODE!"=="8" goto SIGNEDOUT
 if "!CODE!"=="4" goto BLOCKED
 
 echo Updating photos and your dashboard...
-nflcarddb images --upgrade
-nflcarddb publish
+python -m nflcarddb images --upgrade
+python -m nflcarddb publish
 echo.
-nflcarddb coverage
+python -m nflcarddb coverage
 echo.
 echo ==========================================================
 echo    Stopped for now

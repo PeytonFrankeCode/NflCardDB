@@ -38,7 +38,7 @@ if "!ACCT!"=="" (
 
 echo Checking they work...
 set "CLOUDFLARE_API_TOKEN=!TOK!"
-nflcarddb d1-push --account-id "!ACCT!" --database-id %DBID% --verify-only
+python -m nflcarddb d1-push --account-id "!ACCT!" --database-id %DBID% --verify-only
 if errorlevel 1 goto BADCREDS
 
 echo.

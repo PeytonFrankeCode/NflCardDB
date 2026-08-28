@@ -32,7 +32,7 @@ echo It then re-reads every title you have collected. On a large
 echo database that takes a few minutes. Leave it running.
 echo.
 
-nflcarddb roster
+python -m nflcarddb roster
 if errorlevel 1 goto BROKEN
 
 echo.

@@ -11,11 +11,11 @@ echo    Listing photos
 echo ==========================================================
 echo.
 
-nflcarddb images --upgrade
+python -m nflcarddb images --upgrade
 
 echo.
 echo Refreshing the dashboard files...
-nflcarddb publish
+python -m nflcarddb publish
 
 echo.
 echo   with_photo - sales that have a picture

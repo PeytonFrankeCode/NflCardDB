@@ -38,7 +38,7 @@ echo starts pushing back. Run it again another day and it
 echo picks up where it left off - the list keeps growing.
 echo.
 
-nflcarddb facets --drill seasons,sets --budget 200 --save-html data\html
+python -m nflcarddb facets --drill seasons,sets --budget 200 --save-html data\html
 if errorlevel 1 goto NOTHING
 
 echo.

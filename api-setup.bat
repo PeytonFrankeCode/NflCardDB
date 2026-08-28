@@ -26,7 +26,7 @@ echo.
 pause
 echo.
 
-nflcarddb setup-api
+python -m nflcarddb setup-api
 set CODE=%errorlevel%
 
 if not "%CODE%"=="0" (

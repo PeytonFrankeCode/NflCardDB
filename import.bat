@@ -23,16 +23,16 @@ echo    Reading the pages you saved
 echo ==========================================================
 echo.
 
-nflcarddb import !ARGS!
+python -m nflcarddb import !ARGS!
 set CODE=!errorlevel!
 echo.
 
 if not "!CODE!"=="0" goto FAILED
 
 echo Updating your dashboard...
-nflcarddb publish
+python -m nflcarddb publish
 echo.
-nflcarddb stats
+python -m nflcarddb stats
 echo.
 echo ==========================================================
 echo    Done

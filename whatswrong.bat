@@ -48,18 +48,28 @@ python -c "from nflcarddb.parse_title import PARSER_VERSION as v; print(v)" >> "
 echo. >> "%LOG%"
 
 echo ---- nflcarddb command ---- >> "%LOG%"
-where nflcarddb >> "%LOG%" 2>&1
-nflcarddb --help >> "%LOG%" 2>&1
+python -m nflcarddb --help >> "%LOG%" 2>&1
 echo help exit code: %ERRORLEVEL% >> "%LOG%"
 echo. >> "%LOG%"
 
+REM The generated launcher, recorded separately and NOT relied on. It is an
+REM unsigned .exe that pip writes into the venv, and a machine running Device
+REM Guard refuses to start it -- which reads as "blocked by your organization's
+REM policy" from a script that otherwise looks fine. Everything above runs the
+REM module through python.exe instead, so this line is diagnosis, not a test.
+echo ---- generated launcher (not used) ---- >> "%LOG%"
+where nflcarddb >> "%LOG%" 2>&1
+nflcarddb --help >nul 2>>"%LOG%"
+echo launcher exit code: %ERRORLEVEL% >> "%LOG%"
+echo. >> "%LOG%"
+
 echo ---- gaps, in full ---- >> "%LOG%"
-nflcarddb gaps --limit 5 >> "%LOG%" 2>&1
+python -m nflcarddb gaps --limit 5 >> "%LOG%" 2>&1
 echo gaps exit code: %ERRORLEVEL% >> "%LOG%"
 echo. >> "%LOG%"
 
 echo ---- audit, in full ---- >> "%LOG%"
-nflcarddb audit >> "%LOG%" 2>&1
+python -m nflcarddb audit >> "%LOG%" 2>&1
 echo audit exit code: %ERRORLEVEL% >> "%LOG%"
 echo. >> "%LOG%"
 goto DONE

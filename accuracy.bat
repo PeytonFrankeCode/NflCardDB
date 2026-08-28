@@ -21,11 +21,11 @@ echo Sales collected before this feature existed need one pass;
 echo on a large database it takes a minute or two.
 echo.
 
-nflcarddb parse --all
+python -m nflcarddb parse --all
 if errorlevel 1 goto BROKEN
 echo.
 
-nflcarddb audit
+python -m nflcarddb audit
 if errorlevel 1 goto END
 
 echo.
@@ -43,7 +43,7 @@ goto END
 
 :DRAW
 echo.
-nflcarddb review --sample 100
+python -m nflcarddb review --sample 100
 if errorlevel 1 goto END
 echo.
 echo Opening it in your browser...
@@ -52,7 +52,7 @@ goto END
 
 :SCORE
 echo.
-nflcarddb review --score review-sample.csv
+python -m nflcarddb review --score review-sample.csv
 goto END
 
 :BROKEN

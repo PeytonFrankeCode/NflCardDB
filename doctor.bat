@@ -15,7 +15,7 @@ echo This tries each method once and reports what came back.
 echo It takes about a minute.
 echo.
 
-nflcarddb doctor > doctor-report.txt 2>&1
+python -m nflcarddb doctor > doctor-report.txt 2>&1
 type doctor-report.txt
 
 echo.

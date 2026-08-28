@@ -30,7 +30,7 @@ echo and years. An insert lives in one product, next to lots of
 echo different players.
 echo.
 
-nflcarddb inserts
+python -m nflcarddb inserts
 if errorlevel 1 goto BROKEN
 
 echo.
@@ -51,7 +51,7 @@ set /p OK=Happy with the list? Turn it on now? (y/n):
 if /i not "%OK%"=="y" goto LATER
 
 echo.
-nflcarddb inserts --apply
+python -m nflcarddb inserts --apply
 if errorlevel 1 goto BROKEN
 echo.
 echo Done. Double-click accuracy.bat to see what changed.

@@ -16,7 +16,7 @@ echo slowly on purpose so eBay does not mistake it for an
 echo attack. You can leave it and come back.
 echo.
 
-nflcarddb -v scrape --save-html data\html
+python -m nflcarddb -v scrape --save-html data\html
 set CODE=!errorlevel!
 echo.
 
@@ -25,8 +25,8 @@ if "!CODE!"=="4" goto BLOCKED
 if "!CODE!"=="5" goto OFFLINE
 
 echo Updating your dashboard...
-nflcarddb images --upgrade
-nflcarddb publish
+python -m nflcarddb images --upgrade
+python -m nflcarddb publish
 echo.
 
 REM Upload without asking when the credentials are already stored. Prompting
@@ -36,8 +36,8 @@ if "%CF_ACCOUNT_ID%"=="" goto NOCLOUD
 
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 echo Uploading to your website...
-nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only
-nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID%
+python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only
+python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID%
 if errorlevel 1 (
   echo.
   echo Upload did not finish - your data is still safe on this PC.
@@ -53,7 +53,7 @@ echo and it will happen automatically from then on.
 echo.
 
 :SUMMARY
-nflcarddb stats
+python -m nflcarddb stats
 echo.
 echo ==========================================================
 echo    Done

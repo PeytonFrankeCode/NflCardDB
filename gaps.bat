@@ -27,7 +27,7 @@ echo parser knows, ranked by how many sales it appears in. The
 echo top of the list is what is costing you the most.
 echo.
 
-nflcarddb gaps --limit 60
+python -m nflcarddb gaps --limit 60
 if errorlevel 1 goto BROKEN
 
 echo.

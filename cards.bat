@@ -32,12 +32,12 @@ echo.
 echo Re-reading every title takes a minute or two.
 echo.
 
-nflcarddb parse --all
+python -m nflcarddb parse --all
 if errorlevel 1 goto BROKEN
 
 echo.
 echo Refreshing the website files...
-nflcarddb publish >nul
+python -m nflcarddb publish >nul
 if errorlevel 1 goto BROKEN
 
 echo.
@@ -46,7 +46,7 @@ echo    Your cards, busiest first
 echo ==========================================================
 echo.
 
-nflcarddb cards --limit 40
+python -m nflcarddb cards --limit 40
 if errorlevel 1 goto BROKEN
 
 echo.

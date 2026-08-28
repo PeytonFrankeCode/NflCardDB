@@ -29,7 +29,7 @@ echo.
 pause
 echo.
 
-nflcarddb login
+python -m nflcarddb login
 if errorlevel 9 goto WINBLOCK
 set CODE=%errorlevel%
 echo.

@@ -18,7 +18,7 @@ echo.
 pause
 echo.
 
-nflcarddb probe --query football_singles --chrome-profile --save-html debug
+python -m nflcarddb probe --query football_singles --chrome-profile --save-html debug
 echo.
 echo ==========================================================
 echo.

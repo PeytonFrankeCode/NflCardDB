@@ -11,7 +11,7 @@ echo ==========================================================
 echo    Daily automatic collection
 echo ==========================================================
 echo.
-nflcarddb schedule --status
+python -m nflcarddb schedule --status
 echo.
 echo   1  Turn it on (or change the time)
 echo   2  Run it right now, to check it works
@@ -33,7 +33,7 @@ echo.
 set /p WHEN=Time (just press Enter for 07:00):
 if "!WHEN!"=="" set WHEN=07:00
 echo.
-nflcarddb schedule --at "!WHEN!"
+python -m nflcarddb schedule --at "!WHEN!"
 if errorlevel 1 goto FAILED
 echo.
 
@@ -49,7 +49,7 @@ echo.
 if "!CATCHUP!"=="0" (
   echo Catch-up off - it will only collect yesterday.
 ) else (
-  nflcarddb coverage
+  python -m nflcarddb coverage
 )
 echo.
 if "%CLOUDFLARE_API_TOKEN%"=="" (
@@ -65,7 +65,7 @@ goto END
 
 :NOW
 echo.
-nflcarddb schedule --run-now
+python -m nflcarddb schedule --run-now
 echo.
 echo It runs in the background - no window will appear. Look in
 echo the  logs  folder in a few minutes to see how it went.
@@ -73,7 +73,7 @@ goto END
 
 :OFF
 echo.
-nflcarddb schedule --remove
+python -m nflcarddb schedule --remove
 echo.
 echo Collection is back to manual - use collect.bat.
 goto END

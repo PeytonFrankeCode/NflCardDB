@@ -5,7 +5,7 @@ cd /d "%~dp0"
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
 echo.
-nflcarddb profiles
+python -m nflcarddb profiles
 echo.
 pause
 goto :eof

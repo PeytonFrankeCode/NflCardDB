@@ -15,7 +15,7 @@ echo setting each time, and reports the first one it refuses.
 echo That names the thing to change.
 echo.
 
-nflcarddb bisect
+python -m nflcarddb bisect
 
 echo.
 echo The report above was also saved to  bisect-report.txt

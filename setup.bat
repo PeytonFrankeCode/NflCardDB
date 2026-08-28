@@ -113,7 +113,7 @@ echo ==========================================================
 echo    Checking whether eBay will talk to your computer
 echo ==========================================================
 echo.
-nflcarddb probe --query football_singles --save-html data\html
+python -m nflcarddb probe --query football_singles --save-html data\html
 set CODE=!errorlevel!
 echo.
 echo ==========================================================
