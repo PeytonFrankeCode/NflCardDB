@@ -444,6 +444,40 @@ you a card.
 
 Then answer **y** and it re-reads every title.
 
+## Seeing one card over time
+
+All of the above — the roster, the insert names, the set names — exists for one
+reason: so that twenty people selling the same card produce **one card with
+twenty prices** instead of twenty unrelated rows. Twenty prices is a market.
+Twenty rows is a list.
+
+**Double-click `cards.bat`.** It re-reads every title with the current word
+lists, regroups your sales, refreshes the website files, and then prints your
+cards busiest first:
+
+```
+SALES     MEDIAN              RANGE    TREND  CARD
+   26      54.09    24.72 - 176.86    +14.5%  2024 Prizm Caleb Williams #301 Silver Prizm
+   14      11.98     8.30 - 21.52     -14.7%  2023 Select Dragonscale Jayden Daniels #12 /81
+```
+
+The website gets the same thing with a chart per card: a searchable list on the
+left, and the card's price history on the right.
+
+Three things about that report are deliberate:
+
+**Cards that sold once are left out.** One price is not a history, and drawing a
+trend line through a single point would be inventing one.
+
+**The trend compares the newer half of a card's sales against the older half**,
+not the newest sale against the oldest. One unusual sale at either end would
+otherwise become the entire trend. Below four sales no trend is shown at all.
+
+**A graded copy and a raw copy stay the same card.** They are the same cardboard
+sold in two different markets, so the website lets you switch between grades on
+the chart — but splitting them into separate cards would hide the fact that they
+are one card at all, which is the thing you came for.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this

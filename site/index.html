@@ -17,6 +17,9 @@
     --series-1:       #2a78d6;
     --border:         rgba(11,11,11,0.10);
     --warn:           #ec835a;
+    --up:             #1f7a4d;
+    --down:           #b3402e;
+    --selected:       rgba(42,120,214,0.10);
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -30,6 +33,9 @@
       --axis:           #383835;
       --series-1:       #3987e5;
       --border:         rgba(255,255,255,0.10);
+      --up:             #4cb782;
+      --down:           #e8735a;
+      --selected:       rgba(57,135,229,0.16);
     }
   }
   :root[data-theme="dark"] {
@@ -43,6 +49,9 @@
     --axis:           #383835;
     --series-1:       #3987e5;
     --border:         rgba(255,255,255,0.10);
+    --up:             #4cb782;
+    --down:           #e8735a;
+    --selected:       rgba(57,135,229,0.16);
   }
 
   * { box-sizing: border-box; }
@@ -136,6 +145,36 @@
   td.thumb div { width: 42px; height: 42px; border-radius: 5px; border: 1px solid var(--border); background: var(--page); overflow: hidden; }
   td.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   td.thumb img.gone { display: none; }
+
+  /* One card, over time. The list picks; the panel beside it draws.
+     Both halves scroll independently so a 2,000-row list never pushes the
+     chart off the bottom of the screen. */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+
+  .clist { overflow: auto; max-height: 460px; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 8px; }
+  .crow {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+    padding: 8px 11px; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .crow:last-child { border-bottom: 0; }
+  .crow:hover { background: var(--page); }
+  .crow[aria-selected="true"] { background: var(--selected); }
+  .crow .cname { font-size: 13px; line-height: 1.35; }
+  .crow .cmeta { font-size: 11.5px; color: var(--muted); grid-column: 1; }
+  .crow .cprice { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; align-self: start; }
+  .crow .ctrend { font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+
+  .detail-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .detail-head .shot { width: 62px; height: 62px; flex: none; border-radius: 6px; border: 1px solid var(--border); background: var(--page); overflow: hidden; }
+  .detail-head .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .detail-head .shot img.gone { display: none; }
+  .detail-head h3 { font-size: 15px; font-weight: 600; margin: 0 0 3px; line-height: 1.3; }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--text-secondary); margin: 0; }
+  .stats b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  select { font: inherit; font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--page); color: var(--text-primary); }
 
   .empty { text-align: center; padding: 44px 20px; color: var(--text-secondary); }
   .empty h2 { font-size: 16px; margin-bottom: 10px; }
@@ -329,6 +368,154 @@ function renderTable() {
     </tr>`).join("") || `<tr><td colspan="7" style="color:var(--muted)">No rows match.</td></tr>`;
 }
 
+/* ---------- one card, over time ---------- */
+
+// The whole point of the identity layer: many listings for the same physical
+// card, gathered under one name, so a price becomes a history.
+let cardState = { rows: [], query: "", selected: null, grade: "" };
+
+// Mirrors publish.py's _trend, so filtering to one grade still gets a number
+// instead of a dash. Halves rather than endpoints: a single unusual sale at
+// either end would otherwise be the whole trend. Four sales minimum, because
+// two points make a line through anything.
+const MIN_SALES_FOR_TREND = 4;
+const med = xs => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+function trendOf(prices) {
+  if (prices.length < MIN_SALES_FOR_TREND) return null;
+  const middle = prices.length >> 1;
+  const older = med(prices.slice(0, middle)), newer = med(prices.slice(middle));
+  if (!older) return null;
+  return Math.round(1000 * (newer - older) / older) / 10;
+}
+
+const trendHtml = t => t == null
+  ? `<span class="ctrend" style="color:var(--muted)">—</span>`
+  : `<span class="ctrend ${t >= 0 ? "up" : "down"}">${t >= 0 ? "+" : ""}${t.toFixed(1)}%</span>`;
+
+function matchingCards() {
+  const q = cardState.query.trim().toLowerCase();
+  if (!q) return cardState.rows;
+  // Every word must appear somewhere, in any order: "prizm silver williams"
+  // should find the card however the name happens to be ordered.
+  const words = q.split(/\s+/);
+  return cardState.rows.filter(c => {
+    const hay = `${c.name} ${c.player || ""} ${c.set || ""}`.toLowerCase();
+    return words.every(w => hay.includes(w));
+  });
+}
+
+function renderCardList() {
+  const rows = matchingCards();
+  const shown = rows.slice(0, 400);
+  $("#cardcount").textContent =
+    `${fmtInt(rows.length)} card${rows.length === 1 ? "" : "s"}` +
+    (rows.length > shown.length ? ` (showing first ${shown.length})` : "");
+
+  $("#cardlist").innerHTML = shown.map(c => `
+    <div class="crow" role="option" tabindex="0" data-key="${esc(c.key)}"
+         aria-selected="${c.key === cardState.selected ? "true" : "false"}">
+      <div class="cname">${esc(c.name)}</div>
+      <div class="cprice">${fmtUsd0(c.median)}</div>
+      <div class="cmeta">${fmtInt(c.n)} sales · ${esc(fmtDay(c.first))} → ${esc(fmtDay(c.last))}</div>
+      ${trendHtml(c.trend)}
+    </div>`).join("") ||
+    `<div style="padding:16px;color:var(--muted);font-size:13px">No card matches.</div>`;
+}
+
+function selectCard(key) {
+  cardState.selected = key;
+  cardState.grade = "";           // a grade from the last card may not exist here
+  renderCardList();
+  renderCardDetail();
+  const row = $(`.crow[data-key="${CSS.escape(key)}"]`);
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+
+function renderCardDetail() {
+  const card = cardState.rows.find(c => c.key === cardState.selected);
+  const box = $("#carddetail");
+  if (!card) {
+    box.innerHTML = `<p class="note">Pick a card on the left to see its price history.</p>`;
+    return;
+  }
+
+  // Grades are separate markets for the same cardboard. Mixing a PSA 10 into
+  // a raw card's line draws a trend that describes neither, so the line is one
+  // grade at a time once there is more than one to choose between.
+  const counts = new Map();
+  card.sales.forEach(s => counts.set(s[2], (counts.get(s[2]) || 0) + 1));
+  const grades = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+
+  const sales = cardState.grade
+    ? card.sales.filter(s => s[2] === cardState.grade)
+    : card.sales;
+  const rows = sales.map(s => ({ d: s[0], p: s[1], g: s[2] }));
+  const ordered = rows.map(r => r.p);                       // oldest first
+  const prices = [...ordered].sort((a, b) => a - b);
+  // Unfiltered, the published number stands. Filtered, it is recomputed here
+  // for the grade actually on screen.
+  const trend = cardState.grade ? trendOf(ordered) : card.trend;
+
+  box.innerHTML = `
+    <div class="detail-head">
+      ${card.img ? `<div class="shot"><img src="${esc(card.img)}" alt="" loading="lazy" decoding="async"></div>` : ""}
+      <div>
+        <h3>${esc(card.name)}</h3>
+        <p class="stats">
+          <span><b>${fmtInt(rows.length)}</b> sales</span>
+          <span>median <b>${fmtUsd(med(prices))}</b></span>
+          <span>low <b>${fmtUsd(prices[0] ?? null)}</b></span>
+          <span>high <b>${fmtUsd(prices[prices.length - 1] ?? null)}</b></span>
+          <span>trend ${trendHtml(trend)}</span>
+        </p>
+      </div>
+    </div>
+    ${grades.length > 1 ? `
+    <div class="controls">
+      <select id="cgrade">
+        <option value="">All grades (${fmtInt(card.sales.length)} sales)</option>
+        ${grades.map(([g, n]) =>
+          `<option value="${esc(g)}"${g === cardState.grade ? " selected" : ""}>${esc(g)} (${fmtInt(n)})</option>`).join("")}
+      </select>
+      <span class="note" style="margin:0">A graded copy and a raw one are different markets.</span>
+    </div>` : ""}
+    <div id="c-card">${lineChart({
+      rows, x: r => r.d, y: r => r.p,
+      format: (v, ax) => ax ? "$" + Math.round(v) : fmtUsd(v),
+    })}</div>
+    <p class="note" style="margin-top:8px">One dot per sale, oldest to newest. Points are spaced evenly by sale, not by calendar — hover for the date.</p>`;
+
+  attachLineHover($("#c-card"), {
+    rows, x: r => r.d, y: r => r.p,
+    format: v => fmtUsd(v),
+  });
+  const sel = $("#cgrade");
+  if (sel) sel.addEventListener("change", e => { cardState.grade = e.target.value; renderCardDetail(); });
+}
+
+function cardsSection(cards) {
+  if (!cards.length) return "";
+  return `
+    <div class="card">
+      <h2>One card, over time</h2>
+      <p class="note">Every listing that is the same physical card, gathered under one name — so its
+        sales become a price history instead of a pile of separate rows. Cards with only one sale
+        are left out: one price is not a trend.</p>
+      <div class="controls">
+        <input type="search" id="cardq" placeholder="Search cards — e.g. Caleb Williams Silver, Prizm 2024…" autocomplete="off">
+        <span class="note" id="cardcount" style="margin:0"></span>
+      </div>
+      <div class="split">
+        <div class="clist" id="cardlist" role="listbox" aria-label="Cards"></div>
+        <div id="carddetail"></div>
+      </div>
+    </div>`;
+}
+
 /* ---------- page ---------- */
 
 function emptyState(reason) {
@@ -353,6 +540,10 @@ async function main() {
     emptyState(`Could not load data/ (${err.message}).`);
     return;
   }
+  // Newer than the rest of the files. A site published before card grouping
+  // existed has no cards.json, and that should cost it one section rather than
+  // the whole page.
+  const cards = await loadJson("cards.json").catch(() => []);
   if (!meta.total_sales) { emptyState("The database is published but contains no sales."); return; }
 
   const gen = new Date(meta.generated_at);
@@ -389,6 +580,8 @@ async function main() {
         <div id="c-med">${lineChart({ rows: daily, x: r => r.d, y: r => r.median, format: (v, ax) => ax ? "$" + Math.round(v) : fmtUsd(v) })}</div>
       </figure></div>
     </div>
+
+    ${cardsSection(cards)}
 
     <div class="charts">
       <div class="card"><figure>
@@ -440,6 +633,31 @@ async function main() {
 
   attachLineHover($("#c-vol"), { rows: daily, x: r => r.d, y: r => r.n, format: v => fmtInt(Math.round(v)) + " sales" });
   attachLineHover($("#c-med"), { rows: daily, x: r => r.d, y: r => r.median, format: v => fmtUsd(v) });
+
+  if (cards.length) {
+    cardState.rows = cards;
+    const list = $("#cardlist");
+    // One listener on the container: the rows are re-rendered on every search
+    // keystroke, and per-row listeners would be re-bound each time.
+    const pick = ev => {
+      const row = ev.target.closest(".crow");
+      if (row) selectCard(row.dataset.key);
+    };
+    list.addEventListener("click", pick);
+    list.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(ev); }
+    });
+    // A missing photo shows nothing rather than a broken-image icon.
+    $("#carddetail").addEventListener("error", e => {
+      if (e.target.tagName === "IMG") e.target.classList.add("gone");
+    }, true);
+    $("#cardq").addEventListener("input", e => { cardState.query = e.target.value; renderCardList(); });
+    // Open on the busiest card rather than an empty panel: the list is already
+    // sorted by how much history each card has.
+    cardState.selected = cards[0].key;
+    renderCardList();
+    renderCardDetail();
+  }
 
   tableState.rows = recent;
   // eBay purges photos for old listings, so some src values 404. Hide those

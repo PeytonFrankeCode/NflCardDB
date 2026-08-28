@@ -33,7 +33,7 @@ from .pipeline import (
     run_scrape,
     yesterday,
 )
-from .publish import publish
+from .publish import card_histories, publish
 from .search import PriceBand, build_url
 
 
@@ -2205,6 +2205,39 @@ def cmd_publish(args) -> int:
     return 0
 
 
+def cmd_cards(args) -> int:
+    """Show the grouped cards: many listings, one card, one price history.
+
+    The same rows the dashboard draws, printed. Everything else in this program
+    reports on titles or sales; this is the only place the grouping itself is
+    visible without a browser, which matters because grouping is the part that
+    silently gets worse when a vocabulary change goes wrong.
+    """
+    conn = store.connect(args.db)
+    try:
+        rows = card_histories(conn, limit=args.limit)
+    finally:
+        conn.close()
+
+    if not rows:
+        print("No card has sold more than once yet, so nothing has a history.")
+        print("Collect a few more days and run this again.")
+        return 0
+
+    print(f"{'SALES':>5}  {'MEDIAN':>9}  {'RANGE':>17}  {'TREND':>7}  CARD")
+    print("-" * 78)
+    for c in rows:
+        trend = "     --" if c["trend"] is None else f"{c['trend']:+6.1f}%"
+        span = f"{c['low']:>7.2f} - {c['high']:<7.2f}"
+        print(f"{c['n']:>5}  {c['median']:>9.2f}  {span:>17}  {trend}  {c['name']}")
+
+    print()
+    print(f"{len(rows)} card(s) shown. Each line is one physical card, with every")
+    print("listing of it gathered together -- that is what makes a price history.")
+    print("Grades are kept apart on the website; this list is all grades together.")
+    return 0
+
+
 def cmd_url(args) -> int:
     """Print the URL a query/band would hit, without fetching it."""
     config = load_config(args.config)
@@ -2568,6 +2601,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db", default="data/nflcarddb.sqlite")
     p.add_argument("--out", default="site/data", help="output directory for the JSON")
     p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("cards", help="list the grouped cards and their price history")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--limit", type=int, default=40)
+    p.set_defaults(func=cmd_cards)
 
     p = sub.add_parser("url", help="print the search URLs a config would hit")
     p.add_argument("--config", default="config/queries.yml")

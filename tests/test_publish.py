@@ -135,3 +135,85 @@ def test_republish_overwrites_cleanly(published, tmp_path):
     again = publish(tmp_path / "p.db", tmp_path / "site")
     assert again["total_sales"] == meta["total_sales"]
     assert json.loads((tmp_path / "site" / "meta.json").read_text())["total_sales"] == 6
+
+
+# ---------------------------------------------------------------- cards.json
+#
+# The identity layer's payoff. Sales have carried a shared `card_key` since the
+# beginning; until this file published it, the dashboard could say what sold
+# yesterday but never what one card has done over time.
+
+
+def test_cards_group_sales_of_the_same_card(published):
+    _, data = published
+    # Six sales, two distinct cards -- but the Manning sold once, and one price
+    # is not a history, so only the Stroud is published.
+    assert len(data["cards"]) == 1
+    stroud = data["cards"][0]
+    assert stroud["player"] == "CJ Stroud"
+    assert stroud["n"] == 4              # the ask counts; the CAD row does not
+    assert stroud["median"] == 25.0
+    assert stroud["low"] == 10.0
+    assert stroud["high"] == 999.0
+
+
+def test_a_card_that_sold_once_is_not_a_history(published):
+    _, data = published
+    assert not any("Manning" in (c["player"] or "") for c in data["cards"])
+
+
+def test_every_sale_carries_its_date_price_and_grade(published):
+    _, data = published
+    series = data["cards"][0]["sales"]
+    assert len(series) == 4
+    assert all(len(s) == 3 for s in series)
+    assert [s[0] for s in series] == sorted(s[0] for s in series)
+    assert {s[2] for s in series} == {"PSA 10"}
+
+
+def _history(tmp_path, prices, name="hist.db"):
+    """A single card sold on consecutive days at the given prices."""
+    db_path = tmp_path / name
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2025-08-01")
+    sales = [
+        sale(f"20000000000{i}", int(p * 100), sold=f"2025-08-0{i + 1}")
+        for i, p in enumerate(prices)
+    ]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "title/1")
+    store.finish_run(conn, run, "ok", len(sales), len(sales), len(sales))
+    conn.close()
+    out = tmp_path / f"site-{name}"
+    publish(db_path, out)
+    return json.loads((out / "cards.json").read_text())[0]
+
+
+def test_trend_compares_halves_not_endpoints(tmp_path):
+    """One odd sale at either end must not become the whole trend.
+
+    Flat at 10 except a single 100 on the last day: endpoints would report
+    +900%, halves report nothing at all, which is the honest answer.
+    """
+    card = _history(tmp_path, [10, 10, 10, 10, 10, 100])
+    assert card["trend"] == 0.0
+
+
+def test_trend_reads_a_real_move(tmp_path):
+    card = _history(tmp_path, [10, 10, 10, 20, 20, 20])
+    assert card["trend"] == 100.0
+
+
+def test_no_trend_from_too_few_sales(tmp_path):
+    """Two points make a line through anything."""
+    card = _history(tmp_path, [10, 40], name="two.db")
+    assert card["n"] == 2
+    assert card["trend"] is None
+
+
+def test_empty_database_publishes_an_empty_card_list(tmp_path):
+    db_path = tmp_path / "empty-cards.db"
+    store.connect(db_path).close()
+    out = tmp_path / "site"
+    publish(db_path, out)
+    assert json.loads((out / "cards.json").read_text()) == []
