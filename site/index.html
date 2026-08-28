@@ -418,7 +418,8 @@ function renderCardList() {
   $("#cardlist").innerHTML = shown.map(c => `
     <div class="crow" role="option" tabindex="0" data-key="${esc(c.key)}"
          aria-selected="${c.key === cardState.selected ? "true" : "false"}">
-      <div class="cname">${esc(c.name)}</div>
+      <div class="cname">${esc(c.name)}${c.nonum
+        ? `<span class="flag" title="No card number was read from these titles, so they were gathered by player instead — every card of this player in this set, in one bucket. Not one card.">no number</span>` : ""}</div>
       <div class="cprice">${fmtUsd0(c.median)}</div>
       <div class="cmeta">${fmtInt(c.n)} sales · ${esc(fmtDay(c.first))} → ${esc(fmtDay(c.last))}</div>
       ${trendHtml(c.trend)}
@@ -465,6 +466,10 @@ function renderCardDetail() {
       ${card.img ? `<div class="shot"><img src="${esc(card.img)}" alt="" loading="lazy" decoding="async"></div>` : ""}
       <div>
         <h3>${esc(card.name)}</h3>
+        ${card.nonum ? `<p class="note" style="margin:0 0 6px;color:var(--warn)">
+          No card number was read from these titles, so they were gathered by
+          player: this is every card of theirs in this set, not one card. Treat
+          the chart as a bucket, not a price history.</p>` : ""}
         <p class="stats">
           <span><b>${fmtInt(rows.length)}</b> sales</span>
           <span>median <b>${fmtUsd(med(prices))}</b></span>

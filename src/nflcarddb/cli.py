@@ -2229,12 +2229,21 @@ def cmd_cards(args) -> int:
     for c in rows:
         trend = "     --" if c["trend"] is None else f"{c['trend']:+6.1f}%"
         span = f"{c['low']:>7.2f} - {c['high']:<7.2f}"
-        print(f"{c['n']:>5}  {c['median']:>9.2f}  {span:>17}  {trend}  {c['name']}")
+        mark = "  <- no card number" if c["nonum"] else ""
+        print(f"{c['n']:>5}  {c['median']:>9.2f}  {span:>17}  {trend}  "
+              f"{c['name']}{mark}")
 
+    flagged = sum(1 for c in rows if c["nonum"])
     print()
     print(f"{len(rows)} card(s) shown. Each line is one physical card, with every")
     print("listing of it gathered together -- that is what makes a price history.")
     print("Grades are kept apart on the website; this list is all grades together.")
+    if flagged:
+        print()
+        print(f"{flagged} line(s) marked 'no card number' are NOT one card. The")
+        print("number was never read from those titles, so they gathered by")
+        print("player instead -- every card of that player in that set, in one")
+        print("bucket. A wide price range on those lines is the giveaway.")
     return 0
 
 

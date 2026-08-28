@@ -217,3 +217,62 @@ def test_empty_database_publishes_an_empty_card_list(tmp_path):
     out = tmp_path / "site"
     publish(db_path, out)
     assert json.loads((out / "cards.json").read_text()) == []
+
+
+def test_the_group_is_named_by_what_it_agrees_on(tmp_path):
+    """Not by whichever sale happened to come first.
+
+    card_name carries claimed-but-unkeyed words, so members of one group spell
+    themselves differently. Picking the first made a card's displayed name
+    depend on the order it sold in -- which is why one line read "2024 Prizm
+    Rookie Card Drake Maye #329" and the next read plain "#301 Base".
+    """
+    db_path = tmp_path / "name.db"
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2025-07-30")
+    titles = [
+        "2024 Panini Prizm Drake Maye #329 Rookie Card",   # sells first
+        "2024 Panini Prizm Drake Maye #329",
+        "2024 Panini Prizm Drake Maye #329",
+    ]
+    sales = [
+        sale(f"5000000000{i:02d}", 5000, sold=f"2025-07-2{i + 1}", title=t)
+        for i, t in enumerate(titles)
+    ]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "title/1")
+    store.finish_run(conn, run, "ok", 3, 3, 3)
+    conn.close()
+
+    publish(db_path, tmp_path / "s")
+    card = json.loads((tmp_path / "s" / "cards.json").read_text())[0]
+    assert card["n"] == 3
+    assert "Rookie Card" not in card["name"]
+
+
+def test_a_group_with_no_card_number_is_flagged(tmp_path):
+    """Keyed by player, so it is a bucket rather than a card, and says so."""
+    db_path = tmp_path / "nonum.db"
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2025-07-30")
+    sales = [
+        sale("600000000001", 500, sold="2025-07-21",
+             title="2025 Topps Chrome Cam Ward Refractor"),
+        sale("600000000002", 42500, sold="2025-07-22",
+             title="2025 Topps Chrome Cam Ward Refractor"),
+        sale("600000000003", 5000, sold="2025-07-21",
+             title="2025 Topps Chrome Cam Ward #314 Refractor"),
+        sale("600000000004", 5200, sold="2025-07-22",
+             title="2025 Topps Chrome Cam Ward #314 Refractor"),
+    ]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales], "title/1")
+    store.finish_run(conn, run, "ok", 4, 4, 4)
+    conn.close()
+
+    publish(db_path, tmp_path / "s")
+    cards = {c["nonum"]: c for c in
+             json.loads((tmp_path / "s" / "cards.json").read_text())}
+    assert set(cards) == {0, 1}
+    assert "314" in cards[0]["name"]        # the real card
+    assert "314" not in cards[1]["name"]    # the bucket

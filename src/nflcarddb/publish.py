@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import statistics
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -197,7 +198,8 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
     by_card: dict[str, dict] = {}
     for r in conn.execute(
         f"SELECT c.card_key, c.card_name, c.player, c.year, c.set_name, "
-        f"       c.grader, c.grade, s.sold_date, s.price_cents, s.image_url "
+        f"       c.card_number, c.grader, c.grade, s.sold_date, s.price_cents, "
+        f"       s.image_url "
         f"FROM cards c JOIN sales s USING (item_id) "
         f"WHERE c.card_key IS NOT NULL AND s.sold_date IS NOT NULL "
         f"  AND s.{PRICE_FILTER} "
@@ -209,13 +211,22 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
     ):
         card = by_card.setdefault(r["card_key"], {
             "key": r["card_key"],
-            "name": r["card_name"] or r["card_key"],
             "player": r["player"],
             "year": r["year"],
             "set": r["set_name"],
             "img": None,
+            # No card number anywhere in the group means the key fell back to
+            # the player's name, so this is not one card -- it is everything of
+            # that player in that set whose number could not be read. Flagged
+            # rather than dropped: the sales are real, but a price history
+            # drawn across them is not.
+            "nonum": 1,
             "sales": [],
+            "names": Counter(),
         })
+        card["names"][r["card_name"]] += 1
+        if r["card_number"]:
+            card["nonum"] = 0
         if card["img"] is None and r["image_url"]:
             card["img"] = r["image_url"]
         grade = (f"{r['grader']} {r['grade']:g}"
@@ -231,6 +242,18 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
             # One sale is a price, not a history. Publishing it as a chart
             # would draw a trend line through a single point.
             continue
+        # The name most of the group agrees on, not whichever sale came first.
+        # card_name carries claimed-but-unkeyed words like "Rookie Card", so
+        # members of one group spell themselves differently; picking the first
+        # made a card's name depend on which day it happened to sell. Ties go
+        # to the shortest, which is the spelling carrying the fewest of those
+        # stray words.
+        names = card.pop("names")
+        card["name"] = min(
+            (n for n in names if n),
+            key=lambda n: (-names[n], len(n), n),
+            default=card["key"],
+        )
         prices = [s[1] for s in sales]
         card["n"] = len(sales)
         card["median"] = round(statistics.median(prices), 2)

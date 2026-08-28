@@ -409,8 +409,14 @@ def test_the_gap_reports_findings_are_now_recognised():
     assert a.subset == "Dragonscale"
     assert a.unparsed is None
 
+    # "Flagship" is still claimed rather than left unaccounted for -- but it
+    # resolves to Topps rather than standing as a set. It is what collectors
+    # call the plain Topps set, and sellers use it interchangeably with saying
+    # nothing, so as a set of its own it split one card three ways.
     b = parse_title("2026 Topps Flagship Fernando Mendoza #25")
-    assert b.set_name == "Topps Flagship"
+    assert b.set_name == "Topps"
+    assert b.unparsed is None
+    assert card_key(b) == card_key(parse_title("2026 Topps Fernando Mendoza #25"))
 
     c = parse_title("2025 Topps Resurgence Bo Nix Voltaic #53")
     assert c.set_name == "Topps Resurgence"
