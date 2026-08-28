@@ -67,9 +67,12 @@ SETS = (
     "Stadium Club", "Museum Collection", "Allen & Ginter", "Gypsy Queen",
     "Heritage", "Finest", "Inception", "Five Star", "Gold Label", "Definitive",
     "Dynasty", "Tribute", "Fire", "Topps Now",
-    # Straight off the gap report: "Flagship" was unrecognised in 3,535 sales
-    # and "Resurgence" in 1,804. Both are products, not decoration.
-    "Topps Flagship", "Flagship", "Topps Resurgence", "Resurgence",
+    # "Resurgence" came off the gap report unrecognised in 1,804 sales. It is a
+    # product. "Flagship" came off the same report and is NOT: collectors say
+    # it to mean the base Topps set, so it belongs in SET_ALIASES below rather
+    # than here. Registered as a set of its own it split one Topps card three
+    # ways -- 126 sales under "Topps Flagship", 53 under "Topps".
+    "Topps Resurgence", "Resurgence",
     "Topps Midnight", "Bowman's Best", "Topps Update",
     # Upper Deck
     "SP Authentic", "Ultimate Collection", "Exquisite", "SPx",
@@ -399,8 +402,27 @@ def _vocab_pattern(terms: Iterable[str]) -> re.Pattern:
     return re.compile(r"\b(" + "|".join(escaped) + r")\b", re.I)
 
 
+# Words that name a set someone else already named. Matched like a set, then
+# resolved to the real one, so both spellings key the same card.
+#
+# "Flagship" is not a product. It is what collectors call the plain Topps set
+# to distinguish it from Chrome and the rest, and sellers use it interchangeably
+# with nothing at all -- so it has to resolve to "Topps" rather than stand as a
+# set, or one card is two.
+SET_ALIASES: dict[str, str] = {
+    "flagship": "Topps",
+    "topps flagship": "Topps",
+    "topps flagship chrome": "Topps Chrome",
+    "flagship chrome": "Topps Chrome",
+}
+
+# Harvested set spellings mapped onto the name they resolve to, on top of the
+# built-in aliases above.
+_SET_ALIASES: dict[str, str] = dict(SET_ALIASES)
+
+
 BRAND_PAT = _vocab_pattern(BRANDS)
-SET_PAT = _vocab_pattern(SETS)
+SET_PAT = _vocab_pattern(tuple(SETS) + tuple(SET_ALIASES))
 PARALLEL_PAT = _vocab_pattern(PARALLELS)
 TEAM_PAT = _vocab_pattern(TEAMS)
 SUBSET_PAT = _vocab_pattern(SUBSETS)
@@ -409,11 +431,9 @@ SUBSET_PAT = _vocab_pattern(SUBSETS)
 # spelling -- the subset is part of the key now, and two spellings would be two
 # cards.
 _CANONICAL = {t.lower(): t for t in (*BRANDS, *SETS, *PARALLELS, *TEAMS, *SUBSETS)}
+_CANONICAL.update(SET_ALIASES)
 
 _INSERT_LOOKUP = {t.lower() for t in INSERTS}
-
-# Harvested set spellings mapped onto the name they resolve to.
-_SET_ALIASES: dict[str, str] = {}
 
 # Insert names learned from collected titles, registered at startup. Kept apart
 # from INSERTS so re-registering replaces them rather than piling up.
@@ -421,30 +441,104 @@ _LEARNED_INSERTS: tuple[str, ...] = ()
 
 
 _LEARNED_DESIGNATIONS: tuple[str, ...] = ()
+_LEARNED_PARALLELS: frozenset[str] = frozenset()
+
+# Words that mean "this is a different printing of the card".
+#
+# This is the one vocabulary in the project that does not go stale, and that is
+# the entire reason it can be written down. Panini invents a dozen insert names
+# every product and a hand-written list of them is out of date the day it is
+# typed -- which is why inserts are learned from the data instead. But the
+# colours and finishes a card can be printed in are just English and physics.
+# Pink will still be pink in 2030.
+#
+# The rule this drives is deliberately biased. A word that is missing from here
+# leaves a parallel merged into the base card, which is where things already
+# were. A word that does not belong here SPLITS a card between sellers who
+# typed it and sellers who did not. So it holds colours and finishes only, and
+# nothing that describes a card's type (patch, auto, relic), its channel
+# (retail, hobby), or its status (rookie, base).
+PARALLEL_TOKENS = frozenset("""
+    red blue green pink purple orange gold silver black white grey gray
+    yellow teal aqua cyan magenta bronze copper brown tan navy maroon crimson
+    scarlet violet indigo lime olive amber ruby sapphire emerald amethyst
+    onyx pearl platinum titanium neon fluorescent pastel
+    refractor prizm-refractor xfractor superfractor fractor
+    holo holofoil foil chrome-refractor shimmer sparkle speckle pulsar wave
+    mojo disco hyper scope lazer laser velocity shock flash fusion reactive
+    crackle cracked snakeskin tie-dye tiedye camo mirror prism prismatic
+    rainbow lava tiger zebra wood marble stained glass ice icy frozen
+    die-cut diecut cut proof press-proof mini micro jumbo oversized
+    metallic metallix pulsar-prizm swirl vortex genesis choice nebula
+    galactic cosmic aurora eclipse solar lunar
+""".split())
+
+_TOKEN_RE = re.compile(r"[a-z0-9'-]+")
+
+
+def names_a_printing(name: str) -> bool:
+    """Does this eBay Parallel/Variety value name a different printing?
+
+    eBay's list mixes two unrelated things under one field. "Pink Prizm" is a
+    physically different card that sells for a different price. "Retail" and
+    "Signatures" are not -- one is a shop and the other is already a flag.
+
+    A value counts as a printing when it carries a colour or a finish and is
+    not simply the name of a set. That test is doing real work: it accepts
+    "Pink Prizm", "Disco Prizm", "Blue Hyper" and "Sapphire", and it rejects
+    "Retail", "Patch", "Rated Rookie" and bare "Chrome".
+    """
+    lowered = name.strip().lower()
+    if not lowered:
+        return False
+    # A set is never a parallel of itself. Without this, "Chrome" and "Prizm"
+    # arrive as Parallel/Variety values and every card in those sets acquires a
+    # parallel equal to its own set name.
+    if lowered in {t.lower() for t in (*SETS, *BRANDS)} or lowered in _SET_ALIASES:
+        return False
+    return any(t in PARALLEL_TOKENS for t in _TOKEN_RE.findall(lowered))
 
 
 def register_designations(names: Iterable[str]) -> int:
-    """Words to claim out of a title without letting them into the key.
+    """Take in eBay's Parallel/Variety list and sort it into keys and claims.
 
-    This is where eBay's Parallel/Variety list belongs, and finding that out
-    cost a measured regression: wired in as inserts, those 760 names dropped
-    grouped cards from 5,238 to 4,187.
+    The first attempt keyed all 760 of these as inserts and measured a
+    regression: grouped cards fell from 5,238 to 4,187. The conclusion drawn
+    was that the whole field must be claim-only, because it is filled in on
+    eBay's *form* and need not appear in the title at all -- so keying it
+    splits a card between sellers who typed the word and sellers who ticked
+    the box.
 
-    The reason is what the field is. Parallel/Variety is filled in on eBay's
-    listing *form*; it does not have to appear in the title at all. So keying
-    it splits every card between sellers who typed the word and sellers who
-    only ticked the box -- the same failure as "Rated Rookie", at 760x the
-    scale.
+    That was half right, and the half it got wrong was doing real damage. The
+    metric was the problem: "grouped cards" counts groups, so it rises whenever
+    cards merge and cannot tell a fixed card from a destroyed one. Under it,
+    merging every parallel into its base card looked like an improvement.
 
-    Claimed, they still earn their keep: they stop insert names being read as
-    part of the player's name, which is the bug that started all of this.
+    What it merged was not boilerplate. A Pink Prizm is a different piece of
+    cardboard from the base card and sells for a different price, and the
+    colour is the entire reason anyone buys it -- so unlike "Rated Rookie", it
+    is in the title essentially every time. One #301 Caleb Williams group held
+    126 sales spanning $2 to $299 because every colour of it had been folded
+    together.
+
+    So the list is split rather than accepted or rejected whole: values that
+    name a printing become parallels and key, and the rest are claimed and
+    dropped exactly as before.
     """
-    global _LEARNED_DESIGNATIONS
-    reserved = {t.lower() for t in (*INSERTS, *DESIGNATIONS)}
-    _LEARNED_DESIGNATIONS = tuple(
+    global _LEARNED_DESIGNATIONS, _LEARNED_PARALLELS
+    # Sets and built-in parallels are reserved as well as the subset lists.
+    # eBay files "Prizm" itself as a Parallel/Variety value, and claiming that
+    # word here consumed the second half of "Silver Prizm" before the parallel
+    # pass could reach it -- so the card keyed as "Silver" and displayed as
+    # "Prizm Prizm". A word already understood must keep its meaning.
+    reserved = {t.lower() for t in (*INSERTS, *DESIGNATIONS, *PARALLELS,
+                                    *SETS, *BRANDS)} | set(_SET_ALIASES)
+    kept = tuple(
         n.strip() for n in names
         if n.strip() and n.strip().lower() not in reserved
     )
+    _LEARNED_DESIGNATIONS = kept
+    _LEARNED_PARALLELS = frozenset(n.lower() for n in kept if names_a_printing(n))
     _rebuild_vocabulary()
     return len(_LEARNED_DESIGNATIONS)
 
@@ -499,7 +593,9 @@ def _rebuild_vocabulary(set_aliases: Optional[dict] = None) -> None:
     global _SET_ALIASES
 
     if set_aliases is not None:
-        _SET_ALIASES = set_aliases
+        # The built-in aliases are not a starting value that a harvest replaces
+        # -- they are decisions. Harvested spellings layer on top.
+        _SET_ALIASES = {**SET_ALIASES, **set_aliases}
 
     SUBSETS = (INSERTS + _LEARNED_INSERTS + DESIGNATIONS
                + _LEARNED_DESIGNATIONS)
@@ -745,6 +841,7 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # word -- "Decade Dominance Silver" needs both read, not whichever the
     # matcher happened to reach first.
     varieties: list[str] = []
+    learned_parallels: list[str] = []
     subset_match = None
     for _ in range(2):
         found = _take(work, SUBSET_PAT)
@@ -759,6 +856,12 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         if claimed.lower() in _INSERT_LOOKUP:
             attrs.subset = claimed
             hits += 1
+        elif claimed.lower() in _LEARNED_PARALLELS:
+            # A colour or finish off eBay's own list. It names a different
+            # printing, so it belongs with the parallels and in the key --
+            # recorded here rather than below because claiming the phrase for
+            # the player scan has already consumed it.
+            learned_parallels.append(claimed)
         else:
             varieties.append(claimed)
     if varieties:
@@ -784,7 +887,7 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
 
     # Parallels stack: "Orange Lazer", "Gold Shimmer Refractor". Collect up to
     # three, otherwise the unclaimed words leak into the player name.
-    found_parallels: list[str] = []
+    found_parallels: list[str] = list(learned_parallels)
     for _ in range(3):
         m = _take(work, PARALLEL_PAT)
         if not m:

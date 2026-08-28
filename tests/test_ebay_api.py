@@ -247,22 +247,68 @@ def test_placeholders_never_reach_the_vocabulary_files(tmp_path):
     assert "[Base]" not in inserts.read_text(encoding="utf-8")
 
 
-def test_a_learned_word_can_never_become_part_of_a_key():
-    """The guard the regression bought. Whatever arrives in the claim-only
-    list, it must not reach card_key -- 760 of them cost 1,051 grouped cards."""
+def test_a_learned_word_that_is_not_a_printing_never_reaches_the_key():
+    """The guard the first regression bought, kept.
+
+    A word off eBay's form that describes no physical difference must not key.
+    Keying 760 of these cost 1,051 grouped cards, because it split every card
+    between sellers who typed the word and sellers who ticked the box.
+    """
     from nflcarddb.card_key import card_key
     from nflcarddb.parse_title import parse_title, register_designations
 
     try:
-        register_designations(["Moonstruck", "Stargazing", "Holo Foil"])
+        register_designations(["Moonstruck", "Stargazing", "Retail"])
         keys = {card_key(parse_title(t)) for t in [
             "2025 Panini Donruss Optic Derrick Henry #11",
             "2025 Panini Donruss Optic Derrick Henry Moonstruck #11",
-            "2025 Panini Donruss Optic Derrick Henry Holo Foil #11",
+            "2025 Panini Donruss Optic Derrick Henry Retail #11",
         ]}
         assert len(keys) == 1
     finally:
         register_designations([])
+
+
+def test_a_learned_word_that_names_a_printing_does_key():
+    """The other half, and the reason the blanket rule had to go.
+
+    A Holo Foil is a different piece of cardboard from the base card and sells
+    for a different price. Folded together they made one 126-sale "card" whose
+    prices ran from $2 to $299 -- a group that describes nothing.
+    """
+    from nflcarddb.card_key import card_key
+    from nflcarddb.parse_title import parse_title, register_designations
+
+    try:
+        register_designations(["Holo Foil", "Pink Pulsar", "Retail"])
+        base, holo, pink = (card_key(parse_title(t)) for t in [
+            "2025 Panini Donruss Optic Derrick Henry #11",
+            "2025 Panini Donruss Optic Derrick Henry Holo Foil #11",
+            "2025 Panini Donruss Optic Derrick Henry Pink Pulsar #11",
+        ])
+        assert len({base, holo, pink}) == 3
+        # And the colour is IN the key, not merely absent from the base one.
+        assert "holo-foil" in holo and "pink-pulsar" in pink
+    finally:
+        register_designations([])
+
+
+def test_the_printing_test_reads_colours_not_categories():
+    """What separates the two lists, stated directly.
+
+    The bias is deliberate: a missed colour leaves a card merged, which is
+    where it already was, but a wrongly-accepted category SPLITS a working
+    card. So the test accepts colours and finishes and refuses everything that
+    describes a card's type, channel or status.
+    """
+    from nflcarddb.parse_title import names_a_printing
+
+    for yes in ("Pink Prizm", "Disco Prizm", "Blue Hyper", "Sapphire",
+                "Gold Refractor", "Die-Cut"):
+        assert names_a_printing(yes), yes
+    for no in ("Retail", "Signatures", "Patch", "Relic", "Rated Rookie",
+               "Chrome", "Prizm", "Rookie Card"):
+        assert not names_a_printing(no), no
 
 
 def test_a_claimed_word_does_not_override_a_built_in_insert():
