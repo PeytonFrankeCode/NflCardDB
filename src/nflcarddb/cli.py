@@ -2244,7 +2244,39 @@ def cmd_cards(args) -> int:
         print("number was never read from those titles, so they gathered by")
         print("player instead -- every card of that player in that set, in one")
         print("bucket. A wide price range on those lines is the giveaway.")
+        _show_numberless_titles(args.db, [c for c in rows if c["nonum"]])
     return 0
+
+
+def _show_numberless_titles(db_path, flagged: list[dict], groups: int = 4,
+                            each: int = 5) -> None:
+    """Print the raw titles behind the biggest number-less buckets.
+
+    Guessing at why a number failed to parse is how a whole round got wasted
+    once already: the fix was reasoned out from the *shape of the keys*, landed,
+    and moved the count by seven, because the real causes -- draft positions,
+    set ranges, pick-your-card listings -- were things no key could show. The
+    titles said all three immediately.
+
+    So this prints them rather than describing them.
+    """
+    conn = store.connect(db_path)
+    try:
+        print()
+        print("-" * 58)
+        print("The titles behind them, so the reason is visible rather than")
+        print("guessed at. Send these back and the number-reading can be fixed")
+        print("against the real wording:")
+        for card in flagged[:groups]:
+            print(f"\n  {card['name']}  ({card['n']} sales)")
+            for (title,) in conn.execute(
+                "SELECT DISTINCT s.title FROM sales s JOIN cards c USING (item_id) "
+                "WHERE c.card_key = ? ORDER BY LENGTH(s.title) LIMIT ?",
+                (card["key"], each),
+            ):
+                print(f"      {title}")
+    finally:
+        conn.close()
 
 
 def cmd_url(args) -> int:

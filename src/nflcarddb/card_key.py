@@ -96,6 +96,16 @@ def card_key(attrs: CardAttrs) -> Optional[str]:
         parts.append(f"n{_slug(attrs.card_number)}")
     elif attrs.player:
         parts.append(_slug(normalize_player(attrs.player)))
+        # The print run counts ONLY here, where the number is missing.
+        #
+        # Normally it would be a bad thing to key: a seller who writes "/99" and
+        # one who does not are describing the same card, so keying it splits a
+        # working card the way "Rated Rookie" did. But without a number this is
+        # already not one card -- it is every card of that player in that set --
+        # and a /1 is certainly not the same object as a /99. Subdividing a
+        # bucket cannot break a card that was never grouped correctly.
+        if attrs.print_run:
+            parts.append(f"r{attrs.print_run}")
     else:
         # Year and set alone describe thousands of cards, not one.
         return None

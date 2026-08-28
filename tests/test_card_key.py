@@ -281,3 +281,24 @@ def test_base_never_makes_an_unidentified_card_nameable():
     from nflcarddb.models import CardAttrs
 
     assert card_name(CardAttrs(year=2021)) is None
+
+
+def test_print_run_separates_cards_that_have_no_number():
+    """A /1 and a /99 of the same player are not the same object.
+
+    Only when the number is missing. With a number the run must stay out of the
+    key: a seller who writes "/99" and one who does not are describing one card,
+    and keying it would split a card that groups correctly today.
+    """
+    one = parse_title("2026 Wild Card Fernando Mendoza Red 1/1")
+    ninetynine = parse_title("2026 Wild Card Fernando Mendoza Red /99")
+    assert one.card_number is None and one.print_run == 1
+    assert card_key(one) != card_key(ninetynine)
+
+
+def test_print_run_stays_out_of_the_key_when_a_number_is_present():
+    """The other half, and the one that would break working cards."""
+    with_run = parse_title("2025 Panini Select Jayden Daniels Dragonscale #12 /81")
+    without = parse_title("2025 Panini Select Jayden Daniels Dragonscale #12")
+    assert with_run.print_run == 81
+    assert card_key(with_run) == card_key(without)
