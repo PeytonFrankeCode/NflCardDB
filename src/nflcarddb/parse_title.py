@@ -40,7 +40,7 @@ from .models import CardAttrs
 # title/7: the first pass of the gap report -- Flagship and Resurgence as
 #          products, vintage condition shorthand and seller names as noise,
 #          game-worn as a relic, and the insert names the examples revealed.
-PARSER_VERSION = "title/11"
+PARSER_VERSION = "title/12"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -180,6 +180,15 @@ INSERTS = (
     "Fantasy Flashback", "Prizm Flashback", "Big Numbers", "Goodwin Champions",
     "Gridiron Legends", "Super Powers", "Rookie Redemption", "Epix",
     "Sensational Swatches", "Century Collection", "Fortune", "Rookie Rush",
+    # Named autograph and relic sets. These matter more than a colour does:
+    # a "Stars and Stripes" patch auto and a plain patch auto are different
+    # cards at the same number, and the auto/patch flags alone cannot tell
+    # them apart -- only the name can.
+    "Stars and Stripes", "Stars in the Night", "Rookie Premiere",
+    "Signature Series", "Autograph Series", "Rookie Signatures",
+    "Immortal Ink", "Hall of Fame Signatures", "Championship Swatches",
+    "Prime Patches", "Jumbo Patches", "Laundry Tag", "NFL Shield",
+    "Rookie Patch Autograph", "Rookie Jersey Autograph",
 )
 
 # Boilerplate that sits beside the player and would otherwise be read as part
@@ -253,12 +262,27 @@ MIN_DUAL_NAME = 8
 
 @lru_cache(maxsize=4)
 def _folded_roster_cached(names: frozenset) -> tuple:
+    """One entry per *person*, not per spelling.
+
+    A learned roster holds "Ja'Marr Chase", "Jamarr Chase" and "Ja’Marr Chase"
+    -- three spellings of one man, which is exactly what the fold exists to
+    reconcile. Without collapsing them the dual-player scan matched all three
+    and produced "Ja'Marr Chase / Jamarr Chase / Ja’Marr Chase / Joe Burrow",
+    a two-player card credited to four people.
+
+    The longest spelling wins, because the punctuation is usually what the
+    shorter one dropped.
+    """
     from .card_key import normalize_player as _fold
 
-    return tuple(sorted(
-        (folded, name) for folded, name in
-        ((_fold(n), n) for n in names) if len(folded) >= MIN_DUAL_NAME
-    ))
+    best: dict[str, str] = {}
+    for name in names:
+        folded = _fold(name)
+        if len(folded) < MIN_DUAL_NAME:
+            continue
+        if folded not in best or len(name) > len(best[folded]):
+            best[folded] = name
+    return tuple(sorted(best.items()))
 
 
 def _folded_roster(roster: set) -> tuple:
@@ -808,9 +832,15 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
             if folded in haystack and folded not in taken
         )
         if also:
-            names = sorted({attrs.player.title()} | {n.title() for n in also})
-            attrs.player = " / ".join(names)
-            roster_hit = True
+            # Deduplicated by fold again here, because the primary name and a
+            # roster entry can be the same person spelled differently.
+            chosen: dict[str, str] = {}
+            for name in [attrs.player] + list(also):
+                chosen.setdefault(_fold(name), name.title()
+                                  if name.isupper() or name.islower() else name)
+            if len(chosen) > 1:
+                attrs.player = " / ".join(sorted(chosen.values()))
+                roster_hit = True
     if attrs.player:
         hits += 2 if roster_hit else 1
 
