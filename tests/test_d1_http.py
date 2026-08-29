@@ -189,25 +189,63 @@ def test_a_real_migration_failure_is_raised(monkeypatch):
         apply_migrations("acct", "db", "token")
 
 
-def test_the_shipped_migrations_cover_every_exported_column():
-    """A column added to the export but not to MIGRATIONS breaks every push
-    into a database created before it."""
+def _schema_tables():
+    """{table: {column, ...}} as api/schema.sql declares them."""
+    import re
+    schema = (Path(__file__).resolve().parents[1] / "api" / "schema.sql").read_text()
+    tables = {}
+    for name, body in re.findall(
+        r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\n\);", schema, re.S
+    ):
+        tables[name] = set(re.findall(r"^\s{4}(\w+)", body, re.M))
+    return tables
+
+
+def test_every_exported_column_exists_in_the_schema():
+    """A column written by the exporter but absent from the schema fails the
+    upload on a fresh database, where nothing can be blamed on history."""
+    from nflcarddb.api_export import CARD_COLUMNS, EXPORT_COLUMNS, GRADE_COLUMNS
+
+    tables = _schema_tables()
+    for columns, table in ((EXPORT_COLUMNS, "sales"),
+                           (CARD_COLUMNS, "cards"),
+                           (GRADE_COLUMNS, "card_grades")):
+        missing = set(columns) - tables[table]
+        assert not missing, f"exported into {table} but not declared: {missing}"
+
+
+def test_every_migrated_column_exists_in_the_schema():
+    """The two must not drift apart in either direction.
+
+    A column in the schema but not in MIGRATIONS never reaches the database
+    that is already deployed, and the next push fails on it. A column in
+    MIGRATIONS but not in the schema means a *fresh* database is missing it
+    instead -- the same bug, found by whoever sets up next rather than by the
+    person upgrading, which is worse because it looks like a broken project.
+    """
     import re
 
-    from nflcarddb.api_export import EXPORT_COLUMNS
     from nflcarddb.d1_http import MIGRATIONS
 
-    schema = (Path(__file__).resolve().parents[1] / "api" / "schema.sql").read_text()
-    create = re.search(r"CREATE TABLE IF NOT EXISTS sales \((.*?)\n\);", schema,
-                       re.S).group(1)
-    in_schema = set(re.findall(r"^\s{4}(\w+)", create, re.M))
-    # Not every migration adds a column -- indexes are migrations too.
-    added = {m.group(1) for m in
-             (re.search(r"ADD COLUMN (\w+)", s) for s in MIGRATIONS) if m}
+    tables = _schema_tables()
+    for statement in MIGRATIONS:
+        m = re.search(r"ALTER TABLE (\w+) ADD COLUMN (\w+)", statement)
+        if not m:
+            continue
+        table, column = m.group(1), m.group(2)
+        assert table in tables, f"migration targets unknown table {table}"
+        assert column in tables[table], \
+            f"migrated into {table} but not declared in api/schema.sql: {column}"
 
-    missing = set(EXPORT_COLUMNS) - in_schema
-    assert not missing, f"exported but not in api/schema.sql: {missing}"
-    assert added <= in_schema, f"migrated in but not in api/schema.sql: {added - in_schema}"
+
+def test_the_catalogue_tables_are_migrated_in_too():
+    """They were added after the database shipped, so CREATE TABLE in the
+    schema file alone would never reach it."""
+    from nflcarddb.d1_http import MIGRATIONS
+
+    created = " ".join(MIGRATIONS)
+    assert "CREATE TABLE IF NOT EXISTS cards" in created
+    assert "CREATE TABLE IF NOT EXISTS card_grades" in created
 
 
 def test_verify_reports_priced_sales_separately(monkeypatch):

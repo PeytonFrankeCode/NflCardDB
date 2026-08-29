@@ -262,11 +262,84 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
         card["first"] = sales[0][0]
         card["last"] = sales[-1][0]
         card["trend"] = price_trend(prices)
+        by_grade: dict[str, list[float]] = {}
+        for _, price, grade in sales:
+            by_grade.setdefault(grade, []).append(price)
+        card["spread"] = price_dispersion(by_grade)
+        # The same verdict the API serves, computed the same way, so the list
+        # in the terminal and the site agree with what the other site queries.
+        card["quality"] = card_quality(bool(card["nonum"]), card["spread"])
         out.append(card)
 
     # Most sales first: those are the cards with something to say.
     out.sort(key=lambda c: (-c["n"], -(c["median"] or 0)))
     return out[:limit]
+
+
+# A card's prices scattering this widely INSIDE one grade is the signature of
+# two cards sharing a key. Chosen from the data rather than picked: across 1,153
+# judgeable cards the median spread is 1.9x and the 80th percentile is 7.5x, so
+# the distribution has a knee here. Below it sits ordinary variation -- a raw
+# 1984 Elway runs $30 to $141 on condition alone, and that is one card. Above it
+# sits "2026 Topps Drew Allar #304 Base, $1.00 to $28.99", which is not.
+#
+# Checked against the worry that this would punish vintage, where ungraded
+# condition varies most: pre-2000 cards are flagged at 17.3% and everything else
+# at 19.8%, so one threshold treats them alike and no era rule is needed.
+SUSPECT_SPREAD = 8.0
+
+# Fewer sales than this in any single grade and there is nothing to judge. Two
+# prices are not a distribution.
+MIN_COHORT_TO_JUDGE = 4
+
+# Below this a "sale" is a penny auction or a data error, and including it makes
+# every ratio meaningless.
+JUNK_PRICE = 0.50
+
+
+def _percentile_of(values: list[float], pct: float) -> float:
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * pct))))
+    return ordered[idx]
+
+
+def price_dispersion(by_grade: dict[str, list[float]]) -> Optional[float]:
+    """How far a card's prices spread inside its own largest grade.
+
+    Within one grade, because grade is deliberately not part of a card's
+    identity: a PSA 10 and a raw copy are one card and two markets, so comparing
+    across them measures grading, not a bad grouping.
+
+    The 90th percentile over the 10th, rather than high over low, so a single
+    odd sale cannot condemn a card that is otherwise coherent.
+
+    None when no grade has enough sales to say anything.
+    """
+    cohorts = [[p for p in prices if p >= JUNK_PRICE] for prices in by_grade.values()]
+    cohorts = [c for c in cohorts if len(c) >= MIN_COHORT_TO_JUDGE]
+    if not cohorts:
+        return None
+    biggest = max(cohorts, key=len)
+    low = _percentile_of(biggest, 0.10)
+    if not low:
+        return None
+    return round(_percentile_of(biggest, 0.90) / low, 2)
+
+
+def card_quality(numberless: bool, spread: Optional[float]) -> str:
+    """Which pile a card belongs in, so the good ones can be browsed alone.
+
+    Four answers rather than a good/bad flag, because "we checked and it is
+    fine" and "it has sold twice and we cannot tell" are different claims and
+    collapsing them would overstate one of them.
+    """
+    if numberless:
+        # No sale ever gave up a card number, so the key fell back to the
+        # player: this is every card of theirs in that set, not one card.
+        return "bucket"
+    if spread is None:
+        return "unproven"
+    return "suspect" if spread >= SUSPECT_SPREAD else "clean"
 
 
 def price_trend(prices: list[float]) -> Optional[float]:

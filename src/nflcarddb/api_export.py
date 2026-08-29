@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from . import db as store
-from .publish import price_trend
+from .publish import card_quality, price_dispersion, price_trend
 
 # D1 rejects very large statements, so rows go out in batches.
 ROWS_PER_INSERT = 200
@@ -144,7 +144,7 @@ CARD_COLUMNS = (
     "subset", "parallel", "card_number", "print_run", "is_rookie", "is_auto",
     "is_relic", "numberless", "image_url", "sales", "median_cents",
     "low_cents", "high_cents", "raw_sales", "raw_median_cents",
-    "first_sold", "last_sold", "trend_pct",
+    "first_sold", "last_sold", "trend_pct", "quality", "spread",
 )
 
 GRADE_COLUMNS = ("card_key", "grade_label", "sales", "median_cents",
@@ -223,6 +223,9 @@ def _card_rollups(
     for key, c in grouped.items():
         prices = c["prices"]
         raw = c["by_grade"].get("Raw", {}).get("prices", [])
+        spread = price_dispersion(
+            {g: [p / 100.0 for p in v["prices"]] for g, v in c["by_grade"].items()})
+        quality = card_quality(bool(c["numberless"]), spread)
         cards.append({
             "card_key": key,
             # The spelling most of the group agrees on. card_name carries words
@@ -244,6 +247,10 @@ def _card_rollups(
             "raw_median_cents": int(statistics.median(raw)) if raw else None,
             "first_sold": c.get("first_sold"),
             "last_sold": c.get("last_sold"),
+            # Which pile this card belongs in, so a site can browse the ones
+            # that are known good without also hiding the rest.
+            "quality": quality,
+            "spread": spread,
             # Chronological, because the trend compares halves of a timeline.
             "trend_pct": price_trend([p / 100.0 for p in prices]),
         })

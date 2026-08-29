@@ -2229,11 +2229,14 @@ def cmd_cards(args) -> int:
     for c in rows:
         trend = "     --" if c["trend"] is None else f"{c['trend']:+6.1f}%"
         span = f"{c['low']:>7.2f} - {c['high']:<7.2f}"
-        mark = "  <- no card number" if c["nonum"] else ""
+        mark = {"bucket": "  <- no card number",
+                "suspect": "  <- prices disagree",
+                "unproven": ""}.get(c["quality"], "")
         print(f"{c['n']:>5}  {c['median']:>9.2f}  {span:>17}  {trend}  "
               f"{c['name']}{mark}")
 
-    flagged = sum(1 for c in rows if c["nonum"])
+    flagged = sum(1 for c in rows if c["quality"] == "bucket")
+    suspect = [c for c in rows if c["quality"] == "suspect"]
     print()
     print(f"{len(rows)} card(s) shown. Each line is one physical card, with every")
     print("listing of it gathered together -- that is what makes a price history.")
@@ -2245,6 +2248,12 @@ def cmd_cards(args) -> int:
         print("player instead -- every card of that player in that set, in one")
         print("bucket. A wide price range on those lines is the giveaway.")
         _show_numberless_titles(args.db, [c for c in rows if c["nonum"]])
+    if suspect:
+        print()
+        print(f"{len(suspect)} line(s) marked 'prices disagree' are numbered, but")
+        print("their prices scatter too far inside a SINGLE grade to be one card")
+        print("-- almost always a colour or insert that was not recognised, so")
+        print("two cards ended up sharing a name.")
     return 0
 
 

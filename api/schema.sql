@@ -105,7 +105,19 @@ CREATE TABLE IF NOT EXISTS cards (
     last_sold      TEXT,
     -- Percent change from the older half of this card's sales to the newer.
     -- NULL below four sales: two points make a line through anything.
-    trend_pct      REAL
+    trend_pct      REAL,
+    -- Which pile this card belongs in, so a site can browse the ones known to
+    -- be good without the doubtful ones being deleted:
+    --   clean    -- numbered, and its prices agree within each grade
+    --   suspect  -- numbered, but prices scatter enough inside ONE grade that
+    --               it is probably two cards under one key
+    --   unproven -- numbered, but too few sales in any grade to judge
+    --   bucket   -- no card number was ever read, so it is not one card at all
+    quality        TEXT NOT NULL DEFAULT 'unproven',
+    -- The number behind that verdict: 90th percentile over 10th, within the
+    -- card's largest grade. Carried so a caller can show why, and so the
+    -- threshold can be re-tuned without re-deriving the data.
+    spread         REAL
 );
 
 -- One row per card per market. A card's PSA 10 price and its raw price are
@@ -125,6 +137,7 @@ CREATE TABLE IF NOT EXISTS card_grades (
 -- ORDER BY is a full scan of the catalogue, which is exactly what D1 charges
 -- for.
 CREATE INDEX IF NOT EXISTS idx_cards_sales  ON cards (sales DESC);
+CREATE INDEX IF NOT EXISTS idx_cards_good   ON cards (quality, sales DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_value  ON cards (median_cents DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_trend  ON cards (trend_pct DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_recent ON cards (last_sold DESC);

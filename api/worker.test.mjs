@@ -45,7 +45,7 @@ function card(over = {}) {
     is_auto: 0, is_relic: 0, numberless: 0, image_url: null, sales: 5,
     median_cents: 1000, low_cents: 500, high_cents: 2000, raw_sales: 5,
     raw_median_cents: 1000, first_sold: "2026-01-01", last_sold: "2026-02-01",
-    trend_pct: 0, ...over,
+    trend_pct: 0, quality: "clean", spread: 2.0, ...over,
   };
 }
 
@@ -191,4 +191,61 @@ test("prices leave the API as dollars, never cents", async () => {
   const { body } = await get(env, "/v1/cards?sort=value&limit=1");
   assert.equal(body.cards[0].median, 3300);
   assert.ok(!JSON.stringify(body).includes("_cents"));
+});
+
+// --------------------------------------------------------------- quality
+//
+// The catalogue is a third doubtful, so a site needs the good cards on their
+// own without the rest being deleted. These pin that the split is a filter and
+// never a silent default.
+
+const TIERED = [
+  card({ card_key: "a", quality: "clean", sales: 20, spread: 1.8 }),
+  card({ card_key: "b", quality: "clean", sales: 10, spread: 2.4 }),
+  card({ card_key: "c", quality: "suspect", sales: 30, spread: 31.0 }),
+  card({ card_key: "d", quality: "unproven", sales: 2, spread: null }),
+  card({ card_key: "e", quality: "bucket", sales: 40, numberless: 1, spread: 9.1 }),
+];
+
+test("the whole catalogue is served unless a caller narrows it", async () => {
+  // Defaulting to clean would quietly drop three fifths of this dataset, and a
+  // caller would have no way to know it happened.
+  const env = makeEnv(TIERED);
+  const { body } = await get(env, "/v1/cards");
+  assert.equal(body.total, 5);
+});
+
+test("quality=clean returns only the cards that were checked and passed", async () => {
+  const env = makeEnv(TIERED);
+  const { body } = await get(env, "/v1/cards?quality=clean");
+  assert.equal(body.total, 2);
+  assert.ok(body.cards.every((c) => c.quality === "clean"));
+});
+
+test("the doubtful ones stay reachable as their own list", async () => {
+  const env = makeEnv(TIERED);
+  const { body } = await get(env, "/v1/cards?quality=suspect,bucket");
+  assert.deepEqual(body.cards.map((c) => c.card_key).sort(), ["c", "e"]);
+});
+
+test("an unknown tier is refused rather than silently matching nothing", async () => {
+  const env = makeEnv(TIERED);
+  const { status, body } = await get(env, "/v1/cards?quality=good");
+  assert.equal(status, 400);
+  assert.equal(body.error.code, "bad_quality");
+});
+
+test("the spread behind the verdict is published too", async () => {
+  const env = makeEnv(TIERED);
+  const { body } = await get(env, "/v1/cards?quality=suspect");
+  assert.equal(body.cards[0].spread, 31.0);
+});
+
+test("the split is countable, so a site can label its own tabs", async () => {
+  const env = makeEnv(TIERED);
+  const { body } = await get(env, "/v1/quality");
+  assert.equal(body.counts.clean.cards, 2);
+  assert.equal(body.counts.bucket.cards, 1);
+  assert.equal(body.counts.clean.sales, 30);
+  assert.ok(body.meaning.suspect.includes("two cards"));
 });

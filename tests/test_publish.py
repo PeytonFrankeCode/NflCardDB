@@ -276,3 +276,62 @@ def test_a_group_with_no_card_number_is_flagged(tmp_path):
     assert set(cards) == {0, 1}
     assert "314" in cards[0]["name"]        # the real card
     assert "314" not in cards[1]["name"]    # the bucket
+
+
+# ------------------------------------------------------------------- quality
+#
+# A third of the catalogue is doubtful, and the useful answer is not to delete
+# it but to sort it into piles. The signal is price dispersion INSIDE one grade:
+# a card whose raw copies run $1 to $29 is two cards sharing a key.
+
+
+def test_dispersion_is_measured_within_a_grade_not_across_them():
+    """Grade is not part of a card's identity, so comparing a PSA 10 against a
+    raw copy measures grading rather than a bad grouping. This card is coherent
+    in both markets and must not be flagged for the gap between them."""
+    from nflcarddb.publish import price_dispersion
+    spread = price_dispersion({
+        "Raw": [10.0, 11.0, 12.0, 10.5, 11.5],
+        "PSA 10": [300.0, 310.0, 305.0, 295.0, 302.0],
+    })
+    assert spread is not None and spread < 2
+
+
+def test_one_odd_sale_does_not_condemn_a_card():
+    """p90 over p10, not high over low: an outlier at either end is exactly
+    what a robust measure has to survive."""
+    from nflcarddb.publish import price_dispersion
+    spread = price_dispersion({"Raw": [10, 11, 10.5, 11.5, 12, 10, 11, 900]})
+    assert spread < 8
+
+
+def test_a_merged_card_is_caught():
+    """2026 Topps Drew Allar #304 Base: raw copies from $1.00 to $28.99, which
+    is a colour parallel that was never recognised."""
+    from nflcarddb.publish import price_dispersion
+    spread = price_dispersion(
+        {"Raw": [1.0, 1.0, 1.25, 2.0, 6.5, 8.0, 15.0, 22.0, 28.99, 25.0]})
+    assert spread >= 8
+
+
+def test_too_few_sales_is_not_a_verdict():
+    from nflcarddb.publish import price_dispersion
+    assert price_dispersion({"Raw": [1.0, 500.0]}) is None
+
+
+def test_quality_separates_cannot_tell_from_looks_wrong():
+    """The distinction that stops the tiers overstating themselves."""
+    from nflcarddb.publish import card_quality
+    assert card_quality(False, 1.5) == "clean"
+    assert card_quality(False, 30.0) == "suspect"
+    assert card_quality(False, None) == "unproven"
+    # A bucket is a bucket whatever its prices happen to look like -- it is not
+    # one card, so a tight spread would only mean the guesses agreed.
+    assert card_quality(True, 1.1) == "bucket"
+
+
+def test_published_cards_carry_their_verdict(published):
+    _, data = published
+    card = data["cards"][0]
+    assert card["quality"] in {"clean", "suspect", "unproven", "bucket"}
+    assert "spread" in card

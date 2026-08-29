@@ -370,6 +370,8 @@ async function cardHistory(url, env) {
 // The sort orders a browsing site offers. An allow-list rather than a column
 // name off the query string: the value is interpolated into SQL, so accepting
 // caller input here would be an injection. Each maps to an index on `cards`.
+const QUALITY_TIERS = ["clean", "suspect", "unproven", "bucket"];
+
 const CARD_SORTS = {
   traded:   "sales DESC, median_cents DESC",
   value:    "median_cents DESC, sales DESC",
@@ -419,6 +421,11 @@ function shapeCard(r) {
     // rather than newest against oldest, so one odd sale at either end cannot
     // be the whole trend. Null below four sales.
     trend: r.trend_pct,
+    // clean | suspect | unproven | bucket -- see /v1/quality for what each
+    // means. `spread` is the number behind the verdict: the card's 90th
+    // percentile price over its 10th, inside its largest single grade.
+    quality: r.quality,
+    spread: r.spread,
   };
 }
 
@@ -464,6 +471,22 @@ async function listCards(url, env) {
   // parameter because they are not one card.
   if (url.searchParams.get("numbered_only") === "true") where.push("numberless = 0");
 
+  // The whole catalogue is served by default rather than only the tidy part:
+  // hiding rows a caller did not ask to hide is how a dataset quietly loses a
+  // third of itself. `quality=clean` is the one-parameter version of "just the
+  // good ones", and a comma list covers the rest.
+  const quality = url.searchParams.get("quality");
+  if (quality) {
+    const wanted = quality.split(",").map((v) => v.trim()).filter(Boolean);
+    const bad = wanted.filter((v) => !QUALITY_TIERS.includes(v));
+    if (bad.length) {
+      return fail(400, "bad_quality", `Unknown quality ${bad.join(", ")}.`,
+                  { valid: QUALITY_TIERS });
+    }
+    where.push(`quality IN (${wanted.map(() => "?").join(", ")})`);
+    binds.push(...wanted);
+  }
+
   // The floor that makes a trend mean anything. A caller sorting by "rising"
   // without it gets cards whose entire history is four sales.
   const minSales = intParam(url, "min_sales", 0);
@@ -504,6 +527,29 @@ async function listCards(url, env) {
     offset,
     sort: sortName,
     cards: (rows.results || []).map(shapeCard),
+  });
+}
+
+/** How the catalogue splits by quality, so a site can label its own tabs. */
+async function qualityCounts(url, env) {
+  const rows = await env.DB.prepare(
+    "SELECT quality, COUNT(*) AS n, SUM(sales) AS sales FROM cards GROUP BY quality"
+  ).all();
+  const counts = {};
+  for (const r of rows.results || []) {
+    counts[r.quality] = { cards: r.n, sales: r.sales };
+  }
+  return json({
+    tiers: QUALITY_TIERS,
+    counts,
+    meaning: {
+      clean: "Numbered, and its prices agree within each grade.",
+      suspect: "Numbered, but prices scatter inside a single grade enough that " +
+        "this is probably two cards sharing one key.",
+      unproven: "Numbered, but too few sales in any one grade to check.",
+      bucket: "No card number was ever read, so the identity fell back to the " +
+        "player: this row is every card of that player in that set, not one card.",
+    },
   });
 }
 
@@ -619,10 +665,13 @@ function index() {
         "sort: traded|value|cheapest|rising|falling|recent|newest|oldest|name. " +
         "filters: q, player, set, subset, parallel, team, year, year_from, " +
         "year_to, card_number, rookie, auto, relic, numbered_only, min_sales, " +
-        "min_price, max_price, limit (max 500), offset. Returns total, so a " +
-        "browsing site can page.",
+        "min_price, max_price, quality, limit (max 500), offset. " +
+        "quality=clean is the one-parameter version of \"just the good ones\". " +
+        "Returns total, so a browsing site can page.",
       "GET /v1/card": "one card's sales over time; ?key=<card_key>, optional grade",
       "GET /v1/card/grades": "one card's markets side by side; ?key=<card_key>",
+      "GET /v1/quality": "how the catalogue splits into clean / suspect / " +
+        "unproven / bucket, and what each means",
     },
   });
 }
@@ -666,6 +715,7 @@ export default {
         case "/v1/cards":   response = await listCards(url, env); break;
         case "/v1/card":    response = await cardHistory(url, env); break;
         case "/v1/card/grades": response = await cardGrades(url, env); break;
+        case "/v1/quality": response = await qualityCounts(url, env); break;
         default:
           return fail(404, "not_found", `No endpoint ${url.pathname}. See / for the list.`);
       }

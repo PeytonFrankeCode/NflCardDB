@@ -212,8 +212,46 @@ Anything else is a `400`, not a silent fallback — the value goes into an
 
 **Filter** — `q` (card name), `player`, `set`, `subset`, `parallel`, `team`,
 `year`, `year_from`, `year_to`, `card_number`, `rookie`, `auto`, `relic`,
-`min_sales`, `min_price`, `max_price`, `numbered_only`. Paging is `limit` (max
-500) and `offset`.
+`min_sales`, `min_price`, `max_price`, `numbered_only`, `quality`. Paging is
+`limit` (max 500) and `offset`.
+
+### Browsing only the cards that are known good
+
+Grouping is not perfect, and pretending otherwise would put wrong cards at the
+top of exactly the lists people look at first — a merged card's price swings
+hardest, so it ranks highest on "biggest riser". Every card therefore carries a
+`quality`:
+
+| | |
+|---|---|
+| `clean` | Numbered, and its prices agree within each grade. |
+| `unproven` | Numbered, but too few sales in any one grade to check. Nothing is known against it. |
+| `suspect` | Numbered, but prices scatter inside a **single grade** far enough that it is probably two cards sharing one key. |
+| `bucket` | No card number was ever read, so the identity fell back to the player. The row is every card of that player in that set. |
+
+```
+GET /v1/cards?quality=clean&sort=rising      # just the good ones
+GET /v1/cards?quality=suspect,bucket         # the rest, as their own list
+GET /v1/quality                              # how many are in each pile
+```
+
+**The whole catalogue is served by default.** Filtering to `clean` is one
+parameter, but it is never applied for you — a dataset that quietly drops a
+third of itself is worse than one that tells you which third is doubtful.
+
+`spread` is the number behind the verdict: the card's 90th-percentile price over
+its 10th, inside its largest single grade. It is measured within a grade because
+grade is deliberately not part of a card's identity, so comparing a PSA 10
+against a raw copy would measure grading rather than a bad grouping. The
+threshold is 8x, chosen from the data: across 1,153 judgeable cards the median
+spread is 1.9x and the 80th percentile is 7.5x, so there is a knee there. Below
+it sits ordinary variation — a raw 1984 Elway runs $30 to $141 on condition
+alone, and that is one card. Above it sits *2026 Topps Drew Allar #304 Base,
+$1.00 to $28.99*, which is not.
+
+It was worth checking that this does not simply punish vintage, where ungraded
+condition varies most. It does not: pre-2000 cards are flagged at 17.3% and
+everything else at 19.8%, so one threshold treats them alike.
 
 **Three fields worth understanding before you display them.**
 
