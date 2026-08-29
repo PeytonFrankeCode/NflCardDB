@@ -252,3 +252,23 @@ def test_no_batch_file_calls_the_unsigned_launcher():
     assert not offenders, (
         "these call the unsigned launcher instead of `python -m nflcarddb`: "
         + ", ".join(offenders))
+
+
+def test_the_worker_endpoints_pass_their_own_tests():
+    """Run the Worker's Node tests from the Python suite.
+
+    The API is half this project and it is JavaScript, so `pytest` alone was
+    reporting a green suite while the endpoint that serves the whole catalogue
+    went unexercised. Skipped rather than failed where Node is absent: a
+    contributor without it should still be able to run the Python tests.
+    """
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    suite = Path(__file__).resolve().parent.parent / "api" / "worker.test.mjs"
+    done = subprocess.run([node, "--test", str(suite)],
+                          capture_output=True, text=True, timeout=180)
+    assert done.returncode == 0, done.stdout[-4000:] + done.stderr[-2000:]

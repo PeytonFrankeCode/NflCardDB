@@ -171,14 +171,82 @@ the number they account for:
 knowing before quoting it as what a card is worth.
 
 ### `GET /v1/cards`
-The cards that are actually trading, most sales first. `q` matches the card
-name, `from` limits the window, `limit` caps the list.
+**The catalogue — one row per physical card. This is the endpoint a browsing
+site is built on.**
+
+Every listing that is the same card is already gathered under one `card_key`, so
+this returns cards rather than sales. `total` comes back with every response, so
+a site can page and show "1–50 of 6,214" without a second call.
 
 ```json
-{"cards": [
-  {"card_key": "2021-prizm-n220", "card_name": "2021 Prizm Ja'Marr Chase #220",
-   "sales": 47, "average": 91.4, "high": 260.0, "last_sold": "2026-08-09"}
-]}
+{
+  "total": 6214, "limit": 50, "offset": 0, "sort": "traded",
+  "cards": [
+    {"card_key": "2024-prizm-n301-silver-prizm",
+     "card_name": "2024 Prizm Caleb Williams #301 Silver Prizm",
+     "player": "Caleb Williams", "year": 2024, "set": "Prizm",
+     "subset": null, "parallel": "Silver Prizm", "card_number": "301",
+     "print_run": null, "rookie": true, "auto": false, "relic": false,
+     "numberless": false,
+     "image_url": "https://i.ebayimg.com/images/g/.../s-l500.jpg",
+     "sales": 26, "median": 54.08, "low": 24.72, "high": 176.86,
+     "raw_sales": 14, "raw_median": 33.19,
+     "first_sold": "2026-08-01", "last_sold": "2026-08-24", "trend": 14.5}
+  ]
+}
+```
+
+**Sort** — `?sort=` takes one of:
+
+| | |
+|---|---|
+| `traded` (default) | most sales first |
+| `value` / `cheapest` | by median price |
+| `rising` / `falling` | by trend; cards with no trend are excluded |
+| `recent` | most recently sold |
+| `newest` / `oldest` | by card year |
+| `name` | alphabetical |
+
+Anything else is a `400`, not a silent fallback — the value goes into an
+`ORDER BY`, so an allow-list is the only safe way to accept it.
+
+**Filter** — `q` (card name), `player`, `set`, `subset`, `parallel`, `team`,
+`year`, `year_from`, `year_to`, `card_number`, `rookie`, `auto`, `relic`,
+`min_sales`, `min_price`, `max_price`, `numbered_only`. Paging is `limit` (max
+500) and `offset`.
+
+**Three fields worth understanding before you display them.**
+
+`trend` compares the newer half of a card's sales against the older half, not
+the newest sale against the oldest — one unusual sale at either end would
+otherwise be the whole trend. It is `null` below four sales, because two points
+make a line through anything. Sorting by `rising` or `falling` drops those
+rather than parking them at one end of the list.
+
+`raw_median` is the ungraded market on its own, and it is usually the honest
+number to show. `median` covers every grade, so a single PSA 10 among twenty raw
+copies drags it somewhere that describes neither market. On one real card the
+all-grades median read $54 while raw alone was $33 and PSA 10 was $106.
+
+`numberless: true` means no sale of that card ever yielded a card number, so its
+identity fell back to the player's name — the row is *every* card of that player
+in that set at once, not one card. They are served because the sales are real,
+and flagged because a price history across them is not. Pass
+`numbered_only=true` to leave them out.
+
+### `GET /v1/card/grades?key=...`
+**One card's markets side by side** — what a card page shows above its chart.
+
+```json
+{
+  "card": {"card_key": "2024-prizm-n301-silver-prizm", "...": "as above"},
+  "grades": [
+    {"grade": "Raw",    "sales": 14, "median": 33.19, "low": 24.72,
+     "high": 61.00, "last_sold": "2026-08-24"},
+    {"grade": "PSA 10", "sales": 12, "median": 105.86, "low": 72.34,
+     "high": 176.86, "last_sold": "2026-08-23"}
+  ]
+}
 ```
 
 ### `GET /v1/card?key=...`

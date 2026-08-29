@@ -42,6 +42,36 @@ MIGRATIONS = (
     "ALTER TABLE sales ADD COLUMN card_key TEXT",
     "ALTER TABLE sales ADD COLUMN card_name TEXT",
     "CREATE INDEX IF NOT EXISTS idx_sales_card ON sales (card_key, sold_date)",
+    # The rest of a card's identity, which the flattened table never carried.
+    # `subset` is the one that matters most: an insert restarts its numbering at
+    # one, so without it a query cannot tell Phoenix "Contours #8" from
+    # "Genies #8".
+    "ALTER TABLE sales ADD COLUMN subset TEXT",
+    "ALTER TABLE sales ADD COLUMN print_run INTEGER",
+    "ALTER TABLE sales ADD COLUMN is_relic INTEGER NOT NULL DEFAULT 0",
+    # The catalogue tables. CREATE TABLE IF NOT EXISTS in schema.sql handles a
+    # fresh database; these are here so an existing one gets them too, on the
+    # push that first needs them rather than on a manual schema run nobody
+    # remembers to do.
+    """CREATE TABLE IF NOT EXISTS cards (
+        card_key TEXT PRIMARY KEY, card_name TEXT, player TEXT, team TEXT,
+        year INTEGER, brand TEXT, set_name TEXT, subset TEXT, parallel TEXT,
+        card_number TEXT, print_run INTEGER,
+        is_rookie INTEGER NOT NULL DEFAULT 0, is_auto INTEGER NOT NULL DEFAULT 0,
+        is_relic INTEGER NOT NULL DEFAULT 0, numberless INTEGER NOT NULL DEFAULT 0,
+        image_url TEXT, sales INTEGER NOT NULL, median_cents INTEGER,
+        low_cents INTEGER, high_cents INTEGER, raw_sales INTEGER NOT NULL DEFAULT 0,
+        raw_median_cents INTEGER, first_sold TEXT, last_sold TEXT, trend_pct REAL)""",
+    """CREATE TABLE IF NOT EXISTS card_grades (
+        card_key TEXT NOT NULL, grade_label TEXT NOT NULL, sales INTEGER NOT NULL,
+        median_cents INTEGER, low_cents INTEGER, high_cents INTEGER,
+        last_sold TEXT, PRIMARY KEY (card_key, grade_label))""",
+    "CREATE INDEX IF NOT EXISTS idx_cards_sales  ON cards (sales DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_value  ON cards (median_cents DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_trend  ON cards (trend_pct DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_recent ON cards (last_sold DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_player ON cards (player, sales DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_set    ON cards (year, set_name, sales DESC)",
 )
 
 ALREADY_APPLIED = ("duplicate column", "already exists")

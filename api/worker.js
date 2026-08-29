@@ -367,37 +367,169 @@ async function cardHistory(url, env) {
 }
 
 /** GET /v1/cards -- the cards actually trading, most sales first. */
+// The sort orders a browsing site offers. An allow-list rather than a column
+// name off the query string: the value is interpolated into SQL, so accepting
+// caller input here would be an injection. Each maps to an index on `cards`.
+const CARD_SORTS = {
+  traded:   "sales DESC, median_cents DESC",
+  value:    "median_cents DESC, sales DESC",
+  cheapest: "median_cents ASC, sales DESC",
+  rising:   "trend_pct DESC, sales DESC",
+  falling:  "trend_pct ASC, sales DESC",
+  recent:   "last_sold DESC, sales DESC",
+  newest:   "year DESC, sales DESC",
+  oldest:   "year ASC, sales DESC",
+  name:     "card_name ASC",
+};
+
+function shapeCard(r) {
+  return {
+    card_key: r.card_key,
+    card_name: r.card_name,
+    player: r.player,
+    team: r.team,
+    year: r.year,
+    brand: r.brand,
+    set: r.set_name,
+    subset: r.subset,
+    parallel: r.parallel,
+    card_number: r.card_number,
+    print_run: r.print_run,
+    rookie: !!r.is_rookie,
+    auto: !!r.is_auto,
+    relic: !!r.is_relic,
+    // True when no sale of this card ever gave up a card number, so the
+    // identity fell back to the player's name. Such a row is every card of
+    // that player in that set at once. Served, but never silently: a caller
+    // charting it as one card would be charting a bucket.
+    numberless: !!r.numberless,
+    image_url: r.image_url,
+    sales: r.sales,
+    median: r.median_cents == null ? null : r.median_cents / 100,
+    low: r.low_cents == null ? null : r.low_cents / 100,
+    high: r.high_cents == null ? null : r.high_cents / 100,
+    // The ungraded market alone. The all-grades median is the number most
+    // likely to mislead -- one PSA 10 among twenty raw copies drags it
+    // somewhere that describes neither.
+    raw_sales: r.raw_sales,
+    raw_median: r.raw_median_cents == null ? null : r.raw_median_cents / 100,
+    first_sold: r.first_sold,
+    last_sold: r.last_sold,
+    // Percent change from the older half of this card's sales to the newer,
+    // rather than newest against oldest, so one odd sale at either end cannot
+    // be the whole trend. Null below four sales.
+    trend: r.trend_pct,
+  };
+}
+
 async function listCards(url, env) {
-  const limit = intParam(url, "limit", 25, 200);
+  const limit = intParam(url, "limit", 50, MAX_LIMIT);
+  const offset = intParam(url, "offset", 0) || 0;
+  const where = [];
   const binds = [];
-  let clause = "WHERE card_key IS NOT NULL AND price_cents IS NOT NULL";
+
+  const like = (param, column) => {
+    const v = url.searchParams.get(param);
+    if (v) { where.push(`${column} LIKE ?`); binds.push(`%${v}%`); }
+  };
+  const eq = (param, column) => {
+    const v = url.searchParams.get(param);
+    if (v) { where.push(`${column} = ?`); binds.push(v); }
+  };
 
   const q = url.searchParams.get("q");
-  if (q) { clause += " AND card_name LIKE ?"; binds.push(`%${q}%`); }
+  if (q) { where.push("card_name LIKE ?"); binds.push(`%${q}%`); }
+  like("player", "player");
+  like("set", "set_name");
+  like("subset", "subset");
+  like("parallel", "parallel");
+  eq("team", "team");
+  eq("card_number", "card_number");
 
-  const from = url.searchParams.get("from");
-  if (from) {
-    if (!ISO_DATE.test(from)) {
-      return fail(400, "bad_date", "from must look like 2026-08-03");
-    }
-    clause += " AND sold_date >= ?"; binds.push(from);
+  const year = url.searchParams.get("year");
+  if (year && /^\d{4}$/.test(year)) { where.push("year = ?"); binds.push(Number(year)); }
+  for (const [param, op] of [["year_from", ">="], ["year_to", "<="]]) {
+    const v = url.searchParams.get(param);
+    if (v && /^\d{4}$/.test(v)) { where.push(`year ${op} ?`); binds.push(Number(v)); }
   }
 
+  for (const [param, column] of [["rookie", "is_rookie"], ["auto", "is_auto"],
+                                 ["relic", "is_relic"]]) {
+    const v = url.searchParams.get(param);
+    if (v === "true") where.push(`${column} = 1`);
+    if (v === "false") where.push(`${column} = 0`);
+  }
+
+  // Buckets are in by default because they are real sales, and out in one
+  // parameter because they are not one card.
+  if (url.searchParams.get("numbered_only") === "true") where.push("numberless = 0");
+
+  // The floor that makes a trend mean anything. A caller sorting by "rising"
+  // without it gets cards whose entire history is four sales.
+  const minSales = intParam(url, "min_sales", 0);
+  if (minSales) { where.push("sales >= ?"); binds.push(minSales); }
+
+  for (const [param, op] of [["min_price", ">="], ["max_price", "<="]]) {
+    const v = url.searchParams.get(param);
+    if (v && Number.isFinite(Number(v))) {
+      where.push(`median_cents ${op} ?`);
+      binds.push(Math.round(Number(v) * 100));
+    }
+  }
+
+  const sortName = url.searchParams.get("sort") || "traded";
+  const order = CARD_SORTS[sortName];
+  if (!order) {
+    return fail(400, "bad_sort",
+      `Unknown sort "${sortName}".`, { valid: Object.keys(CARD_SORTS) });
+  }
+  // Sorting by a trend that does not exist puts the cards with no history at
+  // one end of the list, which is never what the caller meant.
+  if (sortName === "rising" || sortName === "falling") {
+    where.push("trend_pct IS NOT NULL");
+  }
+
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const total = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM cards ${clause}`
+  ).bind(...binds).first();
+
   const rows = await env.DB.prepare(
-    `SELECT card_key, MAX(card_name) AS card_name, COUNT(*) AS n,
-            CAST(AVG(price_cents) AS INTEGER) AS avg_cents,
-            MAX(price_cents) AS high_cents, MAX(sold_date) AS last_sold
-     FROM sales ${clause}
-     GROUP BY card_key ORDER BY n DESC, high_cents DESC LIMIT ?`
-  ).bind(...binds, limit).all();
+    `SELECT * FROM cards ${clause} ORDER BY ${order} LIMIT ? OFFSET ?`
+  ).bind(...binds, limit, offset).all();
 
   return json({
-    cards: (rows.results || []).map((r) => ({
-      card_key: r.card_key,
-      card_name: r.card_name,
-      sales: r.n,
-      average: r.avg_cents / 100,
-      high: r.high_cents / 100,
+    total: total ? total.n : 0,
+    limit,
+    offset,
+    sort: sortName,
+    cards: (rows.results || []).map(shapeCard),
+  });
+}
+
+/** Every market for one card: its PSA 10 price and its raw price side by side. */
+async function cardGrades(url, env) {
+  const key = url.searchParams.get("key");
+  if (!key) return fail(400, "no_key", "Pass ?key=<card_key>.");
+
+  const card = await env.DB.prepare(
+    "SELECT * FROM cards WHERE card_key = ?"
+  ).bind(key).first();
+  if (!card) return fail(404, "not_found", `No card ${key}.`);
+
+  const rows = await env.DB.prepare(
+    "SELECT grade_label, sales, median_cents, low_cents, high_cents, last_sold " +
+    "FROM card_grades WHERE card_key = ? ORDER BY sales DESC"
+  ).bind(key).all();
+
+  return json({
+    card: shapeCard(card),
+    grades: (rows.results || []).map((r) => ({
+      grade: r.grade_label,
+      sales: r.sales,
+      median: r.median_cents == null ? null : r.median_cents / 100,
+      low: r.low_cents == null ? null : r.low_cents / 100,
+      high: r.high_cents == null ? null : r.high_cents / 100,
       last_sold: r.last_sold,
     })),
   });
@@ -483,6 +615,14 @@ function index() {
       "GET /v1/prices": "price stats for one player; ?player= plus optional grader, grade",
       "GET /v1/players": "most-traded players; ?q= to search",
       "GET /v1/daily": "per-day totals",
+      "GET /v1/cards": "the card catalogue, one row per physical card. " +
+        "sort: traded|value|cheapest|rising|falling|recent|newest|oldest|name. " +
+        "filters: q, player, set, subset, parallel, team, year, year_from, " +
+        "year_to, card_number, rookie, auto, relic, numbered_only, min_sales, " +
+        "min_price, max_price, limit (max 500), offset. Returns total, so a " +
+        "browsing site can page.",
+      "GET /v1/card": "one card's sales over time; ?key=<card_key>, optional grade",
+      "GET /v1/card/grades": "one card's markets side by side; ?key=<card_key>",
     },
   });
 }
@@ -525,6 +665,7 @@ export default {
         case "/v1/daily":   response = await daily(url, env); break;
         case "/v1/cards":   response = await listCards(url, env); break;
         case "/v1/card":    response = await cardHistory(url, env); break;
+        case "/v1/card/grades": response = await cardGrades(url, env); break;
         default:
           return fail(404, "not_found", `No endpoint ${url.pathname}. See / for the list.`);
       }

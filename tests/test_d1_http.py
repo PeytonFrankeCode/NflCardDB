@@ -374,3 +374,111 @@ def test_a_re_collected_day_is_sent_again(tmp_path):
     conn.close()
 
     assert build_sql(db, changed_since=mark)[1]["rows"] == 1
+
+
+# --------------------------------------------------------------- migrations
+#
+# The live database was created before the catalogue existed. CREATE TABLE IF
+# NOT EXISTS is a no-op on a table that is already there, so a column added to
+# schema.sql never reaches it and the next upload fails on an unknown column.
+# These run the real MIGRATIONS against a real copy of the old schema.
+
+
+def _old_schema_db(tmp_path):
+    """A database shaped like the deployed one: sales, no card columns."""
+    import sqlite3
+    db = sqlite3.connect(tmp_path / "old.db")
+    db.executescript("""
+        CREATE TABLE sales (
+            item_id TEXT PRIMARY KEY, sold_date TEXT NOT NULL, title TEXT NOT NULL,
+            price_cents INTEGER, shipping_cents INTEGER,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            best_offer INTEGER NOT NULL DEFAULT 0, listing_format TEXT,
+            bids INTEGER, player TEXT, team TEXT, year INTEGER, brand TEXT,
+            set_name TEXT, parallel TEXT, card_number TEXT, grader TEXT,
+            grade REAL, is_rookie INTEGER NOT NULL DEFAULT 0,
+            is_auto INTEGER NOT NULL DEFAULT 0, confidence REAL NOT NULL DEFAULT 0);
+        CREATE TABLE daily (sold_date TEXT PRIMARY KEY, sales INTEGER NOT NULL,
+            priced INTEGER NOT NULL, median_cents INTEGER, p90_cents INTEGER,
+            total_cents INTEGER);
+        CREATE TABLE api_keys (key_hash TEXT PRIMARY KEY, label TEXT NOT NULL,
+            created_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
+            daily_quota INTEGER NOT NULL DEFAULT 10000);
+        CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT);
+    """)
+    db.commit()
+    return db
+
+
+def _run_migrations(db):
+    """What apply_migrations does, minus the HTTP."""
+    import sqlite3
+    from nflcarddb.d1_http import ALREADY_APPLIED, MIGRATIONS
+    applied = 0
+    for statement in MIGRATIONS:
+        try:
+            db.execute(statement)
+            applied += 1
+        except sqlite3.OperationalError as exc:
+            if not any(hint in str(exc).lower() for hint in ALREADY_APPLIED):
+                raise
+    db.commit()
+    return applied
+
+
+def test_migrations_bring_an_old_database_up_to_the_catalogue(tmp_path):
+    db = _old_schema_db(tmp_path)
+    _run_migrations(db)
+
+    columns = {r[1] for r in db.execute("PRAGMA table_info(sales)")}
+    assert {"subset", "print_run", "is_relic", "card_key"} <= columns
+    tables = {r[0] for r in db.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"cards", "card_grades"} <= tables
+
+
+def test_migrations_are_safe_to_run_twice(tmp_path):
+    """They run on every push, so the second time must do nothing quietly."""
+    db = _old_schema_db(tmp_path)
+    first = _run_migrations(db)
+    second = _run_migrations(db)
+    assert first > 0
+    # CREATE ... IF NOT EXISTS still "succeeds" the second time; the ALTERs must
+    # not, and none of them may raise.
+    assert second < first
+
+
+def test_an_upload_lands_in_a_migrated_database(tmp_path):
+    """The end of the chain: migrate, then load what the exporter produces."""
+    from nflcarddb import db as store
+    from nflcarddb.api_export import build_sql
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import parse_title
+
+    local = tmp_path / "local.db"
+    conn = store.connect(local)
+    run = store.start_run(conn, "2025-07-30")
+    sales = [
+        Sale(item_id=f"7000000000{i:02d}",
+             title="2024 Panini Prizm Caleb Williams #301 Silver Prizm RC",
+             price_cents=5000 + i * 100, shipping_cents=0,
+             sold_date=f"2025-07-2{i + 1}", currency="USD", best_offer=False,
+             query_id="q1")
+        for i in range(4)
+    ]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales],
+                       "title/1")
+    store.finish_run(conn, run, "ok", 4, 4, 4)
+    conn.close()
+
+    remote = _old_schema_db(tmp_path)
+    _run_migrations(remote)
+    sql, stats = build_sql(local)
+    remote.executescript(sql)
+
+    assert stats["cards"] == 1
+    assert remote.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 4
+    row = remote.execute(
+        "SELECT card_name, sales, subset, numberless FROM cards").fetchone()
+    assert row[1] == 4 and row[3] == 0

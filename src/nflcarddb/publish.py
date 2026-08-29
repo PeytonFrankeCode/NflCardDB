@@ -261,7 +261,7 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
         card["high"] = max(prices)
         card["first"] = sales[0][0]
         card["last"] = sales[-1][0]
-        card["trend"] = _trend(prices)
+        card["trend"] = price_trend(prices)
         out.append(card)
 
     # Most sales first: those are the cards with something to say.
@@ -269,7 +269,7 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
     return out[:limit]
 
 
-def _trend(prices: list[float]) -> Optional[float]:
+def price_trend(prices: list[float]) -> Optional[float]:
     """Percent change from the older half of a card's sales to the newer.
 
     Halves rather than first-versus-last, because a single unusual sale at

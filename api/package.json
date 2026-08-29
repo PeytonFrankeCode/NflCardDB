@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "node --test worker.test.mjs",
     "schema": "wrangler d1 execute nflcarddb --remote --file=schema.sql",
     "import": "wrangler d1 execute nflcarddb --remote --file=import.sql"
   },

@@ -19,11 +19,13 @@ import hashlib
 import secrets
 import sqlite3
 import statistics
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
 from . import db as store
+from .publish import price_trend
 
 # D1 rejects very large statements, so rows go out in batches.
 ROWS_PER_INSERT = 200
@@ -31,8 +33,9 @@ ROWS_PER_INSERT = 200
 EXPORT_COLUMNS = (
     "item_id", "sold_date", "title", "price_cents", "ask_cents", "shipping_cents",
     "currency", "best_offer", "listing_format", "bids", "image_url", "player",
-    "team", "year", "brand", "set_name", "parallel", "card_number", "grader",
-    "grade", "is_rookie", "is_auto", "confidence", "card_key", "card_name",
+    "team", "year", "brand", "set_name", "subset", "parallel", "card_number",
+    "print_run", "grader", "grade", "is_rookie", "is_auto", "is_relic",
+    "confidence", "card_key", "card_name",
 )
 
 
@@ -87,8 +90,9 @@ def _rows_to_export(
                CASE WHEN s.best_offer = 1 THEN s.price_cents ELSE NULL END AS ask_cents,
                s.shipping_cents, s.currency, s.best_offer, s.listing_format, s.bids,
                s.image_url,
-               c.player, c.team, c.year, c.brand, c.set_name, c.parallel,
-               c.card_number, c.grader, c.grade, c.is_rookie, c.is_auto,
+               c.player, c.team, c.year, c.brand, c.set_name, c.subset,
+               c.parallel, c.card_number, c.print_run, c.grader, c.grade,
+               c.is_rookie, c.is_auto, c.is_relic,
                COALESCE(c.confidence, 0) AS confidence,
                c.card_key, c.card_name
         FROM sales s LEFT JOIN cards c USING (item_id)
@@ -135,6 +139,125 @@ def _daily_rollups(conn: sqlite3.Connection, since: Optional[str]) -> list[dict]
     return out
 
 
+CARD_COLUMNS = (
+    "card_key", "card_name", "player", "team", "year", "brand", "set_name",
+    "subset", "parallel", "card_number", "print_run", "is_rookie", "is_auto",
+    "is_relic", "numberless", "image_url", "sales", "median_cents",
+    "low_cents", "high_cents", "raw_sales", "raw_median_cents",
+    "first_sold", "last_sold", "trend_pct",
+)
+
+GRADE_COLUMNS = ("card_key", "grade_label", "sales", "median_cents",
+                 "low_cents", "high_cents", "last_sold")
+
+
+def _card_rollups(
+    conn: sqlite3.Connection, keys: Optional[set[str]] = None,
+) -> tuple[list[dict], list[dict]]:
+    """One row per physical card, plus one row per card per grade.
+
+    Computed here rather than in the Worker because the sort orders a browsing
+    site offers -- biggest riser, most traded, highest value -- each need a
+    number derived from every sale of every card. D1 bills by rows scanned, so
+    deriving them per request means re-reading the whole table once per visitor
+    per sort order. Locally they cost one pass.
+
+    `keys` limits which cards are rebuilt, but never which sales are read: a
+    card whose stats are recomputed is recomputed from all of its sales, not
+    just the new ones. A median over "the rows that changed today" would be a
+    different and meaningless number.
+    """
+    where = "WHERE c.card_key IS NOT NULL AND s.sold_date IS NOT NULL " \
+            "AND s.price_cents IS NOT NULL AND s.currency = 'USD'"
+    params: tuple = ()
+    if keys is not None:
+        if not keys:
+            return ([], [])
+        where += f" AND c.card_key IN ({','.join('?' * len(keys))})"
+        params = tuple(keys)
+
+    grouped: dict[str, dict] = {}
+    for r in conn.execute(
+        f"""
+        SELECT c.card_key, c.card_name, c.player, c.team, c.year, c.brand,
+               c.set_name, c.subset, c.parallel, c.card_number, c.print_run,
+               c.is_rookie, c.is_auto, c.is_relic, c.grader, c.grade,
+               s.sold_date, s.price_cents, s.image_url
+        FROM cards c JOIN sales s USING (item_id)
+        {where}
+        ORDER BY s.sold_date, s.item_id
+        """,
+        params,
+    ):
+        card = grouped.setdefault(r["card_key"], {
+            "card_key": r["card_key"], "names": Counter(), "prices": [],
+            "by_grade": {}, "image_url": None, "numberless": 1,
+        })
+        card["names"][r["card_name"]] += 1
+        if r["card_number"]:
+            card["numberless"] = 0
+        if card["image_url"] is None and r["image_url"]:
+            card["image_url"] = r["image_url"]
+        # Last writer wins on the descriptive columns, and they are read from
+        # the newest sale because the parser improves: an older row was keyed
+        # by a version that knew fewer set and colour names.
+        for col in ("player", "team", "year", "brand", "set_name", "subset",
+                    "parallel", "card_number", "print_run"):
+            if r[col] is not None:
+                card[col] = r[col]
+        for flag in ("is_rookie", "is_auto", "is_relic"):
+            card[flag] = max(card.get(flag, 0), r[flag] or 0)
+
+        card["prices"].append(r["price_cents"])
+        label = (f"{r['grader']} {r['grade']:g}"
+                 if r["grader"] and r["grade"] is not None
+                 else (r["grader"] or "Raw"))
+        g = card["by_grade"].setdefault(label, {"prices": [], "last": None})
+        g["prices"].append(r["price_cents"])
+        g["last"] = r["sold_date"]
+        card.setdefault("first_sold", r["sold_date"])
+        card["last_sold"] = r["sold_date"]
+
+    cards: list[dict] = []
+    grades: list[dict] = []
+    for key, c in grouped.items():
+        prices = c["prices"]
+        raw = c["by_grade"].get("Raw", {}).get("prices", [])
+        cards.append({
+            "card_key": key,
+            # The spelling most of the group agrees on. card_name carries words
+            # that are claimed but not keyed, so members differ; taking the
+            # first would make a card's name depend on the order it sold in.
+            "card_name": min((n for n in c["names"] if n),
+                             key=lambda n: (-c["names"][n], len(n), n),
+                             default=key),
+            **{col: c.get(col) for col in (
+                "player", "team", "year", "brand", "set_name", "subset",
+                "parallel", "card_number", "print_run", "image_url")},
+            **{f: c.get(f, 0) for f in ("is_rookie", "is_auto", "is_relic")},
+            "numberless": c["numberless"],
+            "sales": len(prices),
+            "median_cents": int(statistics.median(prices)),
+            "low_cents": min(prices),
+            "high_cents": max(prices),
+            "raw_sales": len(raw),
+            "raw_median_cents": int(statistics.median(raw)) if raw else None,
+            "first_sold": c.get("first_sold"),
+            "last_sold": c.get("last_sold"),
+            # Chronological, because the trend compares halves of a timeline.
+            "trend_pct": price_trend([p / 100.0 for p in prices]),
+        })
+        for label, g in c["by_grade"].items():
+            gp = g["prices"]
+            grades.append({
+                "card_key": key, "grade_label": label, "sales": len(gp),
+                "median_cents": int(statistics.median(gp)),
+                "low_cents": min(gp), "high_cents": max(gp),
+                "last_sold": g["last"],
+            })
+    return (cards, grades)
+
+
 def build_sql(
     db_path: str | Path,
     since: Optional[str] = None,
@@ -149,6 +272,14 @@ def build_sql(
         # Daily rollups are recomputed in full regardless: there is one row per
         # day, so ~90 of them, and a partial day's medians would be wrong.
         rollups = _daily_rollups(conn, since)
+        # Only the cards this upload touches, on an incremental run. A card
+        # whose sales did not change has the same stats it had last time, and
+        # there are tens of thousands of them -- rebuilding all of them on every
+        # push would make an incremental upload no smaller than a full one.
+        touched = None
+        if changed_since:
+            touched = {r["card_key"] for r in rows if r["card_key"]}
+        cards, card_grades = _card_rollups(conn, touched)
         watermark = store.max_updated_at(conn)
     finally:
         conn.close()
@@ -189,6 +320,24 @@ def build_sql(
             "p90_cents = excluded.p90_cents, total_cents = excluded.total_cents;"
         )
 
+    for table, columns, payload, pk in (
+        ("cards", CARD_COLUMNS, cards, "card_key"),
+        ("card_grades", GRADE_COLUMNS, card_grades, "card_key, grade_label"),
+    ):
+        cols = ", ".join(columns)
+        keys = {k.strip() for k in pk.split(",")}
+        updates = ", ".join(f"{c} = excluded.{c}" for c in columns if c not in keys)
+        for start in range(0, len(payload), ROWS_PER_INSERT):
+            chunk = payload[start:start + ROWS_PER_INSERT]
+            values = ",\n  ".join(
+                "(" + ", ".join(_sql_literal(row[c]) for c in columns) + ")"
+                for row in chunk
+            )
+            lines.append(
+                f"INSERT INTO {table} ({cols}) VALUES\n  {values}\n"
+                f"ON CONFLICT({pk}) DO UPDATE SET {updates};"
+            )
+
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for key_hash, label in (key_hashes or []):
         lines.append(
@@ -205,6 +354,8 @@ def build_sql(
     stats = {
         "rows": len(rows),
         "days": len(rollups),
+        "cards": len(cards),
+        "card_grades": len(card_grades),
         "since": since,
         "changed_since": changed_since,
         "keys_added": len(list(key_hashes or [])),
