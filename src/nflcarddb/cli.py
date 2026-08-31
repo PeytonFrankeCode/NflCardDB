@@ -2297,10 +2297,33 @@ def cmd_checklists(args) -> int:
     parse names a card that was ever printed.
     """
     from . import checklist as cl
+    from . import checklist_csv as ccsv
     from . import checklist_fetch as fetch
 
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    if args.csv:
+        # The export, rather than the site. Set names are registered first and
+        # as their own pass, because the folding is global: it teaches the
+        # parser that "Panini Prizm" and "Prizm" are one product, which then
+        # applies to listing titles too.
+        print(f"Reading {args.csv} ...")
+        learned = ccsv.learn_sets(args.csv)
+        print(f"  {learned} set spelling(s) folded onto known products")
+        conn = store.connect(db_path)
+        try:
+            stats = cl.import_rows(conn, ccsv.rows_from_csv(args.csv),
+                                   source=str(args.csv))
+            totals = cl.stats(conn)
+        finally:
+            conn.close()
+        print(f"  loaded {stats['loaded']:,} card(s)")
+        for label, key in (("cards known", "cards"), ("products", "products"),
+                           ("insert names", "inserts"), ("parallels", "parallels")):
+            print(f"  {label:<14} {totals[key]:,}")
+        print(f"  seasons        {totals['first_year']} - {totals['last_year']}")
+        return 0 if totals["cards"] else 1
 
     if args.look:
         # Read one product and report its shape rather than importing it. The
@@ -2731,6 +2754,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
     p.add_argument("--base", default="https://thecardhuddle.com/data/checklists")
+    p.add_argument("--csv", help="import the CSV export instead of reading the site "
+                                 "(.csv or .csv.gz)")
     p.add_argument("--limit", type=int, help="only the first N products")
     p.add_argument("--look", action="store_true",
                    help="report what the site returns without importing it")

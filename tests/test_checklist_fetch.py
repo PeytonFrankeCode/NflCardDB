@@ -153,3 +153,76 @@ def test_one_unreadable_product_does_not_end_the_run(monkeypatch):
     rows = list(fetch.fetch_all(delay=0))
     assert len(rows) == 2                      # the good product still arrived
     assert any("bad.json" in c for c in calls)  # and the bad one was attempted
+
+
+# ------------------------------------------------------- the CSV export
+#
+# thecardhuddle.com also exports the checklist as CSV, and its columns do not
+# line up with this parser's fields by name. The two disagreements below are
+# the whole mapping, and both would be silent if they were wrong.
+
+
+def _csv(tmp_path, rows, header=None):
+    import csv as _csv_mod
+    header = header or ("product_id,product,year,brand,sport,set_id,set,category,"
+                        "card_number,player,team,rookie,parallel,print_run")
+    path = tmp_path / "x.csv"
+    path.write_text(header + "\n" + "\n".join(rows) + "\n")
+    return path
+
+
+def test_brand_is_the_set_and_set_is_the_subset(tmp_path):
+    """Their `brand` is what a title calls the product; their `set` is the
+    insert. Reading them the other way round would key every card by a section
+    heading no seller types."""
+    from nflcarddb import checklist_csv as ccsv
+    path = _csv(tmp_path, [
+        "p,2026 Topps,2026,Topps,Football,s,Kaiju,insert,KAI-2,Patrick Mahomes,,,Base,",
+    ])
+    row = next(ccsv.rows_from_csv(path))
+    assert row["set_name"] == "Topps"
+    assert row["subset"] == "Kaiju"
+
+
+def test_base_set_sections_never_become_inserts(tmp_path):
+    """"Rookies" and "Veterans" sit in the same column an insert name does,
+    but they are sections of the base set. Keying them would split every base
+    card between sellers who mentioned the section -- which is none of them."""
+    from nflcarddb import checklist_csv as ccsv
+    path = _csv(tmp_path, [
+        "p,2024 Prizm,2024,Prizm,Football,s,Base Set,base,1,A Player,,,Base,",
+        "p,2024 Prizm,2024,Prizm,Football,s,Rookies,base,2,B Player,,,Base,",
+        "p,2024 Prizm,2024,Prizm,Football,s,Veterans,base,3,C Player,,,Base,",
+    ])
+    assert [r["subset"] for r in ccsv.rows_from_csv(path)] == [None, None, None]
+
+
+def test_the_word_base_in_the_parallel_column_is_not_a_parallel(tmp_path):
+    from nflcarddb import checklist_csv as ccsv
+    path = _csv(tmp_path, [
+        "p,2024 Prizm,2024,Prizm,Football,s,Base Set,base,1,A Player,,,Base,",
+        "p,2024 Prizm,2024,Prizm,Football,s,Base Set,base,1,A Player,,,Pink,25",
+    ])
+    rows = list(ccsv.rows_from_csv(path))
+    assert rows[0]["parallel"] is None
+    assert rows[1]["parallel"] == "Pink" and rows[1]["print_run"] == 25
+
+
+def test_category_carries_the_auto_and_relic_flags(tmp_path):
+    from nflcarddb import checklist_csv as ccsv
+    path = _csv(tmp_path, [
+        "p,2024 Prizm,2024,Prizm,Football,s,Signatures,autograph,1,A,,,Base,",
+        "p,2024 Prizm,2024,Prizm,Football,s,Patches,memorabilia,2,B,,,Base,",
+    ])
+    rows = list(ccsv.rows_from_csv(path))
+    assert (rows[0]["is_auto"], rows[0]["is_relic"]) == (True, False)
+    assert (rows[1]["is_auto"], rows[1]["is_relic"]) == (False, True)
+
+
+def test_other_sports_are_left_out(tmp_path):
+    from nflcarddb import checklist_csv as ccsv
+    path = _csv(tmp_path, [
+        "p,2024 Prizm,2024,Prizm,Basketball,s,Base Set,base,1,A Player,,,Base,",
+        "p,2024 Prizm,2024,Prizm,Football,s,Base Set,base,2,B Player,,,Base,",
+    ])
+    assert [r["card_number"] for r in ccsv.rows_from_csv(path)] == ["2"]

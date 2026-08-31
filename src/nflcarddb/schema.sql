@@ -176,6 +176,10 @@ CREATE TABLE IF NOT EXISTS checklist (
     -- name is usually absent from the seller's title.
     subset      TEXT,
     card_number TEXT,
+    -- The number with its punctuation removed and upper-cased. Sellers write
+    -- "#AK20" where the checklist says "AK-20", and they mean the same card --
+    -- so lookups compare this and display the real one.
+    number_fold TEXT,
     player      TEXT,
     parallel    TEXT,
     print_run   INTEGER,
@@ -186,7 +190,7 @@ CREATE TABLE IF NOT EXISTS checklist (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checklist_who ON checklist (year, set_name, player);
-CREATE INDEX IF NOT EXISTS idx_checklist_num ON checklist (year, set_name, card_number);
+CREATE INDEX IF NOT EXISTS idx_checklist_num ON checklist (year, set_name, number_fold);
 
 -- Which (year, set) pairs the checklist actually covers.
 --
