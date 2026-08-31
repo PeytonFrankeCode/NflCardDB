@@ -2288,6 +2288,94 @@ def _show_numberless_titles(db_path, flagged: list[dict], groups: int = 4,
         conn.close()
 
 
+def cmd_checklists(args) -> int:
+    """Load thecardhuddle.com's checklists: what cards actually exist.
+
+    Everything else here infers a card's identity from what a seller typed.
+    This is the opposite, and it is the only source that can say which insert a
+    number belongs to, what a set's parallels are really called, or whether a
+    parse names a card that was ever printed.
+    """
+    from . import checklist as cl
+    from . import checklist_csv as ccsv
+    from . import checklist_fetch as fetch
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    if args.csv:
+        # The export, rather than the site. Set names are registered first and
+        # as their own pass, because the folding is global: it teaches the
+        # parser that "Panini Prizm" and "Prizm" are one product, which then
+        # applies to listing titles too.
+        print(f"Reading {args.csv} ...")
+        learned = ccsv.learn_sets(args.csv)
+        print(f"  {learned} set spelling(s) folded onto known products")
+        conn = store.connect(db_path)
+        try:
+            stats = cl.import_rows(conn, ccsv.rows_from_csv(args.csv),
+                                   source=str(args.csv))
+            totals = cl.stats(conn)
+        finally:
+            conn.close()
+        print(f"  loaded {stats['loaded']:,} card(s)")
+        for label, key in (("cards known", "cards"), ("products", "products"),
+                           ("insert names", "inserts"), ("parallels", "parallels")):
+            print(f"  {label:<14} {totals[key]:,}")
+        print(f"  seasons        {totals['first_year']} - {totals['last_year']}")
+        return 0 if totals["cards"] else 1
+
+    if args.look:
+        # Read one product and report its shape rather than importing it. The
+        # field mapping was written without access to the site, so the first
+        # question is always "did it map anything", and an empty import cannot
+        # answer that.
+        print(f"Reading {args.base}/index.json ...")
+        index = fetch.fetch_json(f"{args.base}/index.json")
+        entries = fetch.index_entries(index)
+        print(f"  {len(entries)} product(s) listed")
+        if not entries:
+            print("\n  Nothing recognised as a product list. The top level is:")
+            print("  " + json.dumps(index, indent=2)[:1200])
+            return 1
+        print(f"  first entry: {json.dumps(entries[0])[:300]}")
+        meta = fetch.product_meta(entries[0])
+        print(f"  read as: year={meta['year']} set={meta['set_name']!r} "
+              f"id={meta['id']!r}")
+
+        payload = fetch.fetch_json(f"{args.base}/{meta['id']}.json")
+        report = fetch.describe(payload, meta)
+        print("\nOne product file:")
+        print(json.dumps(report, indent=2)[:3000])
+        filled = report.get("filled") or {}
+        if filled and not filled.get("card_number") and not filled.get("player"):
+            print("\n  Nothing mapped. Send the block above to Claude -- the "
+                  "field\n  names on the site are not the ones guessed at.")
+            return 1
+        print("\nLooks readable. Run this again without --look to import.")
+        return 0
+
+    conn = store.connect(db_path)
+    try:
+        rows = fetch.fetch_all(args.base, limit=args.limit, log=print)
+        stats = cl.import_rows(conn, rows, source=args.base)
+        totals = cl.stats(conn)
+    finally:
+        conn.close()
+
+    print(f"\nLoaded {stats['loaded']:,} checklist row(s).")
+    print(f"  cards known:   {totals['cards']:,}")
+    print(f"  products:      {totals['products']:,}")
+    print(f"  seasons:       {totals['first_year']} - {totals['last_year']}")
+    print(f"  insert names:  {totals['inserts']:,}")
+    print(f"  parallels:     {totals['parallels']:,}")
+    if not totals["cards"]:
+        print("\nNothing was loaded. Run with --look to see what the site "
+              "returned.", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_url(args) -> int:
     """Print the URL a query/band would hit, without fetching it."""
     config = load_config(args.config)
@@ -2660,6 +2748,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db", default="data/nflcarddb.sqlite")
     p.add_argument("--limit", type=int, default=40)
     p.set_defaults(func=cmd_cards)
+
+    p = sub.add_parser("checklists",
+                       help="load checklists (what cards exist) from thecardhuddle.com")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--base", default="https://thecardhuddle.com/data/checklists")
+    p.add_argument("--csv", help="import the CSV export instead of reading the site "
+                                 "(.csv or .csv.gz)")
+    p.add_argument("--limit", type=int, help="only the first N products")
+    p.add_argument("--look", action="store_true",
+                   help="report what the site returns without importing it")
+    p.set_defaults(func=cmd_checklists)
 
     p = sub.add_parser("url", help="print the search URLs a config would hit")
     p.add_argument("--config", default="config/queries.yml")
