@@ -189,3 +189,26 @@ def test_a_learned_name_never_overrides_a_built_in_designation():
     typed = parse_title("2024 Donruss Optic Ja'Marr Chase Rated Rookie #201")
     plain = parse_title("2024 Donruss Optic Ja'Marr Chase #201")
     assert card_key(typed) == card_key(plain)
+
+
+def test_the_learned_list_does_not_share_a_file_with_the_harvest():
+    """Two commands owning one filename cost a silent loss of work.
+
+    `catalog` wrote eBay's Parallel/Variety values over the same path the
+    learned insert list used, so whichever ran last destroyed the other. The
+    checked-in file even carried a catalog header while being named as an
+    insert list -- and enabling it would have keyed colours as insert sets,
+    which is the bug that had just been fixed elsewhere.
+    """
+    from pathlib import Path
+
+    from nflcarddb.cli import build_parser
+
+    args = build_parser().parse_args(["inserts"])
+    catalog = build_parser().parse_args(["catalog"])
+    assert args.out != getattr(catalog, "words", None)
+    assert args.out != getattr(catalog, "sets", None)
+    assert "learned" in args.out
+    # And the trap itself must be gone rather than merely unreferenced.
+    assert not (Path(__file__).resolve().parents[1]
+                / "config" / "nfl_inserts.txt").exists()

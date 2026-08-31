@@ -2448,7 +2448,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
     p.add_argument("--roster")
-    p.add_argument("--out", default="config/nfl_inserts.txt")
+    # Deliberately NOT config/nfl_inserts.txt. `catalog` used to write
+    # eBay's parallels over that name, so the two commands owned one file
+    # and whichever ran last silently destroyed the other's work. Separate
+    # names make the collision impossible rather than detectable.
+    p.add_argument("--out", default="config/nfl_learned_inserts.txt")
     p.add_argument("--max-contexts", type=int, default=2,
                    help="products a name may appear in and still be an insert")
     p.add_argument("--min-sightings", type=int, default=6)

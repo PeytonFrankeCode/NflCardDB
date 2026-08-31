@@ -45,7 +45,7 @@ echo is not really the name of an insert set - a wrong entry
 echo splits a card in two, which is worse than the problem it
 echo is fixing.
 echo.
-start "" config\nfl_inserts.txt
+start "" config\nfl_learned_inserts.txt
 echo.
 set /p OK=Happy with the list? Turn it on now? (y/n):
 if /i not "%OK%"=="y" goto LATER

@@ -302,3 +302,33 @@ def test_print_run_stays_out_of_the_key_when_a_number_is_present():
     without = parse_title("2025 Panini Select Jayden Daniels Dragonscale #12")
     assert with_run.print_run == 81
     assert card_key(with_run) == card_key(without)
+
+
+def test_a_missing_card_number_is_never_inferred_from_a_sibling_sale():
+    """Tempting, measured, and rejected -- so it does not get "fixed" later.
+
+    Half of real titles carry no card number at all, and the obvious repair is
+    to borrow one: if other sales of the same year, set, player and parallel
+    state a number, apply it to the ones that do not. In a 1,500-title sample
+    every such borrow agreed, which looked like proof.
+
+    It was an artifact of the sample. Against the full catalogue one
+    description routinely maps to several real cards, because the insert set
+    is in the *number* and not in the title:
+
+        "2026 Topps Josh Allen"  ->  #TD-16, #WC-1, #PC-7, #S-5
+
+    Borrowing there would not fill a gap, it would invent a fact -- and a wrong
+    grouping silently averages two cards into a price history that describes
+    neither, which is worse than no grouping at all.
+    """
+    numberless = parse_title("2026 Topps Josh Allen Rookie RC Bills")
+    td = parse_title("2026 Topps Josh Allen #TD-16 Bills")
+    wc = parse_title("2026 Topps Josh Allen #WC-1 Bills")
+
+    assert numberless.card_number is None
+    assert td.card_number != wc.card_number
+    # The numbered cards stay apart from each other AND from the unnumbered
+    # one. If a future change starts inferring, all three collapse and this
+    # fails.
+    assert len({card_key(numberless), card_key(td), card_key(wc)}) == 3
