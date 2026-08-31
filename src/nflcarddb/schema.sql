@@ -155,3 +155,49 @@ CREATE TABLE IF NOT EXISTS sync_state (
     rows_sent  INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
+
+-- Manufacturer checklists: what cards actually exist.
+--
+-- Everything else in this project infers a card's identity from free text a
+-- seller typed. This is the opposite -- a list of the cards that were printed,
+-- so identity can be looked up rather than guessed. It answers three questions
+-- nothing else can: which insert a number belongs to (#TD-34 is Touchdown),
+-- what a set's real parallels are called, and whether a parse names a card that
+-- exists at all.
+--
+-- Keyed by the same card_key the sales carry, so a checklist row and a sale of
+-- that card meet on one column.
+CREATE TABLE IF NOT EXISTS checklist (
+    card_key    TEXT PRIMARY KEY,
+    year        INTEGER NOT NULL,
+    set_name    TEXT NOT NULL,
+    -- The insert set, NULL for a base card. This is the column that pays for
+    -- the whole table: an insert restarts numbering at one, and the insert's
+    -- name is usually absent from the seller's title.
+    subset      TEXT,
+    card_number TEXT,
+    player      TEXT,
+    parallel    TEXT,
+    print_run   INTEGER,
+    is_auto     INTEGER NOT NULL DEFAULT 0,
+    is_relic    INTEGER NOT NULL DEFAULT 0,
+    source      TEXT,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_who ON checklist (year, set_name, player);
+CREATE INDEX IF NOT EXISTS idx_checklist_num ON checklist (year, set_name, card_number);
+
+-- Which (year, set) pairs the checklist actually covers.
+--
+-- Without this, "no matching row" is ambiguous between "that card does not
+-- exist" and "we have never loaded that product" -- and treating the second as
+-- the first would condemn every card in an unloaded set as a bad parse.
+CREATE TABLE IF NOT EXISTS checklist_sets (
+    year       INTEGER NOT NULL,
+    set_name   TEXT NOT NULL,
+    cards      INTEGER NOT NULL DEFAULT 0,
+    source     TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (year, set_name)
+);
