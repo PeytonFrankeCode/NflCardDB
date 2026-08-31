@@ -103,3 +103,4 @@ queries:
     category: "261328"
 designations: config/nfl_words.txt
 sets: config/nfl_sets.txt
+inserts: config/nfl_learned_inserts.txt
