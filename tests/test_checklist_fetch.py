@@ -226,3 +226,35 @@ def test_other_sports_are_left_out(tmp_path):
         "p,2024 Prizm,2024,Prizm,Football,s,Base Set,base,2,B Player,,,Base,",
     ])
     assert [r["card_number"] for r in ccsv.rows_from_csv(path)] == ["2"]
+
+
+def test_the_export_is_found_without_being_named(tmp_path):
+    """Saving the file somewhere sensible has to be enough.
+
+    "Drag this onto that icon" cannot be scheduled and has to be remembered
+    every time, which is exactly the kind of step that quietly stops happening.
+    """
+    from nflcarddb import checklist_csv as ccsv
+
+    (tmp_path / "data" / "checklists").mkdir(parents=True)
+    target = tmp_path / "data" / "checklists" / "checklists-variants.csv"
+    target.write_text("year,brand\n")
+    assert ccsv.find_export(tmp_path) == target
+
+
+def test_the_variants_export_wins_over_the_flattened_one(tmp_path):
+    """The cards export flattens parallels into a sentence and loses the print
+    runs, so picking it when both are present would silently cost the columns
+    the whole thing is for."""
+    from nflcarddb import checklist_csv as ccsv
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "checklistscards.csv").write_text("year,brand\n")
+    variants = tmp_path / "data" / "checklistsvariants.csv"
+    variants.write_text("year,brand\n")
+    assert ccsv.find_export(tmp_path) == variants
+
+
+def test_nothing_to_find_is_not_an_error(tmp_path):
+    from nflcarddb import checklist_csv as ccsv
+    assert ccsv.find_export(tmp_path) is None

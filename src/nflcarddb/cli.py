@@ -2304,18 +2304,29 @@ def cmd_checklists(args) -> int:
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
 
-    if args.csv:
+    # An export sitting in the project or the download folder beats the site,
+    # which serves a summary: 11,797 rows with 4 insert names, against the
+    # export's 2,012,671 with 4,355. Found rather than asked for, because
+    # "drag this onto that" cannot be scheduled and has to be remembered.
+    source = args.csv
+    if not source and not args.look and not args.site:
+        found = ccsv.find_export()
+        if found:
+            print(f"Found a checklist export: {found}")
+            source = found
+
+    if source:
         # The export, rather than the site. Set names are registered first and
         # as their own pass, because the folding is global: it teaches the
         # parser that "Panini Prizm" and "Prizm" are one product, which then
         # applies to listing titles too.
-        print(f"Reading {args.csv} ...")
-        learned = ccsv.learn_sets(args.csv)
+        print(f"Reading {source} ...")
+        learned = ccsv.learn_sets(source)
         print(f"  {learned} set spelling(s) folded onto known products")
         conn = store.connect(db_path)
         try:
-            stats = cl.import_rows(conn, ccsv.rows_from_csv(args.csv),
-                                   source=str(args.csv))
+            stats = cl.import_rows(conn, ccsv.rows_from_csv(source),
+                                   source=str(source))
             totals = cl.stats(conn)
         finally:
             conn.close()
@@ -2757,8 +2768,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default="config/queries.yml")
     p.add_argument("--db")
     p.add_argument("--base", default="https://thecardhuddle.com/data/checklists")
-    p.add_argument("--csv", help="import the CSV export instead of reading the site "
-                                 "(.csv or .csv.gz)")
+    p.add_argument("--csv", help="a specific CSV export to import (.csv or "
+                                 ".csv.gz). Without it, one is looked for in "
+                                 "data\\checklists, the project folder and "
+                                 "your Downloads")
+    p.add_argument("--site", action="store_true",
+                   help="read thecardhuddle.com even if an export is present")
     p.add_argument("--limit", type=int, help="only the first N products")
     p.add_argument("--look", action="store_true",
                    help="report what the site returns without importing it")

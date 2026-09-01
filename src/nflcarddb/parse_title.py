@@ -377,13 +377,31 @@ CARD_NUM_RE = re.compile(
 # sale into a genuine card's price history.
 MULTI_CARD_RE = re.compile(
     r"\b(?:pick\s+your|you\s+pick|complete\s+your|choose\s+your|"
-    r"your\s+choice|build\s+your)\b", re.I
+    r"your\s+choice|build\s+your|"
+    # A lot is several cards sold for one price, so treating it as a single
+    # card puts the price of three cards into one card's history. Peyton's own
+    # data had "2026 Topps Flagship Fernando Mendoza Lot Of 3" grouped with
+    # single copies of #301.
+    r"lot\s+of\s+\d+|\d+\s*-?\s*card\s+lot|card\s+lot)\b", re.I
 )
 # "TRC-15" and "TF-7" with no "#" in front. 1,000+ sales carried a card number
 # in this shape and lost it entirely, because every pattern required the hash.
 # Letters-hyphen-digits is specific enough to be safe on its own; a bare number
 # is not, which is why only the prefixed form is accepted here.
 BARE_CARD_NUM_RE = re.compile(r"\b([A-Z]{2,4}-\d{1,4})\b")
+
+# A card number made only of letters, which Topps Now uses: "#FMEN" is Fernando
+# Mendoza's card. 59 sales of one card sat in a bucket because every number
+# pattern demanded a digit.
+#
+# Only after a "#", and never a word that means something else there -- "#RC"
+# and "#PSA" are not card numbers, and matching them would attach a number to
+# cards that have none.
+LETTER_CARD_NUM_RE = re.compile(r"#\s?([A-Z]{3,6})\b(?!-?\d)", re.I)
+NOT_A_LETTER_NUMBER = {
+    "psa", "bgs", "sgc", "cgc", "csg", "hga", "tag", "isa", "rc", "ssp",
+    "mint", "gem", "hot", "rare", "auto", "lot", "nfl", "psa10", "new",
+}
 
 ROOKIE_RE = re.compile(r"\b(RC|RY|ROOKIE|ROOKIE\s+CARD|1ST\s+YEAR)\b", re.I)
 AUTO_RE = re.compile(r"\b(AUTO(?:GRAPH(?:ED)?)?|SIGNED|ON[-\s]CARD)\b", re.I)
@@ -789,6 +807,19 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         if m:
             attrs.card_number = m.group(1).upper()
             hits += 1
+
+    if not attrs.card_number:
+        # Last, and only after every pattern containing a digit has failed:
+        # "#FMEN" is a real Topps Now card number, but "#PSA" and "#RC" are not,
+        # so a letters-only match is the weakest evidence here and must not beat
+        # a numbered one.
+        for candidate in LETTER_CARD_NUM_RE.finditer(work.remaining):
+            if candidate.group(1).lower() in NOT_A_LETTER_NUMBER:
+                continue
+            work.claim(candidate.start(), candidate.end())
+            attrs.card_number = candidate.group(1).upper()
+            hits += 1
+            break
 
     m = _take(work, SERIAL_RE)
     if m:

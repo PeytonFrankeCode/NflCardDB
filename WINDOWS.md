@@ -480,9 +480,14 @@ are one card at all, which is the thing you came for.
 
 ## Regrouping everything (the one that makes it usable)
 
-**Double-click `regroup.bat`.** If you have the checklist export as a file,
-drag the `.csv.gz` onto `regroup.bat` instead of double-clicking it; otherwise
-it reads thecardhuddle.com directly.
+**Save the checklist export into `data\checklists\`, then double-click
+`regroup.bat`.** That is the whole thing — no path to type and nothing to drag.
+
+It looks for the file in `data\checklists\`, then the project folder, then
+your Downloads, newest first, so leaving it wherever your browser put it also
+works. If it finds nothing it reads thecardhuddle.com instead — which works,
+but the site serves a *summary*: 11,797 rows with 4 insert names, against the
+export's 2,012,671 rows with 4,355 inserts and 3,970 parallels. Use the export.
 
 It does four things, in an order that matters:
 

@@ -221,3 +221,35 @@ def test_a_reparse_is_sent_by_the_next_incremental_upload(tmp_path):
     _, after = build_sql(db_path, changed_since=mark)
     assert after["rows"] == 1, "a reparse must reach the cloud copy"
     assert after["watermark"] > mark
+
+
+def test_a_full_regroup_does_not_break_the_upload(tmp_path):
+    """Binding one SQL parameter per touched card hit SQLite's variable limit.
+
+    It only fired when the whole database was regrouped at once -- which is
+    exactly the run that matters -- so an upload that had worked for months
+    failed the first time it was needed most.
+    """
+    from nflcarddb import db as store
+    from nflcarddb.api_export import _card_rollups
+    from nflcarddb.models import Sale
+    from nflcarddb.parse_title import parse_title
+
+    conn = store.connect(tmp_path / "big.db")
+    run = store.start_run(conn, "2026-01-01")
+    sales = [Sale(item_id=f"{9_000_000_000 + i}",
+                  title=f"2024 Panini Prizm Caleb Williams #{i} RC",
+                  price_cents=1000 + i, shipping_cents=0,
+                  sold_date="2026-01-01", currency="USD", best_offer=False,
+                  query_id="q") for i in range(3000)]
+    store.upsert_sales(conn, sales, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in sales],
+                       "title/1")
+    store.finish_run(conn, run, "ok", len(sales), len(sales), len(sales))
+
+    keys = {r[0] for r in conn.execute(
+        "SELECT card_key FROM cards WHERE card_key IS NOT NULL")}
+    assert len(keys) > 999, "the fixture must exceed SQLite's variable limit"
+    cards, _ = _card_rollups(conn, keys)
+    assert len(cards) == len(keys)
+    conn.close()

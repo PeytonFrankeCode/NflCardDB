@@ -28,17 +28,23 @@ echo.
 echo Around ten minutes in total. Nothing is deleted at any
 echo point - every step rewrites, so running it twice is safe.
 echo.
+echo The checklist file is found automatically. Keep it in
+echo   data\checklists\   (or just leave it in Downloads)
+echo and this needs nothing from you but a double-click.
+echo.
 
 REM ---- 1. checklist --------------------------------------------------------
-if "%~1"=="" goto FROMSITE
-echo [1/4] Loading the checklist from %~1 ...
+REM No path to type and nothing to drag. The checklist export is looked for in
+REM data\checklists, this folder, and your Downloads - so saving the file once
+REM is enough, and every future run finds it on its own.
+echo [1/4] Loading the checklist ...
+if "%~1"=="" goto FINDIT
+echo       using the file you dropped on this script
 python -m nflcarddb checklists --csv "%~1"
 if errorlevel 1 goto NOCHECKLIST
 goto REPARSE
 
-:FROMSITE
-echo [1/4] Loading the checklist from thecardhuddle.com ...
-echo       (drag a .csv.gz onto this file to use an export instead)
+:FINDIT
 python -m nflcarddb checklists
 if errorlevel 1 goto NOCHECKLIST
 
