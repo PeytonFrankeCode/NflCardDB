@@ -45,6 +45,41 @@ BASE_SECTIONS = {
 REQUIRED = ("year", "brand", "card_number", "player")
 
 
+# Where the export is looked for when nobody says. In preference order, and
+# the point is that none of them require typing a path or dragging a file: the
+# download folder is where a browser puts it, and data\checklists is where it
+# ends up if it is ever tidied away.
+SEARCH_DIRS = ("data/checklists", "data", ".", "~/Downloads", "~/Desktop")
+
+# The variants export first: it carries parallel and print run as real columns,
+# where the cards export flattens them into a sentence and loses them.
+SEARCH_NAMES = ("*checklist*variant*.csv.gz", "*checklist*variant*.csv",
+                "*checklist*.csv.gz", "*checklist*.csv")
+
+
+def find_export(root=".") -> Optional[Path]:
+    """The newest checklist export lying around, or None.
+
+    Saves a step that turns out to matter: "put the file somewhere sensible"
+    is a thing anyone can do, while "drag it onto this exact icon" has to be
+    remembered every time and cannot be scheduled.
+    """
+    root = Path(root)
+    for pattern in SEARCH_NAMES:
+        found: list[Path] = []
+        for directory in SEARCH_DIRS:
+            base = (Path(directory).expanduser() if directory.startswith("~")
+                    else root / directory)
+            try:
+                found.extend(p for p in base.glob(pattern) if p.is_file())
+            except OSError:
+                continue        # an unreadable or absent folder is not an error
+        if found:
+            # Newest wins, so re-downloading a corrected export just works.
+            return max(found, key=lambda p: p.stat().st_mtime)
+    return None
+
+
 def _open(path) -> io.TextIOBase:
     path = Path(path)
     if path.suffix == ".gz":
