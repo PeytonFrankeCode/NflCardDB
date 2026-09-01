@@ -173,12 +173,20 @@ def _card_rollups(
     """
     where = "WHERE c.card_key IS NOT NULL AND s.sold_date IS NOT NULL " \
             "AND s.price_cents IS NOT NULL AND s.currency = 'USD'"
-    params: tuple = ()
+    join = ""
     if keys is not None:
         if not keys:
             return ([], [])
-        where += f" AND c.card_key IN ({','.join('?' * len(keys))})"
-        params = tuple(keys)
+        # Through a temporary table rather than `IN (?, ?, ...)`. A full reparse
+        # touches every card, and binding one parameter per key hit SQLite's
+        # limit on variables in a statement -- an upload that had worked for
+        # months failed the first time the whole database was regrouped, which
+        # is exactly when it mattered most.
+        conn.execute("CREATE TEMP TABLE IF NOT EXISTS _touched (card_key TEXT PRIMARY KEY)")
+        conn.execute("DELETE FROM _touched")
+        conn.executemany("INSERT OR IGNORE INTO _touched VALUES (?)",
+                         [(k,) for k in keys])
+        join = "JOIN _touched t ON t.card_key = c.card_key"
 
     grouped: dict[str, dict] = {}
     for r in conn.execute(
@@ -187,11 +195,10 @@ def _card_rollups(
                c.set_name, c.subset, c.parallel, c.card_number, c.print_run,
                c.is_rookie, c.is_auto, c.is_relic, c.grader, c.grade,
                s.sold_date, s.price_cents, s.image_url
-        FROM cards c JOIN sales s USING (item_id)
+        FROM cards c JOIN sales s USING (item_id) {join}
         {where}
         ORDER BY s.sold_date, s.item_id
         """,
-        params,
     ):
         card = grouped.setdefault(r["card_key"], {
             "card_key": r["card_key"], "names": Counter(), "prices": [],

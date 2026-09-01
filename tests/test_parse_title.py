@@ -615,3 +615,37 @@ def test_a_named_patch_auto_is_a_different_card_from_a_plain_one():
     # ...and both are still recognised as an autographed relic.
     assert named.is_auto and named.is_relic
     assert plain.is_auto and plain.is_relic
+
+
+def test_a_letters_only_card_number_is_read():
+    """Topps Now numbers cards "#FMEN". 59 sales of one card sat in a bucket
+    because every number pattern demanded a digit."""
+    a = parse_title("2026 TOPPS NOW #FMEN FERNANDO MENDOZA PSA 10")
+    assert a.card_number == "FMEN"
+    b = parse_title("2026 Topps Now - Fernando Mendoza #FMEN Raiders")
+    assert card_key(a) == card_key(b)
+
+
+def test_a_hash_in_front_of_a_grader_is_not_a_card_number():
+    """The risk the letters-only pattern brings, and the reason it runs last
+    and against a blocklist: "#PSA" and "#RC" must not become card numbers."""
+    for title in ("2024 Prizm Caleb Williams #PSA 10 Bears",
+                  "2024 Prizm Caleb Williams #RC Bears",
+                  "2024 Prizm Caleb Williams #MINT Bears"):
+        assert parse_title(title).card_number is None, title
+
+
+def test_a_numbered_card_still_wins_over_a_letters_only_match():
+    a = parse_title("2025 Topps Chrome #KAI-2 Patrick Mahomes SSP")
+    assert a.card_number == "KAI-2"
+
+
+def test_a_lot_is_not_one_card():
+    """Several cards for one price. Treating it as a single card puts the price
+    of three into one card's history -- Peyton's data had "Fernando Mendoza Lot
+    Of 3" grouped with single copies of #301."""
+    for title in ("2026 Topps Flagship Fernando Mendoza Lot Of 3",
+                  "2026 Flagship Fernando Mendoza Rookie Card Lot",
+                  "Josh Allen 5 Card Lot Prizm 2024"):
+        a = parse_title(title)
+        assert card_key(a) is None, title
