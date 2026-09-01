@@ -148,3 +148,32 @@ def test_an_empty_d1_restores_nothing_without_erroring(tmp_path, monkeypatch):
     result = restore("a", "d", "t", str(tmp_path / "empty.db"))
     assert result["sales_restored"] == 0
     assert result["first_day"] is None
+
+
+def test_a_restored_sale_is_grouped_like_a_collected_one(tmp_path, monkeypatch):
+    """Otherwise the same title lands in two different piles depending only on
+    which machine happened to collect it."""
+    from nflcarddb import checklist as cl
+    from nflcarddb import d1_restore
+    from nflcarddb import db as store
+
+    db_path = tmp_path / "r.db"
+    conn = store.connect(db_path)
+    cl.import_rows(conn, [{"year": 2026, "set_name": "Topps",
+                           "subset": "Touchdown", "card_number": "TD-16",
+                           "player": "Josh Allen"}], source="test")
+    conn.close()
+
+    page = [{"item_id": "970000000001", "sold_date": "2026-01-01",
+             "title": "2026 Topps Josh Allen #TD-16 Bills",
+             "price_cents": 1000, "currency": "USD", "best_offer": 0}]
+    monkeypatch.setattr(d1_restore, "fetch_pages",
+                        lambda *a, **k: iter([page]))
+    monkeypatch.setattr(d1_restore, "count_rows", lambda *a, **k: 1)
+    d1_restore.restore("a", "d", "t", str(db_path))
+
+    conn = store.connect(db_path)
+    subset, key = conn.execute("SELECT subset, card_key FROM cards").fetchone()
+    conn.close()
+    assert subset == "Touchdown"
+    assert "touchdown" in key
