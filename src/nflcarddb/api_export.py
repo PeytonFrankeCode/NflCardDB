@@ -74,8 +74,12 @@ def _rows_to_export(
         where += " AND s.sold_date >= ?"
         params = (since,)
     if changed_since:
-        where += " AND s.updated_at > ?"
-        params = (*params, changed_since)
+        # Either end moving is a reason to re-send: a re-collected sale changes
+        # `updated_at`, and a reparse changes `parsed_at` while leaving the sale
+        # untouched. Filtering on the sale alone meant a whole reparse never
+        # reached the cloud.
+        where += " AND (s.updated_at > ? OR COALESCE(c.parsed_at, '') > ?)"
+        params = (*params, changed_since, changed_since)
 
     return conn.execute(
         f"""

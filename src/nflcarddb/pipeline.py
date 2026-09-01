@@ -422,9 +422,20 @@ def run_backfill(
 
 
 def reparse_titles(
-    db_path: str, roster_path: Optional[str] = None, all_rows: bool = False
+    db_path: str, roster_path: Optional[str] = None, all_rows: bool = False,
+    use_checklist: bool = True,
 ) -> int:
-    """Re-run the title parser, e.g. after improving its vocabularies."""
+    """Re-run the title parser, e.g. after improving its vocabularies.
+
+    When a checklist has been loaded, each parse is then looked up against it
+    and whatever the title left out is filled in -- the insert set above all,
+    which changes the card's identity because an insert restarts numbering at
+    one. That step is deliberately after parsing rather than inside it: the
+    insert names were tried as parser vocabulary first and measured worse, and
+    a card the checklist cannot place is left exactly as parsed.
+    """
+    from . import checklist as cl
+
     conn = store.connect(db_path)
     roster = load_roster(roster_path) if roster_path else None
 
@@ -433,11 +444,17 @@ def reparse_titles(
     else:
         rows = store.unparsed_items(conn)
 
-    count = store.upsert_cards(
-        conn,
-        [(item_id, parse_title(title, roster)) for item_id, title in rows],
-        TITLE_PARSER_VERSION,
-    )
+    known = use_checklist and bool(
+        conn.execute("SELECT 1 FROM checklist_sets LIMIT 1").fetchone())
+
+    parsed = []
+    for item_id, title in rows:
+        attrs = parse_title(title, roster)
+        if known:
+            cl.enrich(conn, attrs)
+        parsed.append((item_id, attrs))
+
+    count = store.upsert_cards(conn, parsed, TITLE_PARSER_VERSION)
     conn.close()
     return count
 

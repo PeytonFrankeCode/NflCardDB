@@ -478,6 +478,51 @@ sold in two different markets, so the website lets you switch between grades on
 the chart — but splitting them into separate cards would hide the fact that they
 are one card at all, which is the thing you came for.
 
+## Regrouping everything (the one that makes it usable)
+
+**Double-click `regroup.bat`.** If you have the checklist export as a file,
+drag the `.csv.gz` onto `regroup.bat` instead of double-clicking it; otherwise
+it reads thecardhuddle.com directly.
+
+It does four things, in an order that matters:
+
+1. **Loads the checklist** — the list of cards that actually exist.
+2. **Re-reads every title** against it.
+3. **Refreshes the dashboard files.**
+4. **Uploads everything to Cloudflare**, which is what your other site reads.
+
+It is one script rather than four on purpose, because getting the order wrong
+fails *silently*. Regrouping before the checklist is loaded just redoes the
+grouping you already had — it looks like the whole thing worked and changes
+nothing. Uploading before regrouping sends the old keys.
+
+About ten minutes. Nothing is deleted at any point: every step rewrites, so
+running it twice is safe, and if the upload fails your sales are still
+regrouped on this PC — `d1-push.bat` on its own will finish the job.
+
+### What the checklist actually changes
+
+Step 2 is the one that alters your data. The parser keeps reading only what it
+reads well — year, set, card number, player — and then the card is **looked up**
+and the insert name is read off the checklist rather than hunted for in the
+title. So:
+
+```
+"2025 Topps Chrome Football Patrick Mahomes II #KAI-2 Kaiju"  ->  Kaiju
+"2024 Panini Prizm - Prizmania Drake Maye #3 (RC)"            ->  Prizmania
+```
+
+Those are separate cards from the base card, and until now they were merged
+into it. A listing the checklist cannot place is left exactly as it was, so
+this cannot damage cards it knows nothing about.
+
+**The obvious version of this was wrong**, which is worth knowing because it
+looks so reasonable: teaching the parser the checklist's 4,355 insert names
+made things *worse*, from 435 correctly-identified cards down to 377 over 1,500
+real listings. An insert name belongs to one product — "Legends" is a section
+heading somewhere else — so a global list of them poisons every title that
+happens to contain the word.
+
 ## How accurate is it?
 
 **Double-click `accuracy.bat`.** It matches up any sales collected before this

@@ -247,3 +247,56 @@ def test_parallels_of_one_card_still_count_as_identified(conn):
     attrs = parse_title("2026 Topps Fernando Mendoza #301 Rookie RC")
     row = cl.identify(conn, attrs)
     assert row is not None and row["card_number"] == "301"
+
+
+def test_reparsing_uses_the_checklist_when_one_is_loaded(tmp_path):
+    """The wiring that makes any of this reach the grouping."""
+    from nflcarddb.models import Sale
+    from nflcarddb.pipeline import reparse_titles
+
+    db_path = tmp_path / "p.db"
+    c = store.connect(db_path)
+    run = store.start_run(c, "2026-01-01")
+    store.upsert_sales(c, [Sale(
+        item_id="900000000001", title="2026 Topps Josh Allen #TD-16 Bills",
+        price_cents=1000, shipping_cents=0, sold_date="2026-01-01",
+        currency="USD", best_offer=False, query_id="q")], run)
+    store.finish_run(c, run, "ok", 1, 1, 1)
+    c.close()
+
+    # Without a checklist: parsed as-is, no insert.
+    reparse_titles(str(db_path), all_rows=True)
+    c = store.connect(db_path)
+    assert c.execute("SELECT subset FROM cards").fetchone()[0] is None
+    cl.import_rows(c, TOPPS_2026, source="test")
+    c.close()
+
+    # With one: the insert arrives and the card keys under it.
+    reparse_titles(str(db_path), all_rows=True)
+    c = store.connect(db_path)
+    subset, key = c.execute("SELECT subset, card_key FROM cards").fetchone()
+    assert subset == "Touchdown"
+    assert "touchdown" in key
+    c.close()
+
+
+def test_reparsing_can_be_told_to_ignore_the_checklist(tmp_path):
+    """So the effect of loading one stays measurable rather than assumed."""
+    from nflcarddb.models import Sale
+    from nflcarddb.pipeline import reparse_titles
+
+    db_path = tmp_path / "q.db"
+    c = store.connect(db_path)
+    run = store.start_run(c, "2026-01-01")
+    store.upsert_sales(c, [Sale(
+        item_id="900000000002", title="2026 Topps Josh Allen #TD-16 Bills",
+        price_cents=1000, shipping_cents=0, sold_date="2026-01-01",
+        currency="USD", best_offer=False, query_id="q")], run)
+    store.finish_run(c, run, "ok", 1, 1, 1)
+    cl.import_rows(c, TOPPS_2026, source="test")
+    c.close()
+
+    reparse_titles(str(db_path), all_rows=True, use_checklist=False)
+    c = store.connect(db_path)
+    assert c.execute("SELECT subset FROM cards").fetchone()[0] is None
+    c.close()

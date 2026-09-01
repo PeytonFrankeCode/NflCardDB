@@ -173,3 +173,51 @@ def test_empty_database_exports_without_error(tmp_path):
     conn = load("api/schema.sql", sql)
     assert conn.execute("SELECT v FROM meta WHERE k='updated_at'").fetchone() is not None
     conn.close()
+
+
+def test_a_reparse_is_sent_by_the_next_incremental_upload(tmp_path):
+    """The silent failure this guards is the worst kind: it reports success.
+
+    Re-parsing rewrites every card_key without touching a single sale row, so
+    an incremental filter that looks only at `sales.updated_at` finds nothing
+    to send. The push then succeeds, having uploaded nothing, and the cloud
+    copy stays grouped the way it was before the fix -- with no error anywhere
+    to say so.
+    """
+    from nflcarddb import db as store
+    from nflcarddb.api_export import build_sql
+    from nflcarddb.models import Sale
+    from nflcarddb.pipeline import reparse_titles
+
+    db_path = tmp_path / "r.db"
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2026-01-01")
+    store.upsert_sales(conn, [Sale(
+        item_id="950000000001", title="2026 Topps Josh Allen #TD-16 Bills",
+        price_cents=1000, shipping_cents=0, sold_date="2026-01-01",
+        currency="USD", best_offer=False, query_id="q")], run)
+    store.finish_run(conn, run, "ok", 1, 1, 1)
+    conn.close()
+
+    reparse_titles(str(db_path), all_rows=True)
+    _, first = build_sql(db_path)
+    mark = first["watermark"]
+    assert first["rows"] == 1
+
+    # Nothing has changed: the next upload should be empty.
+    _, quiet = build_sql(db_path, changed_since=mark)
+    assert quiet["rows"] == 0
+
+    # Now a checklist arrives and the sale regroups. The sale row itself is
+    # untouched, and this must still be sent.
+    conn = store.connect(db_path)
+    from nflcarddb import checklist as cl
+    cl.import_rows(conn, [{"year": 2026, "set_name": "Topps",
+                           "subset": "Touchdown", "card_number": "TD-16",
+                           "player": "Josh Allen"}], source="test")
+    conn.close()
+    reparse_titles(str(db_path), all_rows=True)
+
+    _, after = build_sql(db_path, changed_since=mark)
+    assert after["rows"] == 1, "a reparse must reach the cloud copy"
+    assert after["watermark"] > mark

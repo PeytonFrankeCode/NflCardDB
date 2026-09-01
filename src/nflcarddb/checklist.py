@@ -268,10 +268,15 @@ def enrich(conn: sqlite3.Connection, attrs: CardAttrs) -> list[str]:
 
     Returns the names of the fields that changed.
     """
-    row = identify(conn, attrs)
-    if not row:
+    if not attrs or not attrs.card_number or not attrs.player:
+        return []
+    # Fetched once. This runs per sale over the whole database, so a second
+    # lookup here is another 124,000 queries for one field.
+    rows = candidates(conn, attrs)
+    if not rows or len({r["subset"] for r in rows}) != 1:
         return []
 
+    row = rows[0]
     changed = []
     # The insert set. This is the one that changes a card's identity, because
     # an insert restarts numbering at one.
@@ -284,7 +289,7 @@ def enrich(conn: sqlite3.Connection, attrs: CardAttrs) -> list[str]:
         attrs.card_number = row["card_number"]
         changed.append("card_number")
     if attrs.print_run is None:
-        runs = {r["print_run"] for r in candidates(conn, attrs) if r["print_run"]}
+        runs = {r["print_run"] for r in rows if r["print_run"]}
         if len(runs) == 1:
             attrs.print_run = runs.pop()
             changed.append("print_run")

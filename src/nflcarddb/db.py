@@ -22,7 +22,15 @@ log = logging.getLogger(__name__)
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Timestamps for the incremental-upload watermark.
+
+    Milliseconds, not seconds. The watermark comparison is strictly greater
+    than, so anything written in the same second as the last upload was
+    silently skipped -- and a reparse writes tens of thousands of rows inside
+    one second. Ordering against older second-precision values still holds:
+    "...:00.123+00:00" sorts after "...:00+00:00", because "." is above "+".
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 def new_run_id() -> str:
@@ -353,5 +361,15 @@ def record_sync(conn: sqlite3.Connection, target: str, pushed_at: str,
 
 
 def max_updated_at(conn: sqlite3.Connection) -> Optional[str]:
-    row = conn.execute("SELECT MAX(updated_at) FROM sales").fetchone()
+    """How far an incremental upload has got.
+
+    The parse time counts as well as the collection time. A reparse rewrites
+    every card_key without touching a single sale, so a watermark taken from
+    `sales` alone does not move -- and the next upload sends nothing, leaving
+    the cloud copy grouped the way it was before the fix. That failure is
+    silent at both ends: the push reports success having sent no rows.
+    """
+    row = conn.execute(
+        "SELECT MAX(m) FROM (SELECT MAX(updated_at) AS m FROM sales "
+        "UNION ALL SELECT MAX(parsed_at) FROM cards)").fetchone()
     return row[0] if row else None

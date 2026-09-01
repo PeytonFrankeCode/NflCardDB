@@ -134,7 +134,8 @@ def cmd_parse(args) -> int:
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
     roster = args.roster or (config.roster if config else None)
-    count = reparse_titles(db_path, roster, all_rows=args.all)
+    count = reparse_titles(db_path, roster, all_rows=args.all,
+                           use_checklist=not args.no_checklist)
     print(f"parsed {count} title(s)")
     return 0
 
@@ -2435,6 +2436,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db")
     p.add_argument("--roster")
     p.add_argument("--all", action="store_true", help="reparse every row, not just new ones")
+    p.add_argument("--no-checklist", action="store_true",
+                   help="parse from the title alone, ignoring any loaded checklist")
     p.set_defaults(func=cmd_parse)
 
     p = sub.add_parser("top", help="the biggest sales in a window")
