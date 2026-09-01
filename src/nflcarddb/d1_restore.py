@@ -102,8 +102,15 @@ def restore(
     throughout, so this merges rather than replacing. A machine that still has
     some data keeps it and gains whatever D1 has that it lacks.
     """
+    from . import checklist as cl
+
     conn = store.connect(db_path)
     roster = load_roster(roster_path) if roster_path else None
+    # A restored sale is parsed exactly the way a collected one is, checklist
+    # included. Without this the rows pulled back would carry a different
+    # grouping from the rows already here -- the same title in two piles,
+    # depending only on which machine happened to collect it.
+    known = bool(conn.execute("SELECT 1 FROM checklist_sets LIMIT 1").fetchone())
     restored = 0
     days: set[str] = set()
 
@@ -117,11 +124,13 @@ def restore(
             # in D1 and inventing per-day detail would be fiction.
             run_id = store.start_run(conn, None)
             store.upsert_sales(conn, sales, run_id)
-            store.upsert_cards(
-                conn,
-                [(s.item_id, parse_title(s.title, roster)) for s in sales],
-                TITLE_PARSER_VERSION,
-            )
+            parsed = []
+            for sale in sales:
+                attrs = parse_title(sale.title, roster)
+                if known:
+                    cl.enrich(conn, attrs)
+                parsed.append((sale.item_id, attrs))
+            store.upsert_cards(conn, parsed, TITLE_PARSER_VERSION)
             store.finish_run(conn, run_id, "ok", 0, len(sales), len(sales))
 
             restored += len(sales)
