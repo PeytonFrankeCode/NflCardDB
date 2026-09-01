@@ -520,3 +520,57 @@ def test_an_upload_lands_in_a_migrated_database(tmp_path):
     row = remote.execute(
         "SELECT card_name, sales, subset, numberless FROM cards").fetchone()
     assert row[1] == 4 and row[3] == 0
+
+
+def _push(tmp_path, monkeypatch, local, remote):
+    """Run cmd_d1_push with the network replaced, and return (exit code, IO).
+
+    The helpers are imported inside the function, so they are patched on the
+    modules they come from rather than on cli.
+    """
+    import nflcarddb.cli as cli
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr(cli, "_local_sale_count", lambda path: local)
+    monkeypatch.setattr("nflcarddb.d1_http.verify",
+                        lambda *a, **k: {"sales": remote})
+    monkeypatch.setattr("nflcarddb.d1_http.push_sql",
+                        lambda *a, **k: __import__("nflcarddb.d1_http",
+                                                   fromlist=["PushResult"]
+                                                   ).PushResult(statements=1, batches=1))
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", lambda *a, **k: [])
+    monkeypatch.setattr("nflcarddb.api_export.export_api_sql",
+                        lambda *a, **k: {"rows": 10, "bytes": 100,
+                                         "watermark": "2026-01-01"})
+    out = tmp_path / "o.sql"
+    out.write_text("SELECT 1;")
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "x.db"), "--out", str(out)])
+    return cli.cmd_d1_push(args)
+
+
+def test_d1_holding_more_than_this_pc_is_not_an_upload_failure(
+        tmp_path, capsys, monkeypatch):
+    """It reported a successful upload of 151,721 rows as a failure.
+
+    D1 keeps every sale ever sent to it; a local database can be rebuilt,
+    restored or pruned. So the remote legitimately runs ahead, and only a
+    SHORTFALL means something did not land.
+    """
+    code = _push(tmp_path, monkeypatch, local=151_721, remote=543_935)
+    assert code == 0, "a remote ahead of local is not a failure"
+    assert "cannot reach them" in capsys.readouterr().out
+
+
+def test_fewer_rows_in_d1_than_here_is_still_a_failure(
+        tmp_path, capsys, monkeypatch):
+    """The direction that does mean something did not land."""
+    assert _push(tmp_path, monkeypatch, local=151_721, remote=100_000) == 1
+    assert "Short:" in capsys.readouterr().err
+
+
+def test_matching_counts_are_silent(tmp_path, capsys, monkeypatch):
+    assert _push(tmp_path, monkeypatch, local=5000, remote=5000) == 0
+    captured = capsys.readouterr()
+    assert "Short:" not in captured.err and "cannot reach" not in captured.out

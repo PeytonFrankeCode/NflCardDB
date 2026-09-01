@@ -1952,7 +1952,12 @@ def cmd_d1_push(args) -> int:
         return 2
 
     def progress(index, total, count):
-        print(f"  batch {index}/{total} ({count} statements)", flush=True)
+        # Every batch was a line of its own, which buried the result under
+        # 1,379 of them. One line per 5% is enough to see it moving.
+        step = max(1, total // 20)
+        if index == 1 or index == total or index % step == 0:
+            print(f"  {index}/{total} batches ({100 * index // total}%)",
+                  flush=True)
 
     if args.verify_only:
         try:
@@ -2034,15 +2039,29 @@ def cmd_d1_push(args) -> int:
 
         # Compare against the local database rather than trusting the upload:
         # a partial upload still exits 0 on every batch it did send.
+        #
+        # Only a SHORTFALL is a failure. D1 holding more than this PC is
+        # ordinary -- it keeps every sale ever sent, while a local database can
+        # be rebuilt, restored or pruned -- and treating that as an error
+        # reported a successful upload of 151,721 rows as a failure.
         if not args.schema_only and not args.since:
             local = _local_sale_count(args.db)
             remote = state.get("sales")
-            if local is not None and remote is not None and local != remote:
-                print(f"\nHeads up: {local} sales here, {remote} in D1.",
-                      file=sys.stderr)
-                print("Re-run this -- every write is an upsert, so it is safe.",
-                      file=sys.stderr)
-                return 1
+            if local is not None and remote is not None:
+                if remote < local:
+                    print(f"\nShort: {local:,} sales here, only {remote:,} "
+                          f"reached D1.", file=sys.stderr)
+                    print("Re-run this -- every write is an upsert, so it is "
+                          "safe.", file=sys.stderr)
+                    return 1
+                if remote > local:
+                    print(f"\nD1 holds {remote:,} sales; this PC has "
+                          f"{local:,}.")
+                    print(f"The extra {remote - local:,} were uploaded from a "
+                          f"database that no longer\nhas them. They are real "
+                          f"sales and still served -- but a regroup here\n"
+                          f"cannot reach them, so they keep whatever grouping "
+                          f"they were sent with.")
         return 0
 
     except D1Error as exc:
