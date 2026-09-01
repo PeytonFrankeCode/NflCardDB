@@ -278,7 +278,7 @@ def test_verify_survives_an_empty_database(monkeypatch):
 def test_local_sale_count_matches_what_the_export_sends(tmp_path):
     """The comparison is only useful if both sides count the same rows."""
     from nflcarddb import db as store
-    from nflcarddb.api_export import _rows_to_export
+    from nflcarddb.api_export import _iter_rows_to_export
     from nflcarddb.cli import _local_sale_count
     from nflcarddb.models import Sale
 
@@ -290,7 +290,7 @@ def test_local_sale_count_matches_what_the_export_sends(tmp_path):
         Sale(item_id="2", title="b", price_cents=200, sold_date="2026-08-03"),
         Sale(item_id="3", title="undated", price_cents=300, sold_date=None),
     ], run)
-    exported = len(_rows_to_export(conn, None))
+    exported = sum(1 for _ in _iter_rows_to_export(conn, None))
     conn.close()
 
     assert _local_sale_count(path) == exported == 2

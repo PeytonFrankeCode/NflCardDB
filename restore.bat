@@ -7,6 +7,11 @@ if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
 call "%~dp0_cloudflare.bat"
 
+REM A recovery run is the worst possible time to be running old code, and this
+REM was the one script that did not check.
+call "%~dp0_update.bat"
+echo    [ready]
+
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 
 echo.
