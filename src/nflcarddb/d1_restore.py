@@ -42,6 +42,10 @@ def count_rows(account_id: str, database_id: str, token: str) -> int:
     return int(rows[0].get("n", 0)) if rows else 0
 
 
+def _quote(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def fetch_pages(
     account_id: str,
     database_id: str,
@@ -49,18 +53,30 @@ def fetch_pages(
     page_size: int = PAGE_SIZE,
     since: Optional[str] = None,
 ) -> Iterator[list[dict]]:
-    """Yield the sales table in ordered pages.
+    """Yield the sales table in ordered pages, cheaply.
 
-    Ordered by item_id rather than date so the paging is stable: an ORDER BY on
-    a non-unique column can repeat or skip rows across LIMIT/OFFSET boundaries.
+    Paged on "the last item_id I saw" rather than OFFSET, and the difference is
+    not academic. To serve OFFSET 540000 the database walks and throws away
+    540,000 rows, so restoring 543,935 sales in 2,000-row pages reads about
+    74 MILLION rows -- roughly fifteen times D1's whole free daily allowance,
+    spent on one restore. Seeking by key reads 543,935.
+
+    item_id is the primary key, so it is unique, indexed, and gives stable
+    paging: an ORDER BY on a non-unique column can repeat or skip rows across
+    page boundaries.
     """
-    where = f"WHERE sold_date >= '{since}' " if since else ""
-    offset = 0
+    last_id: Optional[str] = None
     while True:
+        clauses = []
+        if since:
+            clauses.append(f"sold_date >= {_quote(since)}")
+        if last_id is not None:
+            clauses.append(f"item_id > {_quote(last_id)}")
+        where = f"WHERE {' AND '.join(clauses)} " if clauses else ""
+
         out = run_sql(
             account_id, database_id, token,
-            f"SELECT * FROM sales {where}ORDER BY item_id "
-            f"LIMIT {page_size} OFFSET {offset};",
+            f"SELECT * FROM sales {where}ORDER BY item_id LIMIT {page_size};",
         )
         rows = (out.get("result") or [{}])[0].get("results") or []
         if not rows:
@@ -68,7 +84,10 @@ def fetch_pages(
         yield rows
         if len(rows) < page_size:
             return
-        offset += page_size
+        last_id = rows[-1].get("item_id")
+        if last_id is None:
+            # Without a cursor the next page would repeat this one forever.
+            return
 
 
 def _to_sale(row: dict) -> Sale:

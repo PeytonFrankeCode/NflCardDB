@@ -2033,6 +2033,12 @@ def cmd_d1_push(args) -> int:
             print("\nDry run -- nothing was sent.")
             return 0
 
+        if args.schema_only:
+            # Nothing was uploaded, so there is nothing to check -- and the
+            # check is a COUNT over every row, which on the free plan is a
+            # meaningful slice of the daily read allowance spent on nothing.
+            return 0
+
         print("\nChecking what D1 now holds...")
         state = verify(args.account_id, args.database_id, token)
         print(json.dumps(state, indent=2))
@@ -2065,6 +2071,16 @@ def cmd_d1_push(args) -> int:
         return 0
 
     except D1Error as exc:
+        text = str(exc).lower()
+        if "row read limit" in text or "7500" in text:
+            print("\nCloudflare stopped this: the D1 free plan allows "
+                  "5,000,000 rows read\nper day and today's allowance is "
+                  "spent.", file=sys.stderr)
+            print("\nNothing is wrong with your token or your data, and "
+                  "nothing is half-written.\nThe limit resets at midnight "
+                  "UTC (7pm Eastern). Run d1-push.bat then.",
+                  file=sys.stderr)
+            return 4
         print(f"\nUpload failed: {exc}", file=sys.stderr)
         return 3
 

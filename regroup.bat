@@ -76,6 +76,7 @@ set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b
 python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID% --schema api\schema.sql --schema-only
 if errorlevel 1 goto UPLOADFAILED
 python -m nflcarddb d1-push --account-id "%CF_ACCOUNT_ID%" --database-id %DBID%
+if errorlevel 1 equ 4 goto OUTOFREADS
 if errorlevel 1 goto UPLOADFAILED
 
 echo.
@@ -103,6 +104,23 @@ echo whole thing worked and changes nothing.
 echo.
 echo The message above says why. If it is about field names,
 echo send it to Claude - that is a small fix.
+goto END
+
+:OUTOFREADS
+echo.
+echo ==========================================================
+echo    Regrouped here - Cloudflare needs until tomorrow
+echo ==========================================================
+echo.
+echo Your sales ARE regrouped on this pc. The upload stopped
+echo because Cloudflare's free plan allows 5 million rows read
+echo per day and today's allowance is spent.
+echo.
+echo Nothing is wrong and nothing is half-written. The limit
+echo resets at midnight UTC - 7pm Eastern, 8pm during summer.
+echo.
+echo Then double-click  d1-push.bat  on its own. It picks up
+echo exactly where this left off.
 goto END
 
 :UPLOADFAILED
