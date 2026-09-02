@@ -640,12 +640,37 @@ def test_a_numbered_card_still_wins_over_a_letters_only_match():
     assert a.card_number == "KAI-2"
 
 
-def test_a_lot_is_not_one_card():
-    """Several cards for one price. Treating it as a single card puts the price
-    of three into one card's history -- Peyton's data had "Fernando Mendoza Lot
-    Of 3" grouped with single copies of #301."""
-    for title in ("2026 Topps Flagship Fernando Mendoza Lot Of 3",
-                  "2026 Flagship Fernando Mendoza Rookie Card Lot",
-                  "Josh Allen 5 Card Lot Prizm 2024"):
-        a = parse_title(title)
-        assert card_key(a) is None, title
+@pytest.mark.parametrize("title", [
+    "2026 Topps Flagship Fernando Mendoza Lot Of 3",
+    "2026 Flagship Fernando Mendoza Rookie Card Lot",
+    "Josh Allen 5 Card Lot Prizm 2024",
+    # The one the first attempt missed: it wanted "card" and "lot" adjacent,
+    # and sellers put the whole description between them.
+    "2026 Topps Fernando Mendoza 7 Card Rookie Lot",
+    "Caleb Williams (4) Cards Football Lot RC",
+    "Lot of (25) 2024 Prizm Rookies",
+    "2024 Prizm Jayden Daniels 3-Card Lot",
+    "Patrick Mahomes Rookie Lot 2017 Donruss",
+    "2023 Prizm Lot of cards Bengals",
+])
+def test_a_lot_is_not_one_card(title):
+    """Several cards for one price, so the price belongs to no single card.
+
+    Putting a seven-card lot into one card's history inflates that card's
+    median by whatever the other six were worth.
+    """
+    assert card_key(parse_title(title)) is None, title
+
+
+@pytest.mark.parametrize("title", [
+    "2024 Panini Prizm Caleb Williams #301 Silver Prizm RC",
+    "1976 Topps Walter Payton #148 PSA 8",
+    # The cost of matching "lot" too eagerly: a real card stops grouping at
+    # all. These are the words that look like it and are not.
+    "2023 Prizm Camelot Parker #12",
+    "2025 Topps Chrome Slot Machine Insert #SM-3",
+    "2024 Donruss Lottery Ticket Bo Nix #5",
+    "1986 Topps Jerry Rice #161 Rookie Card",
+])
+def test_an_ordinary_card_is_not_read_as_a_lot(title):
+    assert card_key(parse_title(title)) is not None, title

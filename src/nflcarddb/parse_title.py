@@ -375,14 +375,27 @@ CARD_NUM_RE = re.compile(
 # Listings that sell an unspecified card out of many. The price is real but it
 # belongs to no particular card, so keying one would put a $3 "pick your card"
 # sale into a genuine card's price history.
+# Several cards sold for one price. The price is real and the sale is kept, but
+# it belongs to no single card -- putting a seven-card lot into one card's
+# history inflates that card's median by whatever the other six were worth.
+#
+# The first attempt matched "3 Card Lot" and missed "7 Card Rookie Lot", because
+# it required the two words to be adjacent. Sellers put anything between them:
+# Rookie, Football, Insert, the team. So a few descriptive words are allowed,
+# bounded rather than open-ended -- "lot" ten words away from "card" is usually
+# a different sentence.
 MULTI_CARD_RE = re.compile(
-    r"\b(?:pick\s+your|you\s+pick|complete\s+your|choose\s+your|"
-    r"your\s+choice|build\s+your|"
-    # A lot is several cards sold for one price, so treating it as a single
-    # card puts the price of three cards into one card's history. Peyton's own
-    # data had "2026 Topps Flagship Fernando Mendoza Lot Of 3" grouped with
-    # single copies of #301.
-    r"lot\s+of\s+\d+|\d+\s*-?\s*card\s+lot|card\s+lot)\b", re.I
+    r"\b(?:"
+    r"pick\s+your|you\s+pick|complete\s+your|choose\s+your|"
+    r"your\s+choice|build\s+your"
+    # "Lot of 3", "Lot of (25)", "Lot of cards"
+    r"|lot\s+of\s+\(?\s*(?:\d+|cards?)"
+    # "3 Card Lot", "3-card lot", "7 Card Rookie Lot", "(4) Cards Football Lot"
+    r"|\(?\s*\d+\s*\)?\s*-?\s*cards?(?:\s+[a-z&']+){0,3}\s+lot"
+    # "Card Lot" with no count, and the common bare forms
+    r"|cards?\s+lot"
+    r"|rookie\s+lot|player\s+lot|mixed\s+lot|investor\s+lot"
+    r")\b", re.I
 )
 # "TRC-15" and "TF-7" with no "#" in front. 1,000+ sales carried a card number
 # in this shape and lost it entirely, because every pattern required the hash.
