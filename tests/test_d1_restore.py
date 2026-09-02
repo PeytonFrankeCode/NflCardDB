@@ -45,10 +45,36 @@ def test_counts_before_downloading(monkeypatch):
 def test_pages_until_a_short_page(monkeypatch):
     sent = _serving([[_row(str(i)) for i in range(3)], [_row("9")]], monkeypatch)
     pages = list(fetch_pages("a", "d", "t", page_size=3))
-
     assert [len(p) for p in pages] == [3, 1]
-    assert "OFFSET 0" in sent[0]
-    assert "OFFSET 3" in sent[1]
+
+
+def test_paging_seeks_by_key_rather_than_counting_past_rows(monkeypatch):
+    """OFFSET made a restore cost fifteen times the daily read allowance.
+
+    To serve OFFSET 540000 the database walks and discards 540,000 rows, so
+    543,935 sales in 2,000-row pages read about 74 million rows. Seeking on
+    the last id read reads one page per page.
+    """
+    sent = _serving([[_row(str(i)) for i in range(3)], [_row("9")]], monkeypatch)
+    list(fetch_pages("a", "d", "t", page_size=3))
+
+    assert not any("OFFSET" in sql for sql in sent), sent
+    # The second page continues from the last id of the first, not from a count.
+    assert "item_id > '2'" in sent[1]
+
+
+def test_paging_stops_rather_than_looping_without_a_cursor(monkeypatch):
+    """A row with no item_id would otherwise re-request the same page forever."""
+    sent = _serving([[{"sold_date": "2026-01-01"}] * 3, [_row("9")]], monkeypatch)
+    pages = list(fetch_pages("a", "d", "t", page_size=3))
+    assert len(pages) == 1
+
+
+def test_a_date_filter_and_the_cursor_combine(monkeypatch):
+    sent = _serving([[_row(str(i)) for i in range(3)], [_row("9")]], monkeypatch)
+    list(fetch_pages("a", "d", "t", page_size=3, since="2026-01-01"))
+    assert "sold_date >= '2026-01-01'" in sent[1]
+    assert "item_id > '2'" in sent[1]
 
 
 def test_paging_orders_by_the_primary_key(monkeypatch):

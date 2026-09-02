@@ -574,3 +574,66 @@ def test_matching_counts_are_silent(tmp_path, capsys, monkeypatch):
     assert _push(tmp_path, monkeypatch, local=5000, remote=5000) == 0
     captured = capsys.readouterr()
     assert "Short:" not in captured.err and "cannot reach" not in captured.out
+
+
+def test_the_read_limit_is_named_rather_than_blamed_on_the_token(
+        tmp_path, capsys, monkeypatch):
+    """It reported Cloudflare's daily quota as "token missing permission".
+
+    Which sent the reader to check credentials that were never wrong, for a
+    condition that fixes itself at midnight.
+    """
+    import nflcarddb.cli as cli
+    from nflcarddb.d1_http import D1Error
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+
+    def refuse(*a, **k):
+        raise D1Error(
+            '{"code":7500,"message":"Your account has exceeded D1 free tier '
+            'daily row read limit. Upgrade to a paid plan or wait until '
+            'tomorrow (midnight UTC)."}')
+
+    # The schema file is pushed before the migrations run, so both must be
+    # stubbed or the test reaches the network.
+    monkeypatch.setattr("nflcarddb.d1_http.push_sql", refuse)
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", refuse)
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "z.db"), "--schema", str(tmp_path / "s.sql"),
+         "--schema-only"])
+    (tmp_path / "s.sql").write_text("SELECT 1;")
+
+    assert cli.cmd_d1_push(args) == 4          # its own code, not a generic fail
+    err = capsys.readouterr().err
+    assert "5,000,000 rows read" in err
+    assert "midnight UTC" in err
+    assert "token" in err and "Nothing is wrong with your token" in err
+
+
+def test_a_schema_only_push_does_not_count_every_row(tmp_path, monkeypatch):
+    """The check is a COUNT over the whole table, and after a schema push there
+    is nothing to check -- so it spent the read allowance on nothing."""
+    import nflcarddb.cli as cli
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", lambda *a, **k: [])
+    monkeypatch.setattr("nflcarddb.d1_http.push_sql",
+                        lambda *a, **k: __import__("nflcarddb.d1_http",
+                                                   fromlist=["PushResult"]
+                                                   ).PushResult())
+    called = {"verify": False}
+
+    def spy(*a, **k):
+        called["verify"] = True
+        return {"sales": 1}
+
+    monkeypatch.setattr("nflcarddb.d1_http.verify", spy)
+    (tmp_path / "s.sql").write_text("SELECT 1;")
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "z.db"), "--schema", str(tmp_path / "s.sql"),
+         "--schema-only"])
+
+    assert cli.cmd_d1_push(args) == 0
+    assert not called["verify"]
