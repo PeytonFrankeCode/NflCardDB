@@ -2276,6 +2276,102 @@ def cmd_d1_cards(args) -> int:
     return 0
 
 
+def cmd_unsorted(args) -> int:
+    """What is stopping cards from being usable, and what would actually fix it.
+
+    "Use the photos" and "sort them by hand" are both reasonable, and which one
+    is worth doing depends on numbers nobody has counted yet: how many groups
+    lack a card number, and how many of those have a graded slab in them whose
+    label carries the number. This counts them.
+    """
+    from .triage import review_queue, triage
+
+    conn = store.connect(args.db)
+    try:
+        print("Reading your database...\n")
+        report = triage(conn, min_sales=args.min_sales)
+        queue = review_queue(conn, limit=args.limit, min_sales=args.min_sales)
+    finally:
+        conn.close()
+
+    cov = report["photo_coverage"]
+    total = report["cards"]
+    if not total:
+        print("No cards are grouped yet.", file=sys.stderr)
+        return 1
+
+    def pct(n, of):
+        return f"{(100.0 * n / of):.0f}%" if of else "--"
+
+    print("=" * 66)
+    print("  WHAT IS NOT USABLE, AND WHY")
+    print("=" * 66)
+    print()
+    print(f"{total:,} card groups, {report['sales']:,} sales.")
+    print()
+
+    nb = report["numberless"]
+    big = report["numberless_worth_fixing"]
+    print(f"{nb['groups']:,} of them ({pct(nb['groups'], total)}) never gave up a card")
+    print("number, so they are not one card -- each is everything of that player")
+    print(f"in that set at once. They hold {nb['sales']:,} sales between them.")
+    print()
+    print(f"{big['groups']:,} have {args.min_sales} or more sales, which is where fixing one")
+    print("is worth the effort. The rest sold once or twice.")
+    print()
+
+    print("-" * 66)
+    print("  WHAT WOULD FIX THOSE")
+    print("-" * 66)
+    print()
+    ocr = report["a_photo_could_read_it"]
+    person = report["only_a_person_could"]
+    looking = report["and_has_a_photo_to_look_at"]
+    print("  A PHOTO COULD READ THE NUMBER")
+    print(f"    {ocr['groups']:>7,} groups,  {ocr['sales']:>7,} sales")
+    print("    A graded slab is in the group, and the grader printed the")
+    print("    card number on the label. A machine can read that.")
+    print()
+    print("  ONLY A PERSON COULD")
+    print(f"    {person['groups']:>7,} groups,  {person['sales']:>7,} sales")
+    print(f"    {looking['groups']:>7,} of those have a photo to look at.")
+    print()
+
+    print("-" * 66)
+    print("  PHOTOS YOU ACTUALLY HAVE")
+    print("-" * 66)
+    print()
+    print(f"  {cov['with_photo']:,} of {cov['sales']:,} sales carry a photo "
+          f"({pct(cov['with_photo'], cov['sales'])})")
+    print(f"  {cov['graded']:,} are graded ({pct(cov['graded'], cov['sales'])})")
+    print(f"  {cov['graded_with_photo']:,} are graded AND have a photo -- the "
+          f"combination a")
+    print("  machine can read a card number out of unaided.")
+    print()
+    print("  eBay drops the picture about 90 days after the sale, so an older")
+    print("  row's photo link points at nothing. Photos are worth reading soon")
+    print("  after collecting, not in a batch next year.")
+    print()
+
+    if queue:
+        print("-" * 66)
+        print(f"  THE BIGGEST {len(queue)}, TO SORT BY HAND")
+        print("-" * 66)
+        print()
+        for g in queue:
+            print(f"  {g['sales']:>4} sales  {g['photos']:>4} photos  {g['card_key']}")
+            for title in g["titles"][:2]:
+                print(f"              {title[:60]}")
+        print()
+
+    print("=" * 66)
+    print("Nothing here is broken. These are the cards whose IDENTITY is")
+    print("uncertain -- which sales belong together. The sorting itself is")
+    print("exact: every card carries its numbers and the database orders by")
+    print("them. This is about which cards deserve to be on the list at all.")
+    return 0
+
+
 def cmd_card_list(args) -> int:
     """Write the WHOLE sorted catalogue to a spreadsheet.
 
@@ -3092,6 +3188,16 @@ def build_parser() -> argparse.ArgumentParser:
                         "falling sorts: --min-sales counts every grade.")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_d1_cards)
+
+    p = sub.add_parser("unsorted",
+                       help="what is stopping cards from being usable, and "
+                            "what would fix it")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--min-sales", type=int, default=3,
+                   help="how many sales make a group worth fixing (default: 3)")
+    p.add_argument("--limit", type=int, default=25,
+                   help="how many to list for hand-sorting")
+    p.set_defaults(func=cmd_unsorted)
 
     p = sub.add_parser("card-list",
                        help="write the whole sorted catalogue to a spreadsheet")
