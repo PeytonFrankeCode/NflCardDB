@@ -234,3 +234,110 @@ def test_every_query_producing_rows_reports_no_empties(project, serve):
 
     report = run_scrape(load_config(project[0]), target_date="2025-07-30")
     assert report.empty_queries == []
+
+
+def _one_page_scrape(tmp_path, monkeypatch, titles, skip_lots=True):
+    """Run a scrape against a single fabricated page of results."""
+    import yaml
+
+    from nflcarddb import pipeline
+    from nflcarddb.config import load_config
+    from nflcarddb.models import Sale
+
+    cfg = tmp_path / "q.yml"
+    cfg.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "s.db"),
+        "skip_lots": skip_lots,
+        "fetch": {"delay": 0, "jitter": 0, "max_retries": 0, "engine": "requests"},
+        "price_bands": [[None, None]],
+        "queries": [{"id": "q", "keywords": "football", "category": "261328"}],
+    }))
+
+    sales = [Sale(item_id=str(9_100_000_000 + i), title=t, price_cents=1000,
+                  shipping_cents=0, sold_date="2026-01-01", currency="USD",
+                  best_offer=False, query_id="q")
+             for i, t in enumerate(titles)]
+
+    def fake_walk(*a, **k):
+        """walk_query yields sales and reports each segment as it finishes."""
+        yield from sales
+        on_segment = k.get("on_segment")
+        if on_segment:
+            result = type("R", (), {"pages": 1, "sales": sales,
+                                    "capped": False, "ran_out": False})()
+            on_segment(k.get("query_id", "q"),
+                       type("B", (), {"label": "all", "lo": None, "hi": None})(),
+                       "ok", result, None)
+
+    monkeypatch.setattr(pipeline, "walk_query", fake_walk)
+    class FakeFetcher:
+        stats = type("S", (), {"requests": 1, "blocked": 0,
+                               "challenge_seconds": 0.0})()
+        engine = "requests"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(pipeline, "make_fetcher", lambda **k: FakeFetcher())
+    # A recent date, so the run is not warned off as outside eBay's window.
+    from datetime import date, timedelta
+    day = (date.today() - timedelta(days=2)).isoformat()
+    for sale in sales:
+        sale.sold_date = day
+    return pipeline.run_scrape(load_config(cfg), target_date=day)
+
+
+def test_a_lot_is_not_collected_at_all(tmp_path, monkeypatch):
+    """Sellers file lots in the singles categories too, so dropping eBay's Lots
+    category does not stop them arriving. A lot's price belongs to no single
+    card, so storing it costs a row, a parse and an upload for nothing."""
+    from nflcarddb import db as store
+
+    report = _one_page_scrape(tmp_path, monkeypatch, [
+        "2024 Panini Prizm Caleb Williams #301 Silver Prizm RC",
+        "2026 Topps Fernando Mendoza 7 Card Rookie Lot",
+        "Josh Allen 5 Card Lot Prizm 2024",
+    ])
+    assert report.skipped_lots == 2
+    conn = store.connect(tmp_path / "s.db")
+    titles = [r[0] for r in conn.execute("SELECT title FROM sales")]
+    conn.close()
+    assert len(titles) == 1 and "Caleb Williams" in titles[0]
+
+
+def test_lots_can_still_be_kept(tmp_path, monkeypatch):
+    """Throwing away a collected sale is not something to do without a way
+    back, so the behaviour is a setting rather than a rule."""
+    from nflcarddb import db as store
+
+    report = _one_page_scrape(tmp_path, monkeypatch, [
+        "2024 Panini Prizm Caleb Williams #301 RC",
+        "Josh Allen 5 Card Lot Prizm 2024",
+    ], skip_lots=False)
+    assert report.skipped_lots == 0
+    conn = store.connect(tmp_path / "s.db")
+    assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 2
+    conn.close()
+
+
+def test_a_newly_collected_sale_is_grouped_like_a_reparsed_one(tmp_path,
+                                                               monkeypatch):
+    """Otherwise a day collected today groups differently from the same card
+    collected last month, until someone remembers to re-read everything."""
+    from nflcarddb import checklist as cl
+    from nflcarddb import db as store
+
+    conn = store.connect(tmp_path / "s.db")
+    cl.import_rows(conn, [{"year": 2026, "set_name": "Topps",
+                           "subset": "Touchdown", "card_number": "TD-16",
+                           "player": "Josh Allen"}], source="test")
+    conn.close()
+
+    _one_page_scrape(tmp_path, monkeypatch,
+                     ["2026 Topps Josh Allen #TD-16 Bills"])
+
+    conn = store.connect(tmp_path / "s.db")
+    subset, key = conn.execute("SELECT subset, card_key FROM cards").fetchone()
+    conn.close()
+    assert subset == "Touchdown"
+    assert "touchdown" in key

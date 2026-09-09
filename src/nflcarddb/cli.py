@@ -2423,6 +2423,49 @@ def cmd_checklists(args) -> int:
     return 0
 
 
+def cmd_queries(args) -> int:
+    """Which searches actually earn the time they cost.
+
+    `query_id` records the search that FIRST found a sale, and a re-find keeps
+    the original -- so this is unique contribution, not overlap. Two searches
+    over the same eBay category with different words can look equally busy in a
+    run report and yet one of them may be finding almost nothing the other
+    misses, which is minutes a night for nothing.
+    """
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
+
+    conn = store.connect(db_path)
+    try:
+        rows = list(conn.execute(
+            "SELECT query_id, COUNT(*) AS n, MIN(sold_date) AS first, "
+            "       MAX(sold_date) AS last "
+            "FROM sales GROUP BY query_id ORDER BY n DESC"))
+        total = sum(r["n"] for r in rows)
+    finally:
+        conn.close()
+
+    if not total:
+        print("No sales collected yet.")
+        return 0
+
+    configured = {q.id for q in config.queries} if config else set()
+    print(f"{'SEARCH':<22} {'SALES':>9} {'SHARE':>7}   FIRST FOUND")
+    print("-" * 62)
+    for r in rows:
+        name = r["query_id"] or "(unknown)"
+        mark = "" if not configured or name in configured else "   (not in config now)"
+        print(f"{name:<22} {r['n']:>9,} {100 * r['n'] / total:>6.1f}%   "
+              f"{r['first']} to {r['last']}{mark}")
+    print("-" * 62)
+    print(f"{'total':<22} {total:>9,}")
+    print()
+    print("Share is of sales NOT already found by an earlier search, so a low")
+    print("number means that search is mostly re-finding what another one")
+    print("already had -- and its pages are time you could spend elsewhere.")
+    return 0
+
+
 def cmd_url(args) -> int:
     """Print the URL a query/band would hit, without fetching it."""
     config = load_config(args.config)
@@ -2813,6 +2856,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--look", action="store_true",
                    help="report what the site returns without importing it")
     p.set_defaults(func=cmd_checklists)
+
+    p = sub.add_parser("queries",
+                       help="how many sales each configured search actually found")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.set_defaults(func=cmd_queries)
 
     p = sub.add_parser("url", help="print the search URLs a config would hit")
     p.add_argument("--config", default="config/queries.yml")

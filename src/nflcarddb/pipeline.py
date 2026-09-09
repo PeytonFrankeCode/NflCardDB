@@ -20,7 +20,7 @@ from .fetch import (
 from .images import DEFAULT_SIZE, normalize_image_url
 from .models import Sale
 from .parse_title import PARSER_VERSION as TITLE_PARSER_VERSION
-from .parse_title import load_roster, parse_title
+from .parse_title import MULTI_CARD_RE, load_roster, parse_title
 from .search import (
     NEWEST_FIRST,
     OLDEST_FIRST,
@@ -62,6 +62,9 @@ class ScrapeReport:
         self.challenge_seconds = 0.0
         self.per_query: dict = {}
         self.empty_queries: list = []
+        # Multi-card lots refused at the door rather than stored and then
+        # refused a card_key later.
+        self.skipped_lots = 0
 
     def as_dict(self) -> dict:
         return {
@@ -75,6 +78,7 @@ class ScrapeReport:
             "seconds_per_page": (round(self.seconds / self.pages, 1)
                                  if self.pages else None),
             "sales_per_query": self.per_query,
+            "lots_skipped": self.skipped_lots,
             "empty_queries": self.empty_queries,
             "bot_checks": self.blocked,
             "seconds_lost_to_bot_checks": self.challenge_seconds,
@@ -165,17 +169,40 @@ def run_scrape(
     roster = load_roster(config.roster) if config.roster else None
     buffer: list[Sale] = []
 
+    from . import checklist as cl
+
+    # Looked up once rather than per flush: it is a table existence check, and
+    # a day's scrape flushes hundreds of times.
+    known_checklist = bool(
+        conn.execute("SELECT 1 FROM checklist_sets LIMIT 1").fetchone())
+
     def flush() -> None:
         nonlocal buffer
         if not buffer or dry_run:
             buffer = []
             return
-        seen, new = store.upsert_sales(conn, buffer, run_id)
-        store.upsert_cards(
-            conn,
-            [(s.item_id, parse_title(s.title, roster)) for s in buffer],
-            TITLE_PARSER_VERSION,
-        )
+
+        keep = buffer
+        if getattr(config, "skip_lots", True):
+            # Sellers file multi-card lots in the singles categories too. Their
+            # price belongs to no single card, so every one collected was
+            # stored, parsed and uploaded only to be refused a card_key.
+            keep = [s for s in buffer if not MULTI_CARD_RE.search(s.title or "")]
+            report.skipped_lots += len(buffer) - len(keep)
+        if not keep:
+            buffer = []
+            return
+
+        seen, new = store.upsert_sales(conn, keep, run_id)
+        parsed = []
+        for sale in keep:
+            attrs = parse_title(sale.title, roster)
+            # Same grouping a reparse would give it, so a day collected today
+            # matches a day collected last month without a full re-read.
+            if known_checklist:
+                cl.enrich(conn, attrs)
+            parsed.append((sale.item_id, attrs))
+        store.upsert_cards(conn, parsed, TITLE_PARSER_VERSION)
         report.seen += seen
         report.new += new
         buffer = []
