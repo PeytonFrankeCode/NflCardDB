@@ -144,6 +144,14 @@ CREATE INDEX IF NOT EXISTS idx_cards_recent ON cards (last_sold DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_player ON cards (player, sales DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_set    ON cards (year, set_name, sales DESC);
 
+-- The same sorts again, with `quality` leading. A browsing site filters to the
+-- trustworthy cards FIRST and then sorts -- "the good ones, biggest riser" --
+-- and an index on trend_pct alone cannot serve that: the filter is applied
+-- after the scan, so the query reads the whole catalogue every time.
+CREATE INDEX IF NOT EXISTS idx_cards_q_trend  ON cards (quality, trend_pct DESC);
+CREATE INDEX IF NOT EXISTS idx_cards_q_value  ON cards (quality, median_cents DESC);
+CREATE INDEX IF NOT EXISTS idx_cards_q_recent ON cards (quality, last_sold DESC);
+
 -- Precomputed daily rollups: cheap to serve, and the common dashboard call.
 CREATE TABLE IF NOT EXISTS daily (
     sold_date    TEXT PRIMARY KEY,

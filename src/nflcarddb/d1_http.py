@@ -76,6 +76,13 @@ MIGRATIONS = (
     "CREATE INDEX IF NOT EXISTS idx_cards_recent ON cards (last_sold DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_player ON cards (player, sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_set    ON cards (year, set_name, sales DESC)",
+    # A browsing site filters on quality FIRST and then sorts -- "the good ones,
+    # biggest riser". Without the quality column leading the index, that is a
+    # scan of the catalogue with a filter applied afterwards, and D1 bills by
+    # rows scanned, so the cost is the whole table on every visit.
+    "CREATE INDEX IF NOT EXISTS idx_cards_q_trend  ON cards (quality, trend_pct DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_q_value  ON cards (quality, median_cents DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_q_recent ON cards (quality, last_sold DESC)",
 )
 
 ALREADY_APPLIED = ("duplicate column", "already exists")

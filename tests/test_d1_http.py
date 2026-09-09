@@ -248,6 +248,73 @@ def test_the_catalogue_tables_are_migrated_in_too():
     assert "CREATE TABLE IF NOT EXISTS card_grades" in created
 
 
+def _plan(sql, params=()):
+    """The query plan SQLite picks for `sql` against api/schema.sql."""
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(Path("api/schema.sql").read_text(encoding="utf-8"))
+    rows = conn.execute("EXPLAIN QUERY PLAN " + sql, params).fetchall()
+    conn.close()
+    return " | ".join(r[-1] for r in rows)
+
+
+@pytest.mark.parametrize("order,extra", [
+    ("sales DESC, median_cents DESC", ""),
+    ("median_cents DESC, sales DESC", ""),
+    ("median_cents ASC, sales DESC", ""),
+    ("trend_pct DESC, sales DESC", "AND trend_pct IS NOT NULL"),
+    ("trend_pct ASC, sales DESC", "AND trend_pct IS NOT NULL"),
+    ("last_sold DESC, sales DESC", ""),
+])
+def test_the_site_sorts_do_not_scan_the_catalogue(order, extra):
+    """Every sort a browsing site offers is `quality` filtered and then ordered.
+
+    An index on the sort column alone cannot serve that -- the filter is
+    applied after the scan, so each page view reads all 341,783 cards and
+    throws most of them away. D1 bills by rows read, so that is the whole
+    catalogue per visitor per sort tab.
+    """
+    plan = _plan(f"SELECT * FROM cards WHERE quality = 'clean' {extra} "
+                 f"ORDER BY {order} LIMIT 50")
+
+    assert "SCAN cards" not in plan, f"full scan for ORDER BY {order}: {plan}"
+    assert "USING INDEX" in plan or "USING COVERING INDEX" in plan
+
+
+def test_one_cards_price_history_reads_only_that_card():
+    """The chart query. `sales` is 600,000 rows and growing daily; without the
+    index this is the single most expensive thing the site could ask for."""
+    plan = _plan("SELECT sold_date, price_cents FROM sales "
+                 "WHERE card_key = ? AND price_cents IS NOT NULL "
+                 "ORDER BY sold_date", ("k",))
+
+    assert "idx_sales_card" in plan, plan
+    assert "SCAN sales" not in plan
+
+
+def test_every_catalogue_index_is_in_the_migrations_too():
+    """The `cards` table arrived after the database shipped.
+
+    Its indexes therefore travel by migration as well as by schema file. The
+    sales indexes are not checked: those were in the schema from the start, so
+    every database that exists already has them.
+    """
+    import re
+
+    from nflcarddb.d1_http import MIGRATIONS
+
+    schema = Path("api/schema.sql").read_text(encoding="utf-8")
+    migrated = " ".join(MIGRATIONS)
+    names = [n for n in re.findall(r"CREATE INDEX IF NOT EXISTS (\w+)", schema)
+             if n.startswith("idx_cards_")]
+
+    assert names, "no catalogue indexes found -- has the schema been renamed?"
+    for name in names:
+        assert name in migrated, \
+            f"{name} is in api/schema.sql but no migration adds it to a live database"
+
+
 def test_verify_reports_priced_sales_separately(monkeypatch):
     """`sales` alone reads as wrong to anyone comparing it with a price chart."""
     captured = []
