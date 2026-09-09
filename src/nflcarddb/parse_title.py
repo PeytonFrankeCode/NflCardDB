@@ -40,7 +40,7 @@ from .models import CardAttrs
 # title/7: the first pass of the gap report -- Flagship and Resurgence as
 #          products, vintage condition shorthand and seller names as noise,
 #          game-worn as a relic, and the insert names the examples revealed.
-PARSER_VERSION = "title/12"
+PARSER_VERSION = "title/13"
 
 # --- vocabularies -----------------------------------------------------------
 # Order matters within each tuple: longest / most specific first, because the
@@ -365,12 +365,56 @@ CARD_NUM_RE = re.compile(
     # Letters may come before the digits ("NFS-1") or after them
     # ("25GH-LB"); before this only the first shape parsed and Topps
     # Flagship's whole numbering was being dropped.
-    r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}(?:-?[A-Z]{1,3})*)\b(?!/)"
-    # "#1-330" is the range of a whole set being offered, not card one.
-    r"(?!-\d)"
+    r"#\s?(?P<num>[A-Z]{0,4}-?\d{1,4}(?:-?[A-Z]{1,3})*)"
+    # A trailing "-<digits>" is captured rather than refused. It is usually
+    # part of the number -- "#91TR-1" is Topps Flagship's 1991 Rookies insert,
+    # "#1975-25" is Chrome's 1975 design -- and only occasionally a range of a
+    # whole set on offer, "#1-330". Which one it is cannot be decided by shape,
+    # so it is decided by arithmetic afterwards: a range counts upward.
+    r"(?P<tail>-\d{1,4})?"
+    r"\b(?!/)"
     rf"(?!\s+{_NOT_A_NUMBER}\b)",
     re.I,
 )
+
+# "#BS-JDT" (Bomb Squad, Jaxson Dart) and "#ROR-FM" (Real One Relic, Fernando
+# Mendoza): an insert code joined to the player's initials, with no digit
+# anywhere. 108 sales of one Jaxson Dart sat in a bucket for want of this, and
+# it is the standard shape of modern Panini and Topps insert numbering.
+#
+# Hash-required. The bare form is everywhere in ordinary card English --
+# ON-CARD, GEM-MT, NM-MT, ALL-PRO, X-FRACTOR -- and attaching one of those as a
+# card number would gather every on-card auto in a set into a single row, which
+# is worse than leaving the number unread.
+LETTER_PAIR_CARD_NUM_RE = re.compile(r"#\s?([A-Z]{1,5}-[A-Z]{1,5})\b(?!-?\d)", re.I)
+
+
+def _with_tail(num: str, tail: Optional[str]) -> Optional[str]:
+    """Decide whether a trailing "-<digits>" is part of the number or a range.
+
+    "#1-330" is a whole set being offered and card one is not what is for sale.
+    "#1975-25" is card 25 of Chrome's 1975 design, and "#91TR-1" is the first
+    card of Flagship's 1991 Rookies insert -- both real numbers that the old
+    blanket refusal threw away, taking 212 sales of one Fernando Mendoza with
+    them.
+
+    They are told apart by arithmetic, since shape cannot do it: a range counts
+    upward from a low first number. Anything with a letter in it is not a range
+    at all -- nobody offers "cards 91TR through 1".
+    """
+    value = num.upper()
+    if not tail:
+        return value
+    if any(c.isalpha() for c in value):
+        return value + tail.upper()
+    first, second = int(value), int(tail[1:])
+    # A range runs low-to-high, and a set on offer starts near its beginning.
+    # "1-330" is a range; "1975-25" and "2024-7" are numbers written with their
+    # design year in front. A range names no card at all, so it yields nothing
+    # rather than card one -- which is not what is for sale.
+    if second > first and first <= 25:
+        return None
+    return value + tail
 
 # Listings that sell an unspecified card out of many. The price is real but it
 # belongs to no particular card, so keying one would put a $3 "pick your card"
@@ -395,6 +439,18 @@ MULTI_CARD_RE = re.compile(
     # "Card Lot" with no count, and the common bare forms
     r"|cards?\s+lot"
     r"|rookie\s+lot|player\s+lot|mixed\s+lot|investor\s+lot"
+    # Whole sets. A team set is many cards for one price exactly as a lot is,
+    # and it slipped through because nobody writes the word "lot" on one --
+    # "Ravens Complete Team Set 16 Cards" was being filed as a single card,
+    # 48 sales of assorted team sets under one key.
+    #
+    # "Set" alone is not enough: it is a word in real card names (Set Sail,
+    # Sunset), so each of these requires a companion word that a single card
+    # never carries.
+    r"|complete\s+(?:factory\s+|team\s+)?set"
+    r"|factory\s+set|team\s+set"
+    r"|set\s+of\s+\(?\s*\d+"
+    r"|\(?\s*\d+\s*\)?\s*-?\s*cards?\s+set"
     r")\b", re.I
 )
 # "TRC-15" and "TF-7" with no "#" in front. 1,000+ sales carried a card number
@@ -809,8 +865,13 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
     # otherwise read as "serial 301 of 249" instead of card #301 out of 249.
     m = _take(work, CARD_NUM_RE)
     if m:
-        attrs.card_number = m.group("num").upper()
-        hits += 1
+        # None when the match turned out to be a set's range rather than a
+        # card. The text stays claimed either way: "#1-330" is not part of the
+        # player's name whichever it is.
+        number = _with_tail(m.group("num"), m.group("tail"))
+        if number:
+            attrs.card_number = number
+            hits += 1
 
     # Serial numbering: "12/99" -> serial 12 of a 99 print run. A numerator
     # larger than the run is not a serial at all -- "202/99" is card 202 from a
@@ -820,6 +881,20 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         if m:
             attrs.card_number = m.group(1).upper()
             hits += 1
+
+    if not attrs.card_number:
+        # "#BS-JDT". Weaker than anything carrying a digit, so it runs after
+        # them, but stronger than a bare letter run because the hyphen is what
+        # makes it a code rather than a word.
+        for candidate in LETTER_PAIR_CARD_NUM_RE.finditer(work.remaining):
+            value = candidate.group(1).upper()
+            if any(half.lower() in NOT_A_LETTER_NUMBER
+                   for half in value.split("-")):
+                continue
+            work.claim(candidate.start(), candidate.end())
+            attrs.card_number = value
+            hits += 1
+            break
 
     if not attrs.card_number:
         # Last, and only after every pattern containing a digit has failed:

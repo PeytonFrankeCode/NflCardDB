@@ -1,7 +1,7 @@
 import pytest
 
 from nflcarddb.card_key import card_key
-from nflcarddb.parse_title import parse_title
+from nflcarddb.parse_title import MULTI_CARD_RE, parse_title
 
 
 def test_modern_graded_rookie():
@@ -674,3 +674,104 @@ def test_a_lot_is_not_one_card(title):
 ])
 def test_an_ordinary_card_is_not_read_as_a_lot(title):
     assert card_key(parse_title(title)) is not None, title
+
+
+# --- card numbers that were sitting in the title all along ------------------
+#
+# Every title here is real, taken from the hand-sort queue. They were the
+# BIGGEST unidentified groups in a 540,000-sale database -- 212 sales, 108
+# sales, 76 sales -- and none of them needed a photo or a person. The number
+# was printed in the title with a "#" in front of it and the parser walked
+# past it.
+
+
+def test_a_number_with_its_design_year_in_front():
+    """Topps Flagship's 1991 Rookies insert. 212 sales of one Fernando Mendoza
+    sat in a bucket because a trailing "-1" was refused as a set range."""
+    assert parse_title(
+        "2026 Topps Flagship Football Fernando Mendoza #91TR-1 ROOKIE"
+    ).card_number == "91TR-1"
+
+
+def test_a_purely_numeric_number_with_a_design_year_in_front():
+    """Chrome's 1975 design: card 25 of it, not cards 1975 through 25."""
+    assert parse_title(
+        "Topps 2025 Chrome 1975 Topps Jaxson Dart #1975-25 Refractor"
+    ).card_number == "1975-25"
+
+
+def test_an_insert_code_joined_to_player_initials():
+    """"#BS-JDT" is Bomb Squad, Jaxson Dart -- 108 sales. No digit anywhere in
+    it, which is why every pattern missed it."""
+    assert parse_title(
+        "2025 Panini Donruss - Jaxson Dart Bomb Squad #BS-JDT (RC)"
+    ).card_number == "BS-JDT"
+    assert parse_title(
+        "CALEB WILLIAMS 2025 DONRUSS BOMB SQUAD FOOTBALL #BS-CWS CHICAGO"
+    ).card_number == "BS-CWS"
+
+
+def test_two_sellers_wording_the_same_card_differently_now_agree():
+    """The whole point. These are two real listings of one card, and they were
+    landing in a bucket together with every other Mendoza in the set."""
+    a = parse_title("2026 Topps Flagship Football Fernando Mendoza #91TR-1 ROOKIE")
+    b = parse_title("Fernando Mendoza 2026 Topps Flagship #91TR-1 1991 Rookies RC")
+    assert a.card_number == b.card_number == "91TR-1"
+
+
+def test_a_set_range_still_names_no_card():
+    """A range counts upward from near the start of a set. That is what tells
+    it apart from a number carrying a design year, and it is the only thing
+    that can -- the shapes are identical."""
+    for title in ("2025 Panini Prizm #1-330 Base Set Arch Manning",
+                  "2020 Topps Complete Set #1-330",
+                  "2024 Topps Football #1-350"):
+        assert parse_title(title).card_number is None, title
+
+
+def test_ordinary_card_english_is_not_read_as_a_number():
+    """The reason the letters-hyphen-letters pattern demands a "#". These
+    phrases are everywhere, and attaching one as a card number would gather
+    every on-card auto in a set into a single row."""
+    for title in ("2025 Topps Chrome Auto ON-CARD Jaxson Dart",
+                  "2024 Prizm Caleb Williams GEM-MT 10",
+                  "2025 Select Drake Maye NM-MT Beautiful",
+                  "2026 Topps All-Pro Patrick Mahomes"):
+        assert parse_title(title).card_number is None, title
+
+
+def test_a_grade_is_not_a_card_number():
+    assert parse_title("2025 Panini Prizm Malik Nabers #PSA-10").card_number is None
+
+
+def test_numbers_that_already_worked_still_do():
+    """The patterns above run after these, never instead of them."""
+    assert parse_title("2024 Panini Prizm Jayden Daniels #316").card_number == "316"
+    assert parse_title("2025 Topps Chrome Kaiju Patrick Mahomes #KAI-2").card_number == "KAI-2"
+    assert parse_title("2026 Topps Now Fernando Mendoza #FMEN").card_number == "FMEN"
+    assert parse_title("2025 Prizm Caleb Williams #301 /249").card_number == "301"
+
+
+# --- a team set is a lot with a different word on it ------------------------
+
+
+def test_a_team_set_is_not_a_card():
+    """48 sales of assorted team sets were filed under one key. Nobody writes
+    "lot" on one, so lot detection never saw them -- but "16 cards for one
+    price" is a lot however it is worded."""
+    for title in ("2026 Topps Football Baltimore Ravens Complete Team Set 16 Cards",
+                  "2026 Topps 49ers Team Set 10 Cards",
+                  "2025 Topps Update Series Complete Factory Set",
+                  "2025 Topps Chrome Set of 12 Rookies",
+                  "2024 Topps 100 Card Set Football"):
+        assert MULTI_CARD_RE.search(title), title
+
+
+def test_set_inside_a_real_card_name_is_left_alone():
+    """"Set" is a word in card names. Each set pattern needs a companion word
+    that a single card never carries, or Set Sail and Sunset become lots."""
+    for title in ("2024 Panini Prizm Set Sail Caleb Williams #SS-1",
+                  "1994 Topps Sunset Boulevard Jerry Rice #12",
+                  "2025 Prizm Caleb Williams Mindset #M-3",
+                  "2025 Donruss Offset Press Proof Drake Maye"):
+        assert not MULTI_CARD_RE.search(title), title
