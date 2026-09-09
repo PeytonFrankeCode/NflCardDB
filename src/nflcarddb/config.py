@@ -63,6 +63,11 @@ class Config:
     inserts: Optional[str] = None
     designations: Optional[str] = None
     sets: Optional[str] = None
+    # Multi-card listings that turn up inside the singles categories, because
+    # sellers file them there. They are stored by default -- throwing away a
+    # collected sale is not something to do quietly -- but a lot's price
+    # belongs to no single card, so collecting them buys nothing.
+    skip_lots: bool = True
     fetch: FetchConfig = field(default_factory=FetchConfig)
     price_bands: list[list[Optional[float]]] = field(default_factory=lambda: list(DEFAULT_BANDS))
     queries: list[QuerySpec] = field(default_factory=list)
@@ -104,6 +109,7 @@ def load_config(path: str | Path | None = None) -> Config:
         inserts=raw.get("inserts"),
         designations=raw.get("designations"),
         sets=raw.get("sets"),
+        skip_lots=bool(raw.get("skip_lots", True)),
         fetch=fetch,
         price_bands=raw.get("price_bands") or list(DEFAULT_BANDS),
         queries=queries,

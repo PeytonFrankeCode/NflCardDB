@@ -272,3 +272,37 @@ def test_the_worker_endpoints_pass_their_own_tests():
     done = subprocess.run([node, "--test", str(suite)],
                           capture_output=True, text=True, timeout=180)
     assert done.returncode == 0, done.stdout[-4000:] + done.stderr[-2000:]
+
+
+def test_queries_reports_what_each_search_uniquely_found(tmp_path, capsys):
+    """query_id keeps the search that FIRST found a sale, so this measures
+    unique contribution rather than overlap -- which is the only thing that
+    says whether a search is worth the minutes it costs every night."""
+    from nflcarddb import db as store
+    from nflcarddb.models import Sale
+
+    db_path = tmp_path / "q.db"
+    conn = store.connect(db_path)
+    run = store.start_run(conn, "2026-01-01")
+    store.upsert_sales(conn, [
+        *(Sale(item_id=f"a{i}", title="t", price_cents=100,
+               sold_date="2026-01-01", query_id="football_singles")
+          for i in range(9)),
+        Sale(item_id="b1", title="t", price_cents=100,
+             sold_date="2026-01-01", query_id="nfl_singles"),
+    ], run)
+    store.finish_run(conn, run, "ok", 10, 10, 10)
+    conn.close()
+
+    assert main(["queries", "--db", str(db_path), "--config", "nope.yml"]) == 0
+    out = capsys.readouterr().out
+    assert "football_singles" in out and "90.0%" in out
+    assert "nfl_singles" in out and "10.0%" in out
+
+
+def test_queries_is_calm_about_an_empty_database(tmp_path, capsys):
+    from nflcarddb import db as store
+    store.connect(tmp_path / "e.db").close()
+    assert main(["queries", "--db", str(tmp_path / "e.db"),
+                 "--config", "nope.yml"]) == 0
+    assert "No sales collected yet" in capsys.readouterr().out

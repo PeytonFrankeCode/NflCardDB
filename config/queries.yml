@@ -80,12 +80,12 @@ queries:
     keywords: football
     category: "261328"
 
-  # Lots and sets are a different category, so the singles search never sees
-  # them. Same shape as the query above, which is why it is trusted here.
-  # A lot price is not a card price -- "50 cards for $30" is not a $30 card.
-  - id: football_lots
-    keywords: football
-    category: "261329"
+  # eBay's Lots category (261329) was collected here and is not any more.
+  # A lot price is not a card price -- "50 cards for $30" is not a $30 card --
+  # so every row it returned was stored, parsed, uploaded, and then refused a
+  # card_key. That is a whole category walked, every price band, for data
+  # nothing could use. Add it back only if lots become interesting in
+  # themselves rather than as comparables.
 
   # Graded cards: same card, known condition, comparable prices. Runs alone
   # (`--query football_graded`) as a fast daily pass when time is short.
