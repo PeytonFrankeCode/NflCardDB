@@ -24,8 +24,20 @@ echo.
 echo   sales        - every sold listing, best offers included
 echo   priced_sales - the ones with a real sale price (best offers have none)
 echo   days         - how many separate days you have collected
+echo   cards        - the card catalogue: one row per card, which is
+echo                  what your website browses and sorts
+echo   clean_cards  - of those, the ones whose prices agree well
+echo                  enough to trust (quality=clean)
+echo   active_keys  - keys your website can use to read this
 echo.
 echo If these look right, the website has the data.
+echo.
+echo If  sales  is large but  cards  is 0, the sales landed and the
+echo catalogue did not - the website will find nothing to browse.
+echo Fix that with resend-all.bat.
+echo.
+echo If  active_keys  is 0, no website can read this at all.
+echo Fix that with website-key.bat.
 goto END
 
 :EMPTY

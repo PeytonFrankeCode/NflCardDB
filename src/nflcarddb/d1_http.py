@@ -296,6 +296,12 @@ def verify(account_id: str, database_id: str, token: str) -> dict:
     `priced_sales` is reported separately because it is the number a website
     actually plots: best-offer rows carry no sale price, and they are roughly
     half the dataset, so `sales` alone looks wrong to anyone comparing the two.
+
+    The catalogue counts come from a second query, and a failure of that one is
+    swallowed: `sales` full of rows while `cards` is empty is the exact state a
+    half-finished push leaves behind, and reporting it is the whole point --
+    losing the sales counts too because an older database has no `cards` table
+    would hide the answer rather than give it.
     """
     out = run_sql(
         account_id, database_id, token,
@@ -308,4 +314,19 @@ def verify(account_id: str, database_id: str, token: str) -> dict:
         " FROM sales;",
     )
     rows = (out.get("result") or [{}])[0].get("results") or [{}]
-    return rows[0] if rows else {}
+    state = dict(rows[0]) if rows else {}
+
+    try:
+        cat = run_sql(
+            account_id, database_id, token,
+            "SELECT COUNT(*) AS cards,"
+            " SUM(CASE WHEN quality = 'clean' THEN 1 ELSE 0 END) AS clean_cards,"
+            " (SELECT COUNT(*) FROM card_grades) AS card_grades"
+            " FROM cards;",
+        )
+    except D1Error:
+        return state
+    cat_rows = (cat.get("result") or [{}])[0].get("results") or [{}]
+    if cat_rows:
+        state.update(cat_rows[0])
+    return state

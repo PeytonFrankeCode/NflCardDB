@@ -207,9 +207,11 @@ Still works, any time, whether or not it's scheduled.
 4. A minute or two later your dashboard updates at
    **https://peytonfrankecode.github.io/NflCardDB/**
 
-5. `d1-push.bat` uploads to Cloudflare on its own if you ever need it; and
+5. `d1-push.bat` uploads to Cloudflare on its own if you ever need it;
    `d1-check.bat` prints what Cloudflare currently holds without uploading
-   anything. Details in `CLOUDFLARE.md`.
+   anything; and `resend-all.bat` sends the whole database again when only
+   sending the changes has left Cloudflare out of date. Details in
+   `CLOUDFLARE.md`.
 
 ---
 
@@ -504,6 +506,13 @@ nothing. Uploading before regrouping sends the old keys.
 About ten minutes. Nothing is deleted at any point: every step rewrites, so
 running it twice is safe, and if the upload fails your sales are still
 regrouped on this PC — `d1-push.bat` on its own will finish the job.
+
+If the upload failed partway, `d1-push.bat` may afterwards report **"Nothing new
+to upload"**: it only sends what changed since the last upload it *finished*,
+and a run that got far enough to finish once has already moved that marker.
+When the card names or the sorting on your website look out of date, use
+**`resend-all.bat`** instead — it ignores the marker and sends everything.
+`d1-check.bat` tells you which situation you are in: look at the `cards` line.
 
 ### What the checklist actually changes
 

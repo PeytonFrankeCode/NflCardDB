@@ -57,6 +57,11 @@ echo   /v1/cards?quality=clean^&sort=rising^&limit=50
 echo.
 echo with the header:   Authorization: Bearer YOUR-KEY
 echo.
+echo To confirm it really arrived, run d1-check.bat and look at
+echo the  active_keys  line. That number is how many keys the
+echo Cloudflare database will accept; if it is 0, no site can
+echo read it whatever key you paste in.
+echo.
 echo A key put into website JavaScript is PUBLIC - anyone can
 echo read the page source. If your site calls this from the
 echo browser rather than from a server, treat the key as a

@@ -2014,10 +2014,17 @@ def cmd_d1_push(args) -> int:
             if new_keys:
                 print(f"  registering {len(new_keys)} API key(s)")
             print(f"  {stats['rows']} rows, {stats['bytes'] // 1024} KB\n")
-            if not stats["rows"]:
+            # A key is not a row. Skipping the upload because no sale changed
+            # threw away the one statement that switches a website's key on --
+            # the key was minted locally, reported as registered, and never
+            # sent, so the site got 401 from a database that had never heard
+            # of it.
+            if not stats["rows"] and not new_keys:
                 print("Nothing new to upload -- Cloudflare already has "
                       "everything collected.")
                 return 0
+            if not stats["rows"]:
+                print("No new sales -- sending the key on its own.")
 
             print("Uploading...")
             sql = Path(args.out).read_text(encoding="utf-8")
@@ -2028,7 +2035,17 @@ def cmd_d1_push(args) -> int:
 
             # Recorded only after the upload returned without raising, so a
             # failed push is retried in full rather than silently skipped.
-            if not args.dry_run and stats.get("watermark"):
+            #
+            # Not recorded at all when `--since` narrowed the export: the
+            # watermark is the newest timestamp in the whole local database,
+            # but a date-filtered run deliberately left older rows behind.
+            # Marking those delivered would make them unreachable to every
+            # later incremental push.
+            if args.since and not args.dry_run:
+                print("\n--since was used, so this run does not count as "
+                      "\"everything up to now\" -- the next push still starts "
+                      "from where the last full one ended.")
+            if not args.dry_run and not args.since and stats.get("watermark"):
                 conn = store.connect(args.db)
                 try:
                     store.record_sync(conn, args.database_id,

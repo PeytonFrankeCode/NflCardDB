@@ -250,10 +250,10 @@ def test_the_catalogue_tables_are_migrated_in_too():
 
 def test_verify_reports_priced_sales_separately(monkeypatch):
     """`sales` alone reads as wrong to anyone comparing it with a price chart."""
-    captured = {}
+    captured = []
 
     def fake_run(account, database, token, sql):
-        captured["sql"] = sql
+        captured.append(sql)
         return {"result": [{"results": [{
             "sales": 20665, "priced_sales": 11160, "days": 1,
             "first_day": "2026-08-03", "last_day": "2026-08-03",
@@ -266,13 +266,55 @@ def test_verify_reports_priced_sales_separately(monkeypatch):
     assert state["sales"] == 20665
     assert state["priced_sales"] == 11160
     assert state["first_day"] == "2026-08-03"
-    assert "price_cents IS NOT NULL" in captured["sql"]
+    assert "price_cents IS NOT NULL" in captured[0]
 
 
 def test_verify_survives_an_empty_database(monkeypatch):
     monkeypatch.setattr("nflcarddb.d1_http.run_sql",
                         lambda *a, **k: {"result": [{"results": []}]})
     assert verify("acct", "db", "token") == {}
+
+
+def test_verify_reports_the_catalogue_not_just_the_sales(monkeypatch):
+    """Sales landing while `cards` stays empty is a real, silent half-push.
+
+    The website browses `cards`. A database with 500,000 sales and no
+    catalogue looks healthy by every number the old check printed and serves
+    an empty site.
+    """
+    def fake_run(account, database, token, sql):
+        if "FROM cards" in sql:
+            return {"result": [{"results": [{
+                "cards": 41230, "clean_cards": 3110, "card_grades": 52907,
+            }]}]}
+        return {"result": [{"results": [{
+            "sales": 543935, "priced_sales": 300000, "days": 38,
+            "first_day": "2026-08-03", "last_day": "2026-09-09",
+            "active_keys": 1,
+        }]}]}
+
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql", fake_run)
+    state = verify("acct", "db", "token")
+
+    assert state["sales"] == 543935
+    assert state["cards"] == 41230
+    assert state["clean_cards"] == 3110
+    assert state["card_grades"] == 52907
+
+
+def test_verify_still_reports_sales_when_the_catalogue_query_fails(monkeypatch):
+    """An older database has no `cards` table. Losing every other number to
+    that is the opposite of what this check is for."""
+    def fake_run(account, database, token, sql):
+        if "FROM cards" in sql:
+            raise D1Error("no such table: cards")
+        return {"result": [{"results": [{"sales": 12, "active_keys": 0}]}]}
+
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql", fake_run)
+    state = verify("acct", "db", "token")
+
+    assert state["sales"] == 12
+    assert "cards" not in state
 
 
 def test_local_sale_count_matches_what_the_export_sends(tmp_path):
@@ -609,6 +651,98 @@ def test_the_read_limit_is_named_rather_than_blamed_on_the_token(
     assert "5,000,000 rows read" in err
     assert "midnight UTC" in err
     assert "token" in err and "Nothing is wrong with your token" in err
+
+
+def _push_with(tmp_path, monkeypatch, *, rows, extra_args=()):
+    """Run cmd_d1_push with an export of `rows` rows, and report what happened.
+
+    Returns (exit code, dict) where the dict records whether the SQL was
+    actually uploaded and what watermark, if any, was written down.
+    """
+    import nflcarddb.cli as cli
+    from nflcarddb.d1_http import PushResult
+
+    seen = {"uploaded": False, "watermark": None}
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr(cli, "_local_sale_count", lambda path: 0)
+    monkeypatch.setattr("nflcarddb.d1_http.verify", lambda *a, **k: {"sales": 5})
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", lambda *a, **k: [])
+
+    def upload(*a, **k):
+        seen["uploaded"] = True
+        return PushResult(statements=1, batches=1)
+
+    monkeypatch.setattr("nflcarddb.d1_http.push_sql", upload)
+    monkeypatch.setattr("nflcarddb.api_export.export_api_sql",
+                        lambda *a, **k: {"rows": rows, "bytes": 2048,
+                                         "watermark": "2026-09-09T21:22:00.477"})
+    monkeypatch.setattr(cli.store, "sync_watermark", lambda *a, **k: "2026-09-01")
+    monkeypatch.setattr(cli.store, "connect", lambda *a, **k: _NullConn())
+    monkeypatch.setattr(
+        cli.store, "record_sync",
+        lambda conn, target, pushed_at, rows_sent: seen.update(watermark=pushed_at))
+
+    out = tmp_path / "o.sql"
+    out.write_text("INSERT INTO api_keys VALUES ('h','website','now');")
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "x.db"), "--out", str(out), *extra_args])
+    return cli.cmd_d1_push(args), seen
+
+
+class _NullConn:
+    def close(self):
+        pass
+
+
+def test_a_key_still_goes_up_when_no_sale_changed(tmp_path, capsys, monkeypatch):
+    """website-key.bat minted a key, printed "registering 1 API key(s)", and
+    then skipped the upload because no sale had changed since the last push.
+
+    The key existed only on this PC. Cloudflare had never heard of it, so the
+    website got 401 from a database it was supposedly authorised to read. A
+    key is not a row, and "no new rows" is not "nothing to send".
+    """
+    code, seen = _push_with(tmp_path, monkeypatch, rows=0,
+                            extra_args=["--add-key", "abc123:website"])
+
+    assert code == 0
+    assert seen["uploaded"], "the key was built into the file and never sent"
+    assert "sending the key on its own" in capsys.readouterr().out
+
+
+def test_nothing_at_all_to_send_still_skips_the_upload(tmp_path, capsys, monkeypatch):
+    """The saving this early return exists for: a daily push with no new sales
+    should not re-upload the file for the sake of it."""
+    code, seen = _push_with(tmp_path, monkeypatch, rows=0)
+
+    assert code == 0
+    assert not seen["uploaded"]
+    assert "Nothing new to upload" in capsys.readouterr().out
+
+
+def test_a_date_filtered_push_does_not_claim_everything_was_sent(
+        tmp_path, capsys, monkeypatch):
+    """`--since` deliberately leaves older rows out of the export.
+
+    The watermark is the newest timestamp in the whole local database, so
+    recording it after a narrowed run marks rows delivered that were never
+    built into the file -- and every later incremental push then skips them.
+    """
+    code, seen = _push_with(tmp_path, monkeypatch, rows=10,
+                            extra_args=["--since", "2026-09-01"])
+
+    assert code == 0
+    assert seen["uploaded"]
+    assert seen["watermark"] is None, "a partial run must not move the marker"
+    assert "--since was used" in capsys.readouterr().out
+
+
+def test_an_ordinary_push_does_move_the_marker(tmp_path, monkeypatch):
+    code, seen = _push_with(tmp_path, monkeypatch, rows=10)
+    assert code == 0
+    assert seen["watermark"] == "2026-09-09T21:22:00.477"
 
 
 def test_a_schema_only_push_does_not_count_every_row(tmp_path, monkeypatch):

@@ -51,12 +51,26 @@ prints it — nothing is uploaded:
   "days": 1,
   "first_day": "2026-08-03",
   "last_day": "2026-08-03",
-  "active_keys": 1
+  "active_keys": 1,
+  "cards": 41230,
+  "clean_cards": 3110,
+  "card_grades": 52907
 }
 ```
 
 `sales` should match what you collected. `priced_sales` is smaller *and that is
 correct* — best offers have no published sale price (see the note further down).
+
+`cards` is the one to read after a regroup. It is the **catalogue** — one row
+per card — and it is what a browsing site pages and sorts through. Sales and
+catalogue are uploaded together but land in different tables, so a push that
+stopped partway can leave half a million sales sitting next to `"cards": 0`.
+Every number above then looks healthy while the website serves an empty list.
+If that happens, double-click **`resend-all.bat`**, which sends the whole
+database again rather than only what changed.
+
+`active_keys` is the other one worth a glance: it is how many keys the database
+will accept. At `0`, no site can read it no matter which key it sends.
 
 `d1-push.bat` runs this check itself at the end and tells you if the two counts
 disagree, which would mean the upload stopped partway. The fix is to run it
