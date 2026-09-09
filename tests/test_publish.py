@@ -335,3 +335,77 @@ def test_published_cards_carry_their_verdict(published):
     card = data["cards"][0]
     assert card["quality"] in {"clean", "suspect", "unproven", "bucket"}
     assert "spread" in card
+
+
+# --- the trend must be measured inside one grade ----------------------------
+
+
+def test_a_card_that_went_from_raw_to_graded_is_not_a_riser():
+    """The bug that put nonsense at the top of the most visible page.
+
+    "2015 Score Franchise Tom Brady #1" led the biggest-risers list at +2236%
+    on eight sales. Nothing about the card moved: it sold raw early and PSA 10
+    lately, and a trend taken across both grades measured the change in what
+    was being sold. Because a big rise is exactly what ranks a card first, the
+    numbers that were most wrong were the ones shown most prominently.
+    """
+    from nflcarddb.publish import grade_trend, price_trend
+
+    by_grade = {
+        "Raw":    [1.40, 1.50, 1.45, 1.60],       # chronologically first
+        "PSA 10": [33.00, 32.00, 34.00, 33.50],   # and later
+    }
+    mixed = [1.40, 1.50, 1.45, 1.60, 33.00, 32.00, 34.00, 33.50]
+
+    assert price_trend(mixed) > 1000, "the old, all-grades reading"
+
+    trend, n = grade_trend(by_grade)
+    assert trend is not None
+    assert abs(trend) < 25, f"neither market moved much, but reported {trend}%"
+    assert n == 4, "and the count says how little evidence that rests on"
+
+
+def test_the_trend_still_reads_a_real_move_within_a_grade():
+    from nflcarddb.publish import grade_trend
+
+    trend, n = grade_trend({"PSA 10": [10, 10, 10, 20, 20, 20]})
+    assert trend == 100.0
+    assert n == 6
+
+
+def test_the_trend_follows_the_biggest_market_not_the_noisiest():
+    """A card with thirty raw sales and four PSA 10s is a raw market."""
+    from nflcarddb.publish import grade_trend
+
+    trend, n = grade_trend({
+        "Raw": [10.0] * 15 + [11.0] * 15,
+        "PSA 10": [100.0, 100.0, 400.0, 400.0],
+    })
+    assert n == 30
+    assert trend == 10.0, "the raw market's move, not the PSA 10 scatter"
+
+
+def test_no_grade_with_enough_sales_means_no_trend():
+    """Spread across four grades, no single market has a history."""
+    from nflcarddb.publish import grade_trend
+
+    trend, n = grade_trend({"Raw": [10, 12], "PSA 10": [90], "PSA 9": [50], "BGS 9.5": [60]})
+    assert trend is None and n == 0
+
+
+def test_penny_sales_do_not_become_a_market():
+    """A $0.01 sale in the older half turns any card into a riser."""
+    from nflcarddb.publish import grade_trend
+
+    trend, n = grade_trend({"Raw": [0.01, 0.01, 20.0, 20.0, 20.0, 20.0]})
+    assert n == 4, "the two junk prices are dropped, not counted"
+    assert trend == 0.0
+
+
+def test_the_trend_count_is_never_larger_than_the_grade_it_came_from():
+    from nflcarddb.publish import grade_trend
+
+    by_grade = {"Raw": [5.0] * 9, "PSA 10": [50.0] * 4}
+    _, n = grade_trend(by_grade)
+    assert n == 9
+    assert n < sum(len(v) for v in by_grade.values())

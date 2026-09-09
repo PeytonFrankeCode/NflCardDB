@@ -213,6 +213,11 @@ Still works, any time, whether or not it's scheduled.
    sending the changes has left Cloudflare out of date. Details in
    `CLOUDFLARE.md`.
 
+6. `sorted.bat` shows the sorted catalogue live out of Cloudflare — the same
+   question your other website asks it — and prints the SQL behind each list.
+   `card-list.bat` writes the whole thing to a spreadsheet you can open in
+   Excel. The queries for a site are in `api/SQL.md`.
+
 ---
 
 ## Card photos

@@ -261,11 +261,15 @@ def card_histories(conn: sqlite3.Connection, limit: int = MAX_CARDS) -> list[dic
         card["high"] = max(prices)
         card["first"] = sales[0][0]
         card["last"] = sales[-1][0]
-        card["trend"] = price_trend(prices)
         by_grade: dict[str, list[float]] = {}
         for _, price, grade in sales:
             by_grade.setdefault(grade, []).append(price)
         card["spread"] = price_dispersion(by_grade)
+        # Inside one grade, like the spread beside it. Across all grades the
+        # number described the mix of what sold rather than the price of the
+        # card, and it described it most loudly on the cards it was most wrong
+        # about.
+        card["trend"], card["trend_n"] = grade_trend(by_grade)
         # The same verdict the API serves, computed the same way, so the list
         # in the terminal and the site agree with what the other site queries.
         card["quality"] = card_quality(bool(card["nonum"]), card["spread"])
@@ -303,6 +307,26 @@ def _percentile_of(values: list[float], pct: float) -> float:
     return ordered[idx]
 
 
+def largest_cohort(by_grade: dict[str, list[float]],
+                   minimum: int = MIN_COHORT_TO_JUDGE) -> Optional[list[float]]:
+    """The card's biggest single-grade market, junk prices dropped.
+
+    Every judgement about a card's prices belongs inside one grade. A PSA 10
+    and a raw copy are one card and two markets, so any number computed across
+    both is measuring the mix of grades rather than the card.
+
+    Order is preserved, because the trend needs these chronological. Ties go to
+    whichever grade sold first, which is deterministic rather than arbitrary:
+    callers build `by_grade` in date order, so the same database always yields
+    the same answer and a republish of unchanged data does not move a number.
+    """
+    cohorts = [[p for p in prices if p >= JUNK_PRICE] for prices in by_grade.values()]
+    cohorts = [c for c in cohorts if len(c) >= minimum]
+    if not cohorts:
+        return None
+    return max(cohorts, key=len)
+
+
 def price_dispersion(by_grade: dict[str, list[float]]) -> Optional[float]:
     """How far a card's prices spread inside its own largest grade.
 
@@ -315,11 +339,9 @@ def price_dispersion(by_grade: dict[str, list[float]]) -> Optional[float]:
 
     None when no grade has enough sales to say anything.
     """
-    cohorts = [[p for p in prices if p >= JUNK_PRICE] for prices in by_grade.values()]
-    cohorts = [c for c in cohorts if len(c) >= MIN_COHORT_TO_JUDGE]
-    if not cohorts:
+    biggest = largest_cohort(by_grade)
+    if not biggest:
         return None
-    biggest = max(cohorts, key=len)
     low = _percentile_of(biggest, 0.10)
     if not low:
         return None
@@ -357,6 +379,30 @@ def price_trend(prices: list[float]) -> Optional[float]:
     if not older:
         return None
     return round(100.0 * (newer - older) / older, 1)
+
+
+def grade_trend(by_grade: dict[str, list[float]]) -> tuple[Optional[float], int]:
+    """The trend inside the card's largest single grade, and how many sales say so.
+
+    Across all grades at once it measured the wrong thing. A card that sold raw
+    early and graded lately shows an enormous "rise" that is entirely the
+    change of what was being sold -- and because a rise ranks a card top of a
+    "biggest riser" page, the wrongest numbers were the most visible ones:
+    2015 Score Franchise Tom Brady at +2236%, on eight sales spanning two
+    markets.
+
+    Grade is deliberately not part of a card's identity, so the card stays one
+    card; only the number is computed where it means something. The count comes
+    back with it, because "up 40% over 30 PSA 10 sales" and "up 40% over four"
+    are not the same claim, and a browsing site needs to be able to tell them
+    apart.
+
+    Prices must arrive in date order within each grade.
+    """
+    cohort = largest_cohort(by_grade, minimum=MIN_SALES_FOR_TREND)
+    if not cohort:
+        return (None, 0)
+    return (price_trend(cohort), len(cohort))
 
 
 def _top(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:

@@ -57,7 +57,8 @@ This is the one your site runs most. Swap the `ORDER BY` for each sort tab.
 SELECT card_key, card_name, player, team, year, brand, set_name, subset,
        parallel, card_number, print_run, image_url,
        sales, median_cents, low_cents, high_cents,
-       raw_sales, raw_median_cents, trend_pct, first_sold, last_sold
+       raw_sales, raw_median_cents, trend_pct, trend_sales,
+       first_sold, last_sold
 FROM cards
 WHERE quality = 'clean'
 ORDER BY sales DESC, median_cents DESC
@@ -71,17 +72,29 @@ LIMIT 50;
 | Most traded | `sales DESC, median_cents DESC` | — |
 | Highest value | `median_cents DESC, sales DESC` | — |
 | Cheapest | `median_cents ASC, sales DESC` | — |
-| Biggest riser | `trend_pct DESC, sales DESC` | `AND trend_pct IS NOT NULL` |
-| Biggest faller | `trend_pct ASC, sales DESC` | `AND trend_pct IS NOT NULL` |
+| Biggest riser | `trend_pct DESC, sales DESC` | `AND trend_pct IS NOT NULL AND trend_sales >= 10` |
+| Biggest faller | `trend_pct ASC, sales DESC` | `AND trend_pct IS NOT NULL AND trend_sales >= 10` |
 | Sold most recently | `last_sold DESC, sales DESC` | — |
 | Newest cards | `year DESC, sales DESC` | — |
 | Oldest cards | `year ASC, sales DESC` | — |
 | A–Z | `card_name ASC` | — |
 
-**The `trend_pct IS NOT NULL` line is not optional.** A card with fewer than
-four sales has no trend, because two points draw a line through anything. Sort
-without that filter and every card with no history lands at one end of the list
-— which is never the page you meant to build.
+**Neither filter on the trend rows is optional.**
+
+`trend_pct IS NOT NULL` — a card with fewer than four sales in a single grade
+has no trend, because two points draw a line through anything. Without it,
+every card with no history lands at one end of the list.
+
+`trend_sales >= 10` — **not** `sales >= 10`. The trend is measured inside the
+card's largest single grade, because a raw copy and a PSA 10 are two markets
+and a card that moved from one to the other is not a card whose price moved.
+`trend_sales` is how many sales that grade contributed; `sales` counts every
+grade. A card with 200 sales can carry a trend drawn from four of them, and
+filtering on `sales` reads like evidence without being any.
+
+Sort by `trend_pct` with no floor and the top of the page is cards up 900% on
+four sales — arithmetically true, worth nothing. Ten is a reasonable floor;
+raise it for a front page, lower it for a "recently moving" feed.
 
 Each of those sorts has an index behind it with `quality` leading, so the
 database jumps straight to the rows rather than reading the catalogue and
@@ -106,6 +119,7 @@ AND is_relic = 1
 AND print_run <= 25                 -- short prints
 AND median_cents BETWEEN 1000 AND 10000
 AND sales >= 5                      -- only cards with a real market
+AND trend_sales >= 10               -- only trends with evidence behind them
 ```
 
 Search by name:
@@ -186,9 +200,9 @@ Reading 543,935 rows this way once cost 74 million row-reads the other way.
 **Today's movers** — cards with a real market that moved:
 
 ```sql
-SELECT card_name, player, year, set_name, median_cents, trend_pct, sales
+SELECT card_name, player, year, set_name, median_cents, trend_pct, trend_sales
 FROM cards
-WHERE quality = 'clean' AND trend_pct IS NOT NULL AND sales >= 8
+WHERE quality = 'clean' AND trend_pct IS NOT NULL AND trend_sales >= 10
 ORDER BY trend_pct DESC LIMIT 25;
 ```
 

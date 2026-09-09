@@ -306,3 +306,98 @@ def test_queries_is_calm_about_an_empty_database(tmp_path, capsys):
     assert main(["queries", "--db", str(tmp_path / "e.db"),
                  "--config", "nope.yml"]) == 0
     assert "No sales collected yet" in capsys.readouterr().out
+
+
+# --- the whole catalogue, as a spreadsheet ----------------------------------
+
+
+def _catalogue_db(tmp_path):
+    """A card that sold raw early and PSA 10 lately, plus a plain one."""
+    from nflcarddb import db as store
+    from nflcarddb.db import Sale
+    from nflcarddb.parse_title import parse_title
+
+    path = tmp_path / "cat.sqlite"
+    conn = store.connect(path)
+    run = store.start_run(conn, "2026-01-01")
+    rows = []
+    titles = (
+        [("2015 Score Franchise Tom Brady #1", c) for c in (140, 150, 145, 160)]
+        + [("2015 Score Franchise Tom Brady #1 PSA 10", c)
+           for c in (3300, 3200, 3400, 3350)]
+        + [("2024 Prizm Caleb Williams #301", c) for c in (1000, 1000, 2000, 2000)]
+    )
+    for i, (title, cents) in enumerate(titles):
+        rows.append(Sale(item_id=f"i{i}", title=title, price_cents=cents,
+                         currency="USD", shipping_cents=0,
+                         sold_date=f"2026-08-{i + 1:02d}",
+                         listing_format="Auction", bids=1, best_offer=0,
+                         condition=None, seller="s", url="u", image_url=None,
+                         query_id="q"))
+    store.upsert_sales(conn, rows, run)
+    store.upsert_cards(conn, [(s.item_id, parse_title(s.title)) for s in rows],
+                       "title/12")
+    store.finish_run(conn, run, "ok", len(rows), len(rows), len(rows))
+    conn.close()
+    return path
+
+
+def _card_list(tmp_path, extra=()):
+    import csv as _csv
+
+    import nflcarddb.cli as cli
+
+    out = tmp_path / "cards.csv"
+    args = cli.build_parser().parse_args(
+        ["card-list", "--db", str(_catalogue_db(tmp_path)), "--out", str(out),
+         "--quality", "all", *extra])
+    code = cli.cmd_card_list(args)
+    rows = list(_csv.DictReader(out.open(encoding="utf-8-sig"))) if out.exists() else []
+    return code, rows
+
+
+def test_the_catalogue_export_writes_dollars_not_cents(tmp_path):
+    """A column named `median_cents` holding 8525 is read as dollars by
+    everyone who opens the file, and nobody checks the column name twice."""
+    code, rows = _card_list(tmp_path)
+
+    assert code == 0 and rows
+    assert "median_usd" in rows[0] and "median_cents" not in rows[0]
+    brady = next(r for r in rows if "Brady" in r["card_name"])
+    assert float(brady["median_usd"]) == 16.8
+
+
+def test_the_export_carries_the_trend_and_what_it_rests_on(tmp_path):
+    """Both numbers, because one without the other is how +2236% got onto a
+    front page."""
+    _, rows = _card_list(tmp_path)
+
+    brady = next(r for r in rows if "Brady" in r["card_name"])
+    assert abs(float(brady["trend_pct"])) < 25, "raw and PSA 10 measured apart"
+    assert int(brady["trend_sales"]) == 4
+    assert int(brady["sales"]) == 8, "the card still has all eight sales"
+
+
+def test_the_trend_floor_filters_the_export(tmp_path):
+    code, rows = _card_list(tmp_path, ["--sort", "rising", "--min-trend-sales", "10"])
+
+    assert rows == []
+    assert code == 1, "an empty file is not a success"
+
+
+def test_the_export_sorts_the_way_the_website_does(tmp_path):
+    from nflcarddb.cli import D1_CARD_SORTS
+
+    _, by_value = _card_list(tmp_path, ["--sort", "value"])
+    medians = [float(r["median_usd"]) for r in by_value]
+    assert medians == sorted(medians, reverse=True)
+
+    _, cheapest = _card_list(tmp_path, ["--sort", "cheapest"])
+    medians = [float(r["median_usd"]) for r in cheapest]
+    assert medians == sorted(medians)
+
+    # Every sort the site offers can be asked for here, or the file and the
+    # website are answering different questions.
+    for name in D1_CARD_SORTS:
+        code, rows = _card_list(tmp_path, ["--sort", name])
+        assert code == 0, f"{name} failed"

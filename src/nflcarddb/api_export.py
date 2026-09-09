@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from . import db as store
-from .publish import card_quality, price_dispersion, price_trend
+from .publish import card_quality, grade_trend, price_dispersion
 
 # D1 rejects very large statements, so rows go out in batches.
 ROWS_PER_INSERT = 200
@@ -148,7 +148,7 @@ CARD_COLUMNS = (
     "subset", "parallel", "card_number", "print_run", "is_rookie", "is_auto",
     "is_relic", "numberless", "image_url", "sales", "median_cents",
     "low_cents", "high_cents", "raw_sales", "raw_median_cents",
-    "first_sold", "last_sold", "trend_pct", "quality", "spread",
+    "first_sold", "last_sold", "trend_pct", "trend_sales", "quality", "spread",
 )
 
 GRADE_COLUMNS = ("card_key", "grade_label", "sales", "median_cents",
@@ -234,9 +234,13 @@ def _card_rollups(
     for key, c in grouped.items():
         prices = c["prices"]
         raw = c["by_grade"].get("Raw", {}).get("prices", [])
-        spread = price_dispersion(
-            {g: [p / 100.0 for p in v["prices"]] for g, v in c["by_grade"].items()})
+        # Built once and used twice: both the spread and the trend are only
+        # meaningful inside a single grade, and both read these in date order.
+        by_grade = {g: [p / 100.0 for p in v["prices"]]
+                    for g, v in c["by_grade"].items()}
+        spread = price_dispersion(by_grade)
         quality = card_quality(bool(c["numberless"]), spread)
+        trend_pct, trend_sales = grade_trend(by_grade)
         cards.append({
             "card_key": key,
             # The spelling most of the group agrees on. card_name carries words
@@ -262,8 +266,14 @@ def _card_rollups(
             # that are known good without also hiding the rest.
             "quality": quality,
             "spread": spread,
-            # Chronological, because the trend compares halves of a timeline.
-            "trend_pct": price_trend([p / 100.0 for p in prices]),
+            # Within one grade. Across all of them this measured the change in
+            # what was being sold rather than the change in price, and a card
+            # that went from raw to graded ranked top of "biggest riser".
+            "trend_pct": trend_pct,
+            # How many sales the trend is drawn from -- always fewer than
+            # `sales`, since it is one grade's worth. A site sorting by trend
+            # should set a floor on this, not on `sales`.
+            "trend_sales": trend_sales,
         })
         for label, g in c["by_grade"].items():
             gp = g["prices"]

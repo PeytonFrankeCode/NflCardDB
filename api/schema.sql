@@ -103,9 +103,18 @@ CREATE TABLE IF NOT EXISTS cards (
     raw_median_cents INTEGER,
     first_sold     TEXT,
     last_sold      TEXT,
-    -- Percent change from the older half of this card's sales to the newer.
-    -- NULL below four sales: two points make a line through anything.
+    -- Percent change from the older half of this card's sales to the newer,
+    -- measured INSIDE the card's largest grade. Across all grades at once it
+    -- measured the change in what was being sold: a card that sold raw early
+    -- and graded lately showed an enormous rise that was pure composition, and
+    -- a rise is what puts a card top of a "biggest riser" page.
+    -- NULL below four sales in any one grade: two points make a line through
+    -- anything.
     trend_pct      REAL,
+    -- How many sales that trend is drawn from. Always fewer than `sales`,
+    -- because it is one grade's worth. Sort by trend and filter on THIS, not
+    -- on `sales` -- a card with 200 sales can have a trend resting on four.
+    trend_sales    INTEGER NOT NULL DEFAULT 0,
     -- Which pile this card belongs in, so a site can browse the ones known to
     -- be good without the doubtful ones being deleted:
     --   clean    -- numbered, and its prices agree within each grade

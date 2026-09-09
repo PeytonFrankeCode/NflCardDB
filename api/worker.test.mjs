@@ -45,7 +45,7 @@ function card(over = {}) {
     is_auto: 0, is_relic: 0, numberless: 0, image_url: null, sales: 5,
     median_cents: 1000, low_cents: 500, high_cents: 2000, raw_sales: 5,
     raw_median_cents: 1000, first_sold: "2026-01-01", last_sold: "2026-02-01",
-    trend_pct: 0, quality: "clean", spread: 2.0, ...over,
+    trend_pct: 0, trend_sales: 5, quality: "clean", spread: 2.0, ...over,
   };
 }
 
@@ -152,6 +152,31 @@ test("filters narrow the catalogue", async () => {
   assert.equal((await get(env, "/v1/cards?min_price=100")).body.total, 1);
   assert.equal((await get(env, "/v1/cards?max_price=20")).body.total, 2);
 });
+
+test("a trend can be filtered by the evidence behind it, not the card's total sales",
+  async () => {
+    // The distinction that put nonsense at the top of the risers page. A card
+    // with 200 sales can carry a trend drawn from the four that share its
+    // largest grade, so `min_sales` reads like a floor under the trend without
+    // being one. `min_trend_sales` is the real floor.
+    const env = makeEnv([
+      card({ card_key: "loud", card_name: "Loud On Nothing", sales: 200,
+             trend_pct: 2236.6, trend_sales: 4, year: 2015 }),
+      card({ card_key: "real", card_name: "Real Move", sales: 40,
+             trend_pct: 61.0, trend_sales: 30, year: 2024 }),
+    ]);
+
+    const bySales = await get(env, "/v1/cards?sort=rising&min_sales=100");
+    assert.equal(bySales.body.total, 1);
+    assert.equal(bySales.body.cards[0].card_key, "loud",
+      "filtering on total sales keeps the four-sale trend");
+
+    const byTrend = await get(env, "/v1/cards?sort=rising&min_trend_sales=10");
+    assert.equal(byTrend.body.total, 1);
+    assert.equal(byTrend.body.cards[0].card_key, "real");
+    assert.equal(byTrend.body.cards[0].trend_sales, 30,
+      "and the count is served, so a page can show what the trend rests on");
+  });
 
 test("a search term is not read as SQL", async () => {
   const env = makeEnv(CATALOGUE);

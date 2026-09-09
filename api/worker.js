@@ -419,8 +419,15 @@ function shapeCard(r) {
     last_sold: r.last_sold,
     // Percent change from the older half of this card's sales to the newer,
     // rather than newest against oldest, so one odd sale at either end cannot
-    // be the whole trend. Null below four sales.
+    // be the whole trend. Measured INSIDE the card's largest grade: across all
+    // of them it reported a card that moved from raw to graded as a several
+    // -thousand-percent riser, which is the change in what was sold and not a
+    // change in price. Null below four sales in any one grade.
     trend: r.trend_pct,
+    // How many sales that trend rests on -- one grade's worth, so always fewer
+    // than `sales`. Filter on this when sorting by trend; filtering on `sales`
+    // does not say what it looks like it says.
+    trend_sales: r.trend_sales,
     // clean | suspect | unproven | bucket -- see /v1/quality for what each
     // means. `spread` is the number behind the verdict: the card's 90th
     // percentile price over its 10th, inside its largest single grade.
@@ -487,10 +494,15 @@ async function listCards(url, env) {
     binds.push(...wanted);
   }
 
-  // The floor that makes a trend mean anything. A caller sorting by "rising"
-  // without it gets cards whose entire history is four sales.
   const minSales = intParam(url, "min_sales", 0);
   if (minSales) { where.push("sales >= ?"); binds.push(minSales); }
+
+  // The floor that actually makes a trend mean something. `min_sales` counts
+  // every sale of the card across every grade, so a card with 200 sales can
+  // still have a trend drawn from the four PSA 10s that happen to be its
+  // largest single market. This counts the sales the trend was computed from.
+  const minTrendSales = intParam(url, "min_trend_sales", 0);
+  if (minTrendSales) { where.push("trend_sales >= ?"); binds.push(minTrendSales); }
 
   for (const [param, op] of [["min_price", ">="], ["max_price", "<="]]) {
     const v = url.searchParams.get(param);

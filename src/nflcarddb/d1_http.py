@@ -69,6 +69,10 @@ MIGRATIONS = (
         last_sold TEXT, PRIMARY KEY (card_key, grade_label))""",
     "ALTER TABLE cards ADD COLUMN quality TEXT NOT NULL DEFAULT 'unproven'",
     "ALTER TABLE cards ADD COLUMN spread REAL",
+    # How many sales the trend rests on. A trend over a card's whole sales
+    # count was never what it looked like: it is one grade's worth, and a card
+    # with 200 sales can have a trend drawn from four of them.
+    "ALTER TABLE cards ADD COLUMN trend_sales INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_cards_sales  ON cards (sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_good   ON cards (quality, sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_value  ON cards (median_cents DESC)",

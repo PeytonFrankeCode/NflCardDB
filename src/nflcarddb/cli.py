@@ -2210,10 +2210,16 @@ def cmd_d1_cards(args) -> int:
     if args.min_sales:
         where.append("sales >= ?")
         params.append(args.min_sales)
+    # The honest floor under a trend. `sales` counts every grade, so a card
+    # with 200 sales can carry a trend drawn from the four that share its
+    # largest grade -- filtering on `sales` reads like evidence and is not.
+    if args.min_trend_sales:
+        where.append("trend_sales >= ?")
+        params.append(args.min_trend_sales)
 
     sql = (
         "SELECT card_name, player, year, set_name, sales, median_cents,\n"
-        "       trend_pct, last_sold\n"
+        "       trend_pct, trend_sales, last_sold\n"
         "FROM cards\n"
         f"WHERE {' AND '.join(where)}\n"
         f"ORDER BY {order}\n"
@@ -2245,23 +2251,129 @@ def cmd_d1_cards(args) -> int:
         print("uploaded. Run d1-check.bat and read the 'cards' line.")
         return 1
 
-    print(f"{'SALES':>5}  {'MEDIAN':>9}  {'TREND':>7}  {'LAST SOLD':>10}  CARD")
-    print("-" * 78)
+    print(f"{'SALES':>5}  {'MEDIAN':>9}  {'TREND':>8}  {'ON':>3}  "
+          f"{'LAST SOLD':>10}  CARD")
+    print("-" * 82)
     for r in rows:
         med = r.get("median_cents")
         trend = r.get("trend_pct")
         print(f"{r.get('sales') or 0:>5}  "
               f"{(med / 100.0 if med is not None else 0):>9.2f}  "
-              f"{('     --' if trend is None else f'{trend:+6.1f}%')}  "
+              f"{('      --' if trend is None else f'{trend:+7.1f}%')}  "
+              f"{r.get('trend_sales') or 0:>3}  "
               f"{(r.get('last_sold') or '')[:10]:>10}  "
               f"{r.get('card_name') or ''}")
 
     print()
     print(f"{len(rows)} card(s), sorted by {args.sort}, straight out of "
           f"Cloudflare.")
-    print("That is the whole of it: the sorting is stored, not computed when")
-    print("your site asks. Copy the query above into your site and change the")
-    print("ORDER BY for each tab -- api/SQL.md lists all of them.")
+    print("SALES is every sale of the card. ON is how many the trend was drawn")
+    print("from -- one grade's worth, since a raw copy and a PSA 10 are two")
+    print("markets. A big move on a low ON is a small amount of evidence.")
+    print()
+    print("Copy the query above into your site and change the ORDER BY for")
+    print("each tab -- api/SQL.md lists all of them.")
+    return 0
+
+
+def cmd_card_list(args) -> int:
+    """Write the WHOLE sorted catalogue to a spreadsheet.
+
+    The preview prints fifteen rows because a terminal is a bad place to read
+    three hundred thousand. This is the same catalogue, every row, sorted the
+    same way, in a file that opens in Excel -- so "all of them" is something
+    to scroll rather than something to page through fifteen at a time.
+
+    Built from the local database rather than from Cloudflare: it is the same
+    data by construction, it is already on this machine, and reading 341,783
+    rows out of D1 to look at them costs a chunk of the daily allowance for
+    nothing.
+    """
+    import sqlite3
+
+    from .api_export import _card_rollups
+
+    order = D1_CARD_SORTS.get(args.sort)
+    if not order:
+        print(f"Unknown sort '{args.sort}'. Choose one of: "
+              f"{', '.join(D1_CARD_SORTS)}", file=sys.stderr)
+        return 2
+
+    conn = store.connect(args.db)
+    conn.row_factory = sqlite3.Row
+    try:
+        print("Reading every card out of your database...")
+        cards, _ = _card_rollups(conn, None)
+    finally:
+        conn.close()
+
+    if not cards:
+        print("No card has sold more than once yet, so there is no catalogue.",
+              file=sys.stderr)
+        return 1
+
+    wanted = None if args.quality == "all" else args.quality
+    if wanted:
+        cards = [c for c in cards if c["quality"] == wanted]
+    if args.min_trend_sales:
+        cards = [c for c in cards if (c["trend_sales"] or 0) >= args.min_trend_sales]
+    if args.sort in ("rising", "falling"):
+        cards = [c for c in cards if c["trend_pct"] is not None]
+
+    # Sorted here in the same terms the ORDER BY uses, so the file and the
+    # website agree about what "biggest riser" means.
+    keys = {
+        "traded":   lambda c: (-(c["sales"] or 0), -(c["median_cents"] or 0)),
+        "value":    lambda c: (-(c["median_cents"] or 0), -(c["sales"] or 0)),
+        "cheapest": lambda c: (c["median_cents"] or 0, -(c["sales"] or 0)),
+        "rising":   lambda c: (-(c["trend_pct"] or 0), -(c["sales"] or 0)),
+        "falling":  lambda c: (c["trend_pct"] or 0, -(c["sales"] or 0)),
+        "recent":   lambda c: (c["last_sold"] or "", -(c["sales"] or 0)),
+        "newest":   lambda c: (-(c["year"] or 0), -(c["sales"] or 0)),
+        "oldest":   lambda c: (c["year"] or 9999, -(c["sales"] or 0)),
+        "name":     lambda c: (c["card_name"] or "",),
+    }
+    cards.sort(key=keys[args.sort])
+    if args.sort == "recent":
+        cards.reverse()
+
+    columns = ("card_name", "player", "team", "year", "brand", "set_name",
+               "subset", "parallel", "card_number", "print_run",
+               "is_rookie", "is_auto", "is_relic", "sales", "median_cents",
+               "low_cents", "high_cents", "raw_sales", "raw_median_cents",
+               "first_sold", "last_sold", "trend_pct", "trend_sales",
+               "quality", "spread", "card_key")
+    money = {"median_cents", "low_cents", "high_cents", "raw_median_cents"}
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        # Dollars in the header, because a column called `median_cents` full of
+        # numbers like 8525 gets read as dollars by everyone who opens it.
+        writer.writerow([c.replace("_cents", "_usd") for c in columns])
+        for card in cards:
+            writer.writerow([
+                round(card[c] / 100.0, 2) if c in money and card[c] is not None
+                else card[c]
+                for c in columns
+            ])
+
+    print()
+    if not cards:
+        # An empty file plus "open it in Excel" reads as success. It is not.
+        print(f"No card matched, so {out} has only its header row.")
+        print("Loosen a filter: --quality all is the widest, and")
+        print("--min-trend-sales excludes cards whose trend has little")
+        print("behind it, which on a young database is most of them.")
+        return 1
+
+    print(f"{len(cards):,} cards written to {out}")
+    print(f"Sorted by {args.sort}, the same order your website uses.")
+    print()
+    print("Double-click it to open in Excel. Every column your site can sort")
+    print("or filter on is there, so you can see the whole catalogue before")
+    print("deciding what the site should show.")
     return 0
 
 
@@ -2974,8 +3086,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--player", help="one player only")
     p.add_argument("--min-sales", type=int,
                    help="skip cards with fewer sales than this")
+    p.add_argument("--min-trend-sales", type=int,
+                   help="skip cards whose trend rests on fewer sales than this. "
+                        "The floor that means something on the rising and "
+                        "falling sorts: --min-sales counts every grade.")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_d1_cards)
+
+    p = sub.add_parser("card-list",
+                       help="write the whole sorted catalogue to a spreadsheet")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--out", default="data/cards.csv")
+    p.add_argument("--sort", default="traded", choices=sorted(D1_CARD_SORTS))
+    p.add_argument("--quality", default="clean",
+                   choices=["clean", "unproven", "suspect", "bucket", "all"],
+                   help="which pile to write (default: clean; 'all' for "
+                        "every row)")
+    p.add_argument("--min-trend-sales", type=int,
+                   help="skip cards whose trend rests on fewer sales than this")
+    p.set_defaults(func=cmd_card_list)
 
     p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")
     p.add_argument("--db", default="data/nflcarddb.sqlite")

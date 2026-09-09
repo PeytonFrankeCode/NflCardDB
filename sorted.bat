@@ -24,9 +24,9 @@ if errorlevel 1 goto FAILED
 
 echo.
 echo ==========================================================
-echo BIGGEST RISERS - price moving up, cards with a real market
+echo BIGGEST RISERS - price up, within one grade, on 10+ sales
 echo.
-python -m nflcarddb d1-cards --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --sort rising --min-sales 8 --limit 15
+python -m nflcarddb d1-cards --account-id "!CF_ACCOUNT_ID!" --database-id %DBID% --sort rising --min-trend-sales 10 --limit 15
 
 echo.
 echo ==========================================================
@@ -42,6 +42,11 @@ echo.
 echo Nothing was computed just now. Those orderings are stored
 echo in the database as columns, so your site sorts by reading
 echo them - it does no work of its own.
+echo.
+echo The ON column is how many sales each trend rests on.
+echo.
+echo This shows 15 of each. For ALL of them in a spreadsheet,
+echo run  card-list.bat  instead.
 echo.
 echo The full list of sorts and filters is in  api\SQL.md.
 goto END
