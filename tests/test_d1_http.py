@@ -838,3 +838,83 @@ def test_a_schema_only_push_does_not_count_every_row(tmp_path, monkeypatch):
 
     assert cli.cmd_d1_push(args) == 0
     assert not called["verify"]
+
+
+# --- the browse query a directly-bound website runs -------------------------
+
+
+def _d1_cards(monkeypatch, argv, rows):
+    """Run `d1-cards` with Cloudflare replaced, and return (code, sql, output)."""
+    import nflcarddb.cli as cli
+
+    seen = {}
+
+    def fake_run(account, database, token, sql):
+        seen["sql"] = sql
+        return {"result": [{"results": rows}]}
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr("nflcarddb.d1_http.run_sql", fake_run)
+    args = cli.build_parser().parse_args(
+        ["d1-cards", "--account-id", "a", "--database-id", "d", *argv])
+    return cli.cmd_d1_cards(args), seen
+
+
+ONE_CARD = [{"card_name": "2025 Prizm Caleb Williams #1", "player": "Caleb Williams",
+             "year": 2025, "set_name": "Prizm", "sales": 40,
+             "median_cents": 1250, "trend_pct": 12.5, "last_sold": "2026-09-08"}]
+
+
+def test_the_preview_defaults_to_the_trustworthy_pile(monkeypatch, capsys):
+    """`bucket` rows are not cards -- each is a player's whole run in a set
+    gathered under one key. A preview that showed them by default would be
+    demonstrating the wrong thing."""
+    code, seen = _d1_cards(monkeypatch, [], ONE_CARD)
+
+    assert code == 0
+    assert "quality = 'clean'" in seen["sql"]
+    assert "Caleb Williams" in capsys.readouterr().out
+
+
+def test_sorting_by_trend_excludes_cards_that_have_none(monkeypatch):
+    """Under four sales there is no trend, and ordering by a NULL puts every
+    history-less card at one end of the list."""
+    _, seen = _d1_cards(monkeypatch, ["--sort", "rising"], ONE_CARD)
+    assert "trend_pct IS NOT NULL" in seen["sql"]
+    assert "ORDER BY trend_pct DESC" in seen["sql"]
+
+    _, seen = _d1_cards(monkeypatch, ["--sort", "traded"], ONE_CARD)
+    assert "trend_pct IS NOT NULL" not in seen["sql"]
+
+
+def test_the_printed_sql_matches_what_the_worker_serves():
+    """The command exists to hand a site owner the query their site should
+    run. Two spellings of "biggest riser" is how they drift apart."""
+    from nflcarddb.cli import D1_CARD_SORTS
+
+    worker = Path("api/worker.js").read_text(encoding="utf-8")
+    for name, order in D1_CARD_SORTS.items():
+        assert f'"{order}"' in worker, f"{name} disagrees with api/worker.js"
+
+
+def test_every_previewed_sort_is_documented():
+    doc = Path("api/SQL.md").read_text(encoding="utf-8")
+    from nflcarddb.cli import D1_CARD_SORTS
+
+    for order in D1_CARD_SORTS.values():
+        assert order in doc, f"{order} is offered but not in api/SQL.md"
+
+
+def test_a_players_name_with_an_apostrophe_does_not_break_the_query(monkeypatch):
+    """Ja'Marr Chase. The escaping is the upload's own, but this path quotes
+    values in by hand, so it needs its own proof."""
+    _, seen = _d1_cards(monkeypatch, ["--player", "Ja'Marr Chase"], ONE_CARD)
+    assert "'Ja''Marr Chase'" in seen["sql"]
+    assert "?" not in seen["sql"]
+
+
+def test_an_empty_catalogue_says_so_rather_than_printing_a_blank_table(
+        monkeypatch, capsys):
+    code, _ = _d1_cards(monkeypatch, [], [])
+    assert code == 1
+    assert "d1-check.bat" in capsys.readouterr().out

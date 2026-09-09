@@ -5,6 +5,7 @@ cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
+call "%~dp0_update.bat"
 call "%~dp0_cloudflare.bat"
 
 REM Your database, already created and bound to the website.

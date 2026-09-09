@@ -2154,6 +2154,117 @@ def cmd_d1_pull(args) -> int:
     return 0
 
 
+# The sort orders a browsing site offers, and the ORDER BY behind each. Kept
+# here in the same words as api/worker.js and api/SQL.md, because this command
+# exists to show a site owner the query their site should run -- printing a
+# different one would make it a demo rather than an answer.
+D1_CARD_SORTS = {
+    "traded":   "sales DESC, median_cents DESC",
+    "value":    "median_cents DESC, sales DESC",
+    "cheapest": "median_cents ASC, sales DESC",
+    "rising":   "trend_pct DESC, sales DESC",
+    "falling":  "trend_pct ASC, sales DESC",
+    "recent":   "last_sold DESC, sales DESC",
+    "newest":   "year DESC, sales DESC",
+    "oldest":   "year ASC, sales DESC",
+    "name":     "card_name ASC",
+}
+
+
+def cmd_d1_cards(args) -> int:
+    """Run the website's own browse query against Cloudflare and print it.
+
+    "Is the database sorted?" is otherwise a thing to be believed. This asks
+    Cloudflare the exact question a site would ask and shows what comes back,
+    so a wrong answer is visible before it is wired into a web page.
+
+    It also prints the SQL, because the query IS the deliverable for a site
+    that binds D1 directly rather than going through the Worker.
+    """
+    import os
+
+    from .api_export import _sql_literal
+    from .d1_http import D1Error, run_sql
+
+    token = args.token or os.environ.get("CLOUDFLARE_API_TOKEN")
+    if not token:
+        print("No API token. Run connect-cloudflare.bat once.", file=sys.stderr)
+        return 2
+
+    order = D1_CARD_SORTS.get(args.sort)
+    if not order:
+        print(f"Unknown sort '{args.sort}'. Choose one of: "
+              f"{', '.join(D1_CARD_SORTS)}", file=sys.stderr)
+        return 2
+
+    where = ["quality = ?"]
+    params: list = [args.quality]
+    # A card with under four sales has no trend, and sorting by a number that
+    # is not there puts every card with no history at one end of the list --
+    # which is never the page anyone meant to build.
+    if args.sort in ("rising", "falling"):
+        where.append("trend_pct IS NOT NULL")
+    if args.player:
+        where.append("player = ?")
+        params.append(args.player)
+    if args.min_sales:
+        where.append("sales >= ?")
+        params.append(args.min_sales)
+
+    sql = (
+        "SELECT card_name, player, year, set_name, sales, median_cents,\n"
+        "       trend_pct, last_sold\n"
+        "FROM cards\n"
+        f"WHERE {' AND '.join(where)}\n"
+        f"ORDER BY {order}\n"
+        f"LIMIT {int(args.limit)}"
+    )
+
+    print("The query your website runs:\n")
+    for line in sql.splitlines():
+        print(f"    {line}")
+    print()
+
+    # D1's HTTP query endpoint takes SQL, not bound parameters, so the values
+    # are quoted in. They come from this program's own arguments rather than
+    # from anything a visitor types -- and `_sql_literal` is the same escaping
+    # the upload uses on seller-written titles full of apostrophes.
+    bound = sql
+    for value in params:
+        bound = bound.replace("?", _sql_literal(value), 1)
+    try:
+        out = run_sql(args.account_id, args.database_id, token, bound + ";")
+    except D1Error as exc:
+        print(f"Cloudflare refused the query: {exc}", file=sys.stderr)
+        return 3
+
+    rows = (out.get("result") or [{}])[0].get("results") or []
+    if not rows:
+        print(f"No cards came back for quality='{args.quality}'.")
+        print("If every filter looks right, the catalogue may not have been")
+        print("uploaded. Run d1-check.bat and read the 'cards' line.")
+        return 1
+
+    print(f"{'SALES':>5}  {'MEDIAN':>9}  {'TREND':>7}  {'LAST SOLD':>10}  CARD")
+    print("-" * 78)
+    for r in rows:
+        med = r.get("median_cents")
+        trend = r.get("trend_pct")
+        print(f"{r.get('sales') or 0:>5}  "
+              f"{(med / 100.0 if med is not None else 0):>9.2f}  "
+              f"{('     --' if trend is None else f'{trend:+6.1f}%')}  "
+              f"{(r.get('last_sold') or '')[:10]:>10}  "
+              f"{r.get('card_name') or ''}")
+
+    print()
+    print(f"{len(rows)} card(s), sorted by {args.sort}, straight out of "
+          f"Cloudflare.")
+    print("That is the whole of it: the sorting is stored, not computed when")
+    print("your site asks. Copy the query above into your site and change the")
+    print("ORDER BY for each tab -- api/SQL.md lists all of them.")
+    return 0
+
+
 def cmd_setup_api(args) -> int:
     """Create the database, upload the data, deploy the API -- in one go."""
     from .cloud_setup import SetupError, setup
@@ -2848,6 +2959,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--roster")
     p.add_argument("--since", help="only sales on/after this date (YYYY-MM-DD)")
     p.set_defaults(func=cmd_d1_pull)
+
+    p = sub.add_parser("d1-cards",
+                       help="run the website's browse query against Cloudflare "
+                            "and show what comes back")
+    p.add_argument("--account-id", required=True)
+    p.add_argument("--database-id", required=True)
+    p.add_argument("--token", help="or set CLOUDFLARE_API_TOKEN")
+    p.add_argument("--sort", default="traded", choices=sorted(D1_CARD_SORTS),
+                   help="which sort tab to preview (default: traded)")
+    p.add_argument("--quality", default="clean",
+                   choices=["clean", "unproven", "suspect", "bucket"],
+                   help="which pile to browse (default: clean)")
+    p.add_argument("--player", help="one player only")
+    p.add_argument("--min-sales", type=int,
+                   help="skip cards with fewer sales than this")
+    p.add_argument("--limit", type=int, default=20)
+    p.set_defaults(func=cmd_d1_cards)
 
     p = sub.add_parser("setup-api", help="create, upload and deploy the API in one step")
     p.add_argument("--db", default="data/nflcarddb.sqlite")

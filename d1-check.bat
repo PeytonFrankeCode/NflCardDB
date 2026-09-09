@@ -5,6 +5,7 @@ cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat goto NOSETUP
 call venv\Scripts\activate.bat
+call "%~dp0_update.bat"
 call "%~dp0_cloudflare.bat"
 
 set DBID=a887dd0e-d852-4ebc-98f0-0e01bc82ad0b

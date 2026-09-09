@@ -75,6 +75,7 @@ LIMIT 50;
 | Biggest faller | `trend_pct ASC, sales DESC` | `AND trend_pct IS NOT NULL` |
 | Sold most recently | `last_sold DESC, sales DESC` | — |
 | Newest cards | `year DESC, sales DESC` | — |
+| Oldest cards | `year ASC, sales DESC` | — |
 | A–Z | `card_name ASC` | — |
 
 **The `trend_pct IS NOT NULL` line is not optional.** A card with fewer than
