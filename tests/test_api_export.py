@@ -253,3 +253,51 @@ def test_a_full_regroup_does_not_break_the_upload(tmp_path):
     cards, _ = _card_rollups(conn, keys)
     assert len(cards) == len(keys)
     conn.close()
+
+
+def test_a_key_can_be_registered_by_the_command_that_uploads(tmp_path, monkeypatch):
+    """`api-key` mints a key and stores only its hash, so the hash has to reach
+    D1 somehow -- and the upload is the only thing that goes there. Without
+    this the key existed and the database it authenticates to had never heard
+    of it."""
+    import nflcarddb.cli as cli
+    from nflcarddb.api_export import new_api_key
+
+    key, key_hash = new_api_key()
+    written = {}
+
+    def fake_export(db, out, since=None, key_hashes=None, changed_since=None):
+        from pathlib import Path as _Path
+        written["keys"] = list(key_hashes or [])
+        _Path(out).write_text("SELECT 1;")
+        return {"rows": 1, "bytes": 9, "watermark": "2026-01-01"}
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr("nflcarddb.api_export.export_api_sql", fake_export)
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", lambda *a, **k: [])
+    monkeypatch.setattr("nflcarddb.d1_http.push_sql",
+                        lambda *a, **k: __import__("nflcarddb.d1_http",
+                                                   fromlist=["PushResult"]
+                                                   ).PushResult())
+    monkeypatch.setattr("nflcarddb.d1_http.verify", lambda *a, **k: {"sales": 1})
+    monkeypatch.setattr(cli, "_local_sale_count", lambda p: 1)
+
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "k.db"), "--out", str(tmp_path / "k.sql"),
+         "--add-key", f"{key_hash}:website"])
+    assert cli.cmd_d1_push(args) == 0
+    assert written["keys"] == [(key_hash, "website")]
+
+
+def test_a_malformed_key_spec_is_refused_before_anything_uploads(tmp_path,
+                                                                 monkeypatch):
+    import nflcarddb.cli as cli
+
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
+    monkeypatch.setattr("nflcarddb.d1_http.apply_migrations", lambda *a, **k: [])
+    args = cli.build_parser().parse_args(
+        ["d1-push", "--account-id", "a", "--database-id", "d",
+         "--db", str(tmp_path / "k.db"), "--out", str(tmp_path / "k.sql"),
+         "--add-key", "no-label-here"])
+    assert cli.cmd_d1_push(args) == 2

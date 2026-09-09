@@ -2004,8 +2004,15 @@ def cmd_d1_push(args) -> int:
                 print("First upload to this database -- sending everything.\n")
 
             print("Building the upload from your local database...")
+            try:
+                new_keys = _parse_key_specs(getattr(args, "add_key", None))
+            except ValueError as exc:
+                print(exc, file=sys.stderr)
+                return 2
             stats = export_api_sql(args.db, args.out, since=args.since,
-                                   changed_since=mark)
+                                   changed_since=mark, key_hashes=new_keys)
+            if new_keys:
+                print(f"  registering {len(new_keys)} API key(s)")
             print(f"  {stats['rows']} rows, {stats['bytes'] // 1024} KB\n")
             if not stats["rows"]:
                 print("Nothing new to upload -- Cloudflare already has "
@@ -2207,17 +2214,26 @@ def cmd_api_key(args) -> int:
     return 0
 
 
+def _parse_key_specs(specs) -> list:
+    """"<hash>:<label>" pairs, or a ValueError naming the bad one."""
+    keys = []
+    for spec in specs or []:
+        if ":" not in spec:
+            raise ValueError(f"--add-key wants hash:label, got {spec!r}")
+        key_hash, label = spec.split(":", 1)
+        keys.append((key_hash.strip(), label.strip()))
+    return keys
+
+
 def cmd_export_api(args) -> int:
     """Write the SQL that loads this data into Cloudflare D1."""
     from .api_export import export_api_sql
 
-    keys = []
-    for spec in args.add_key or []:
-        if ":" not in spec:
-            print(f"--add-key wants hash:label, got {spec!r}", file=sys.stderr)
-            return 2
-        key_hash, label = spec.split(":", 1)
-        keys.append((key_hash.strip(), label.strip()))
+    try:
+        keys = _parse_key_specs(args.add_key)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
 
     stats = export_api_sql(args.db, args.out, since=args.since, key_hashes=keys)
     print(json.dumps(stats, indent=2))
@@ -2800,6 +2816,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="show what would be sent")
     p.add_argument("--verify-only", action="store_true",
                    help="just report what D1 already holds, upload nothing")
+    p.add_argument("--add-key", action="append", metavar="HASH:LABEL",
+                   help="activate an API key minted with `nflcarddb api-key`. "
+                        "The upload is what reaches the database, so this is "
+                        "where a key has to go in.")
     p.set_defaults(func=cmd_d1_push)
 
     p = sub.add_parser("d1-pull", help="rebuild the local database from Cloudflare D1")
