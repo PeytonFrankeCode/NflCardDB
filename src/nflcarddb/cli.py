@@ -2308,21 +2308,46 @@ def cmd_leaks(args) -> int:
 
     losses = {k: v for k, v in report["by_status"].items()
               if k in REMEDIES}
-    if not losses:
-        print("No losses recorded. Every band the collector walked, it")
-        print("finished -- so whatever is missing is missing because no")
-        print("search asked for it, not because a search was cut short.")
-        print("Scroll down to what each query is contributing.")
+    for status, remedy in REMEDIES.items():
+        got = losses.get(status)
+        if not got:
+            continue
+        print(f"  {status.upper()}  -- {got['segments']} search(es)")
+        for line in _wrap(remedy, 62):
+            print(f"      {line}")
         print()
-    else:
-        for status, remedy in REMEDIES.items():
-            got = losses.get(status)
-            if not got:
-                continue
-            print(f"  {status.upper()}  -- {got['segments']} search(es)")
-            for line in _wrap(remedy, 62):
-                print(f"      {line}")
-            print()
+
+    # Saying what is FINE is as useful as saying what is not. Without it the
+    # absence of a section reads as "not measured" rather than "measured and
+    # healthy", and the obvious next move becomes tuning settings that are
+    # already right.
+    clean = [s for s in REMEDIES if s not in losses]
+    if clean:
+        print("  Nothing to fix here:")
+        if "capped" in clean:
+            print("    - No search hit eBay's result wall. Your price bands")
+            print("      are doing their job; do not widen or narrow them.")
+        if "unreached" in clean:
+            print("    - The page budget never ran out. Raising it would buy")
+            print("      nothing; the runs are finishing what they start.")
+        if "incomplete" in clean:
+            print("    - Every walk reached the day it was collecting.")
+        print()
+
+    if report["incomplete_days"]:
+        print("-" * 66)
+        print("  DAYS THAT ARE ONLY PARTLY HERE")
+        print("-" * 66)
+        print()
+        print("  The collector recorded these itself -- it knew it had not")
+        print("  reached the date before it stopped. Re-collecting them is")
+        print("  the one gain available without changing any setting.")
+        print()
+        for day in report["incomplete_days"][:15]:
+            print(f"    {day['day']}   {day['bands']} band(s)   {day['queries']}")
+        print()
+        print("  Fix:  catchup.bat -- it re-checks these before collecting.")
+        print()
 
     if report["worst"]:
         print("-" * 66)
@@ -2368,17 +2393,39 @@ def cmd_leaks(args) -> int:
     print("  counts each against whichever found it first -- so it is what")
     print("  would be missing if the search were removed, not how busy it is.")
     print()
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    enabled = {q.id for q in config.queries} if config else set()
+
     total_sales = sum(y["sales"] for y in yields) or 1
     for y in yields:
         share = 100.0 * y["sales"] / total_sales
-        print(f"  {y['query_id']:<24} {y['sales']:>9,}  {share:>5.1f}%")
+        retired = "" if not enabled or y["query_id"] in enabled else "  (retired)"
+        print(f"  {y['query_id']:<24} {y['sales']:>9,}  {share:>5.1f}%{retired}")
     print()
 
-    thin = [y for y in yields if 100.0 * y["sales"] / total_sales < 2.0]
+    if report["uncredited"]:
+        # Without this the percentages read as shares of the database, and a
+        # restored database is mostly rows no search can be credited with.
+        print(f"  Plus {report['uncredited']:,} sales with no search recorded --")
+        print("  rows restored from Cloudflare, which does not carry the")
+        print("  field. Real sales, counted everywhere else; they just")
+        print("  cannot be attributed above.")
+        print()
+
+    if any(y["query_id"] not in enabled for y in yields) and enabled:
+        print("  A search marked (retired) is switched off in queries.yml.")
+        print("  Its sales are kept; it is simply not collected any more.")
+        print()
+
+    thin = [y for y in yields
+            if 100.0 * y["sales"] / total_sales < 2.0 and y["query_id"] in enabled]
     if thin:
-        print("  Under 2% means a search is mostly re-finding what another")
-        print("  one already has. Not wasted -- but its time would buy more")
-        print("  as a search aimed somewhere nothing is looking yet.")
+        names = ", ".join(y["query_id"] for y in thin)
+        print(f"  {names} is under 2% -- it walks every price band, every")
+        print("  run, to add that. Not wasted, but its time would buy more")
+        print("  aimed somewhere nothing is looking yet. `nflcarddb survey`")
+        print("  asks eBay how big each search is, one request each, which")
+        print("  is how you find out whether there is room to aim at.")
         print()
 
     print("=" * 66)

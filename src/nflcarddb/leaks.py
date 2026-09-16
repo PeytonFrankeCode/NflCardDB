@@ -65,7 +65,8 @@ def leak_report(conn: sqlite3.Connection, runs: int = 14) -> dict:
     """, (runs,))]
     if not recent:
         return {"runs": 0, "segments": 0, "by_status": {}, "by_query": [],
-                "worst": [], "days": []}
+                "worst": [], "days": [], "incomplete_days": [],
+                "uncredited": 0}
 
     marks = ",".join("?" * len(recent))
     segments = _rows(conn, f"""
@@ -125,7 +126,45 @@ def leak_report(conn: sqlite3.Connection, runs: int = 14) -> dict:
         "by_query": sorted(by_query.values(), key=lambda q: -q["items"]),
         "worst": worst,
         "days": days,
+        # Not limited to `runs`: a day recorded as cut short three weeks ago
+        # is still cut short today, and re-collecting it is still the gain.
+        "incomplete_days": days_recorded_incomplete(conn),
+        "uncredited": uncredited_sales(conn),
     }
+
+
+def days_recorded_incomplete(conn: sqlite3.Connection) -> list[dict]:
+    """Days the collector itself recorded as cut short, with the band that was.
+
+    Better evidence than `find_thin_days`, which infers truncation from a day
+    holding fewer sales than its neighbours. That inference is necessary for
+    days collected before the status was written down, but where the status
+    exists it is a record rather than a guess -- the walker knew it had not
+    reached the date and said so.
+    """
+    return [dict(r) for r in _rows(conn, """
+        SELECT r.target_date AS day,
+               COUNT(*) AS bands,
+               GROUP_CONCAT(DISTINCT s.query_id) AS queries
+        FROM scrape_segments s JOIN scrape_runs r USING (run_id)
+        WHERE s.status = 'incomplete' AND r.target_date IS NOT NULL
+        GROUP BY r.target_date
+        ORDER BY r.target_date DESC
+    """)]
+
+
+def uncredited_sales(conn: sqlite3.Connection) -> int:
+    """Sales carrying no query_id, so no search can be credited with them.
+
+    Rows restored from Cloudflare arrive without one -- the flattened upload
+    has no column for it. They are real sales and they are in every other
+    count; they simply cannot appear in a per-search breakdown, and leaving
+    that unsaid makes the percentages look like the whole database.
+    """
+    return _rows(conn, """
+        SELECT COUNT(*) AS n FROM sales
+        WHERE query_id IS NULL AND sold_date IS NOT NULL
+    """)[0]["n"]
 
 
 def band_suggestions(worst: list[dict], existing: list) -> list[tuple]:

@@ -163,3 +163,65 @@ def test_an_empty_database_reports_nothing_rather_than_failing(tmp_path):
 
     assert report["runs"] == 0
     assert report["worst"] == []
+
+
+# --- what the report says when things are FINE ------------------------------
+
+
+def test_days_the_collector_recorded_as_cut_short_are_named(tmp_path):
+    """Direct evidence, not the thin-day inference. The walker knew it had not
+    reached the date and wrote it down, so the day can be named rather than
+    guessed at from how its total compares with its neighbours'."""
+    conn = _db(tmp_path, [
+        ("a", "football_singles", None, 10, "incomplete", 42, 3000,
+         "never reached 2026-09-15; more sales exist in this band"),
+        ("b", "football_singles", 10, 25, "incomplete", 42, 2800,
+         "never reached 2026-09-15; more sales exist in this band"),
+        ("c", "football_graded", 25, 50, "done", 10, 900, None),
+    ])
+    try:
+        days = leak_report(conn)["incomplete_days"]
+    finally:
+        conn.close()
+
+    assert len(days) == 1
+    assert days[0]["day"] == "2026-09-15"
+    assert days[0]["bands"] == 2
+    assert "football_singles" in days[0]["queries"]
+
+
+def test_a_finished_day_is_not_reported_as_partial(tmp_path):
+    conn = _db(tmp_path, [("a", "football_singles", None, 10, "done", 5, 900, None)])
+    try:
+        assert leak_report(conn)["incomplete_days"] == []
+    finally:
+        conn.close()
+
+
+def test_restored_sales_are_counted_but_credited_to_no_search(tmp_path):
+    """Cloudflare's flattened table has no query_id column, so every row
+    pulled back from it arrives without one. They are real sales and they are
+    in every other count -- but a per-search breakdown that ignored them would
+    read as shares of the whole database when it is shares of a fraction."""
+    from nflcarddb.leaks import uncredited_sales
+
+    conn = _db(tmp_path,
+               [("a", "football_singles", None, 10, "done", 5, 9, None)],
+               sales=["football_singles", "football_singles", None, None, None])
+    try:
+        assert uncredited_sales(conn) == 3
+        assert leak_report(conn)["uncredited"] == 3
+        credited = query_yield(conn)
+        assert sum(y["sales"] for y in credited) == 2
+    finally:
+        conn.close()
+
+
+def test_every_loss_status_has_a_remedy_written_for_it():
+    """A status with no remedy prints a count and leaves the reader with
+    nothing to do about it."""
+    from nflcarddb.leaks import LOSS_STATUSES, REMEDIES
+
+    assert set(REMEDIES) == set(LOSS_STATUSES)
+    for status, text in REMEDIES.items():
+        assert text.strip(), status

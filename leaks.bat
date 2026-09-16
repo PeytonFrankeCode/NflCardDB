@@ -26,10 +26,12 @@ echo               one - the search has to ask for less at once.
 echo               Fix: narrower price bands (the report writes
 echo               them out for you to paste in).
 echo.
-echo   NO TIME     The run hit its page limit with searches still
-echo               queued. Fix: raise page_budget in
-echo               config\queries.yml, or run catchup.bat, which
-echo               collects for as long as you let it.
+echo   NO TIME     The run stopped before it reached the day it
+echo               was collecting, or ran out of pages with
+echo               searches still queued. Fix: catchup.bat - it
+echo               re-checks the partial days first, then keeps
+echo               collecting for as long as you let it. Raise
+echo               page_budget ONLY if the report says UNREACHED.
 echo.
 echo   NOT ASKED   No search covered it at all. This one never
 echo               appears in the report, because the collector
