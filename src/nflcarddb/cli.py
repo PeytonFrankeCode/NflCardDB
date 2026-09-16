@@ -2276,6 +2276,133 @@ def cmd_d1_cards(args) -> int:
     return 0
 
 
+def cmd_leaks(args) -> int:
+    """Where the collector already knows it missed sales.
+
+    None of this is measured now; it was recorded at collection time and never
+    read back. A band eBay refused to show past ten thousand results, a band
+    the page budget never reached, a walk that stopped before it got back to
+    the day it was collecting -- three different losses needing three
+    different fixes, so they are reported apart.
+    """
+    from .leaks import EBAY_RESULT_CEILING, REMEDIES, band_suggestions, leak_report, query_yield
+
+    conn = store.connect(args.db)
+    try:
+        report = leak_report(conn, runs=args.runs)
+        yields = query_yield(conn, runs=args.runs)
+    finally:
+        conn.close()
+
+    if not report["runs"]:
+        print("No collection runs recorded yet.", file=sys.stderr)
+        return 1
+
+    print("=" * 66)
+    print("  WHERE SALES ARE BEING LOST")
+    print("=" * 66)
+    print()
+    print(f"Looking at the last {report['runs']} run(s), "
+          f"{report['segments']:,} searches walked.")
+    print()
+
+    losses = {k: v for k, v in report["by_status"].items()
+              if k in REMEDIES}
+    if not losses:
+        print("No losses recorded. Every band the collector walked, it")
+        print("finished -- so whatever is missing is missing because no")
+        print("search asked for it, not because a search was cut short.")
+        print("Scroll down to what each query is contributing.")
+        print()
+    else:
+        for status, remedy in REMEDIES.items():
+            got = losses.get(status)
+            if not got:
+                continue
+            print(f"  {status.upper()}  -- {got['segments']} search(es)")
+            for line in _wrap(remedy, 62):
+                print(f"      {line}")
+            print()
+
+    if report["worst"]:
+        print("-" * 66)
+        print("  THE WALLS: searches eBay would not show past")
+        print("-" * 66)
+        print()
+        print(f"  eBay stops paging a search at about "
+              f"{EBAY_RESULT_CEILING:,} results. These")
+        print("  bands were still over it after being split as far as the")
+        print("  settings allow, so there are sales inside them that no")
+        print("  amount of collecting time can reach.")
+        print()
+        for seg in report["worst"][:12]:
+            lo = "any" if seg["price_lo"] is None else f"${seg['price_lo']:g}"
+            hi = "up" if seg["price_hi"] is None else f"${seg['price_hi']:g}"
+            print(f"  {seg['query_id']:<18} {lo:>8} - {hi:<8} "
+                  f"{seg['items'] or 0:>6} collected  {seg['target_date']}")
+        print()
+
+        config = load_config(args.config) if Path(args.config or "").exists() else None
+        if config:
+            existing = [tuple(b) for b in config.price_bands]
+            suggested = band_suggestions(report["worst"], existing)
+            if suggested and len(suggested) > len(existing):
+                print("  Narrower bands would get inside those walls. Paste")
+                print("  this over `price_bands:` in config\\queries.yml:")
+                print()
+                print("  price_bands:")
+                for lo, hi in suggested:
+                    a = "null" if lo is None else f"{lo:g}"
+                    b = "null" if hi is None else f"{hi:g}"
+                    print(f"    - [{a}, {b}]")
+                print()
+                print("  More bands means more requests, so the run takes")
+                print("  longer. That is the trade: time for reach.")
+                print()
+
+    print("-" * 66)
+    print("  WHAT EACH SEARCH IS ACTUALLY CONTRIBUTING")
+    print("-" * 66)
+    print()
+    print("  Sales are stored once however many searches find them, and this")
+    print("  counts each against whichever found it first -- so it is what")
+    print("  would be missing if the search were removed, not how busy it is.")
+    print()
+    total_sales = sum(y["sales"] for y in yields) or 1
+    for y in yields:
+        share = 100.0 * y["sales"] / total_sales
+        print(f"  {y['query_id']:<24} {y['sales']:>9,}  {share:>5.1f}%")
+    print()
+
+    thin = [y for y in yields if 100.0 * y["sales"] / total_sales < 2.0]
+    if thin:
+        print("  Under 2% means a search is mostly re-finding what another")
+        print("  one already has. Not wasted -- but its time would buy more")
+        print("  as a search aimed somewhere nothing is looking yet.")
+        print()
+
+    print("=" * 66)
+    print("The searches you run are in config\\queries.yml. Adding one costs")
+    print("time and never duplicates data -- a listing found twice is stored")
+    print("once -- so the ceiling on how much you collect is how many")
+    print("different ways you ask, and how long the run is allowed.")
+    return 0
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    """Wrap without importing textwrap for one caller."""
+    words, lines, line = text.split(), [], ""
+    for word in words:
+        if len(line) + len(word) + 1 > width:
+            lines.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    if line:
+        lines.append(line)
+    return lines
+
+
 def cmd_unsorted(args) -> int:
     """What is stopping cards from being usable, and what would actually fix it.
 
@@ -3188,6 +3315,14 @@ def build_parser() -> argparse.ArgumentParser:
                         "falling sorts: --min-sales counts every grade.")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_d1_cards)
+
+    p = sub.add_parser("leaks",
+                       help="where the collector already knows it missed sales")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--runs", type=int, default=14,
+                   help="how many recent collections to look at (default: 14)")
+    p.set_defaults(func=cmd_leaks)
 
     p = sub.add_parser("unsorted",
                        help="what is stopping cards from being usable, and "

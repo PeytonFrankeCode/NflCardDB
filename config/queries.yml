@@ -101,6 +101,54 @@ queries:
   - id: nfl_singles
     keywords: nfl card
     category: "261328"
+
+  # ---------------------------------------------------------------------------
+  # MORE REACH. Uncomment any of these to collect more.
+  #
+  # Three searches cannot see all of eBay's football. The ceiling is not the
+  # collector's speed -- it is that eBay will not page ANY single search past
+  # about 10,000 results, so the only way to see more is to ask in more ways.
+  # `nflcarddb leaks` reports which of the current searches are hitting that
+  # wall; these are aimed at what no search asks for at all.
+  #
+  # Each one costs time, never duplicate data: item_id is the primary key, so
+  # a listing found twice is stored once. Adding four queries roughly doubles
+  # a run's length, so enable them a couple at a time and watch the clock.
+  #
+  # Before trusting a new one, check it returns anything:
+  #   nflcarddb survey            asks eBay how big each enabled query is
+  #   nflcarddb probe --query <id>   fetches one page and prints the titles
+  # An `extra:` filter eBay does not accept returns zero results rather than
+  # an error, which is exactly how a working query got replaced by an empty
+  # one here once already.
+  #
+  # Brand-led, for listings whose titles name the product and never the sport.
+  # "2024 Prizm Caleb Williams RC PSA 10" contains neither "football" nor
+  # "NFL", and those are the majority of modern listings.
+  # - id: panini_singles
+  #   keywords: panini football
+  #   category: "261328"
+  # - id: topps_singles
+  #   keywords: topps football
+  #   category: "261328"
+  # - id: prizm_singles
+  #   keywords: prizm football
+  #   category: "261328"
+  #
+  # Rookie cards: the most traded slice of the market, and worth its own walk
+  # because the broad searches hit the result wall before reaching all of it.
+  # - id: rookie_singles
+  #   keywords: football rookie rc
+  #   category: "261328"
+  #
+  # Autographs and patches, which sit at prices the broad bands walk last and
+  # therefore lose first when the page budget runs out.
+  # - id: auto_singles
+  #   keywords: football auto autograph
+  #   category: "261328"
+  # - id: patch_singles
+  #   keywords: football patch relic jersey
+  #   category: "261328"
 designations: config/nfl_words.txt
 sets: config/nfl_sets.txt
 inserts: config/nfl_learned_inserts.txt

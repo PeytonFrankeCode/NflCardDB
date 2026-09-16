@@ -213,7 +213,12 @@ Still works, any time, whether or not it's scheduled.
    sending the changes has left Cloudflare out of date. Details in
    `CLOUDFLARE.md`.
 
-6. `sorted.bat` shows the sorted catalogue live out of Cloudflare — the same
+6. `leaks.bat` says where the collector missed sales — a search eBay walled
+   off, a band the page budget never reached — and writes out narrower price
+   bands to paste into `config/queries.yml`. `unsorted.bat` says which
+   collected cards could not be identified, and what would fix them.
+
+7. `sorted.bat` shows the sorted catalogue live out of Cloudflare — the same
    question your other website asks it — and prints the SQL behind each list.
    `card-list.bat` writes the whole thing to a spreadsheet you can open in
    Excel. The queries for a site are in `api/SQL.md`.
