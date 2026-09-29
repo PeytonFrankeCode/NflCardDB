@@ -111,6 +111,28 @@ in `data\browser-profile`.
 > the profile and finds itself logged out. When the same launcher writes *and*
 > reads the profile, that problem disappears. Hence a profile of its own.
 
+## Three sports
+
+The collector gathers **football, basketball and baseball**. They live in one
+database and are kept apart by a `sport` on every card.
+
+That separation is not cosmetic. Panini and Topps print the same set names in
+every sport they licence, so "2024 Prizm #1" is three different cards with
+three different players. Without the sport they would share one price history
+and nothing in the data would look wrong.
+
+**Nine searches instead of three, so a run takes about three times as long.**
+If the nightly window stops being enough, `leaks.bat` says so — it reports
+bands the run never reached — and the fix is to drop a search rather than to
+keep raising the page budget. `basketball_graded` and `baseball_graded` are
+the cheapest to lose; the broad `basketball` and `baseball` searches are where
+nearly all of it comes from.
+
+Everything collected before this change is football, and stays football
+without being re-read. Your website asks for one sport with
+`WHERE (sport = 'football' OR sport IS NULL)` — the `OR sport IS NULL` is not
+optional, and `api/SQL.md` explains why.
+
 ## Set it and forget it
 
 Two double-clicks, once, and it collects and uploads every day by itself.

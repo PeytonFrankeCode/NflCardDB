@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS sales (
     url            TEXT,
     image_url      TEXT,
     query_id       TEXT,
+    -- Which sport the search that found this was collecting. Stamped at
+    -- collection rather than read off the title: most titles never name a
+    -- sport, and a value that depends on wording would differ between two
+    -- sales of one card.
+    sport          TEXT,
     run_id         TEXT,
     first_seen_at  TEXT NOT NULL,
     updated_at     TEXT NOT NULL
@@ -52,6 +57,10 @@ CREATE TABLE IF NOT EXISTS cards (
     is_rookie     INTEGER NOT NULL DEFAULT 0,
     is_auto       INTEGER NOT NULL DEFAULT 0,
     is_relic      INTEGER NOT NULL DEFAULT 0,
+    -- football | basketball | baseball. Part of the card's identity: Panini
+    -- and Topps print the same set names in every sport they licence, so
+    -- 2024 Prizm #1 exists three times over with three different players.
+    sport         TEXT,
     confidence    REAL NOT NULL DEFAULT 0,
     -- Shared by every sale of the same physical card, whatever the seller
     -- called it. NULL when the parse was too thin to identify one: a wrong

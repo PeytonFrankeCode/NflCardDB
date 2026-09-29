@@ -25,6 +25,38 @@ Browse `cards`. Only touch `sales` when someone opens a single card — it is
 
 ---
 
+## `sport` — read this before anything else
+
+The database holds **football, basketball and baseball**. Panini and Topps
+print the same set names in every sport they licence, so `2024 Prizm #1` is
+three different cards with three different players. `cards.sport` is what
+keeps them apart, and it is part of the card key: a football card keys as
+`2024-prizm-n1`, a basketball one as `basketball-2024-prizm-n1`.
+
+**A site showing one sport filters on it first:**
+
+```sql
+WHERE sport = 'basketball' AND quality = 'clean'
+```
+
+**Football is the exception, and getting it wrong empties your page.** Every
+row collected before the sports were separated has `sport IS NULL`, and NULL
+means football — the key says the same thing by leaving the default unmarked.
+So:
+
+```sql
+WHERE (sport = 'football' OR sport IS NULL) AND quality = 'clean'
+```
+
+Filtering on `sport = 'football'` alone hides the entire back catalogue —
+hundreds of thousands of rows — and returns only what was collected after the
+change. There is an index for both shapes.
+
+To show everything, leave the filter off. Cards from different sports never
+collide, so a mixed list is coherent; it just mixes.
+
+---
+
 ## `quality` — which cards are safe to show
 
 Every row in `cards` carries one of four values:
@@ -107,6 +139,7 @@ throwing most of it away.
 Add these to the `WHERE`. All of them stack.
 
 ```sql
+AND sport = 'basketball'            -- indexed, see the sport note above
 AND player = 'Patrick Mahomes'      -- indexed
 AND year = 2025
 AND set_name = 'Prizm'

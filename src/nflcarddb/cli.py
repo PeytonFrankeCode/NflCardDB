@@ -135,7 +135,9 @@ def cmd_parse(args) -> int:
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
     roster = args.roster or (config.roster if config else None)
     count = reparse_titles(db_path, roster, all_rows=args.all,
-                           use_checklist=not args.no_checklist)
+                           use_checklist=not args.no_checklist,
+                           default_sport=(config.default_sport if config
+                                          else "football"))
     print(f"parsed {count} title(s)")
     return 0
 
@@ -2204,6 +2206,17 @@ def cmd_d1_cards(args) -> int:
     # which is never the page anyone meant to build.
     if args.sort in ("rising", "falling"):
         where.append("trend_pct IS NOT NULL")
+    if args.sport:
+        # NULL means the default sport: everything collected before sports
+        # were separated is football, and the key says so by leaving the
+        # default unmarked. Matching only the literal would hide the whole
+        # back catalogue.
+        from .card_key import DEFAULT_SPORT
+        if args.sport == DEFAULT_SPORT:
+            where.append("(sport = ? OR sport IS NULL)")
+        else:
+            where.append("sport = ?")
+        params.append(args.sport)
     if args.player:
         where.append("player = ?")
         params.append(args.player)
@@ -2585,6 +2598,10 @@ def cmd_card_list(args) -> int:
     wanted = None if args.quality == "all" else args.quality
     if wanted:
         cards = [c for c in cards if c["quality"] == wanted]
+    if args.sport:
+        from .card_key import DEFAULT_SPORT
+        cards = [c for c in cards
+                 if (c["sport"] or DEFAULT_SPORT) == args.sport]
     if args.min_trend_sales:
         cards = [c for c in cards if (c["trend_sales"] or 0) >= args.min_trend_sales]
     if args.sort in ("rising", "falling"):
@@ -2607,7 +2624,7 @@ def cmd_card_list(args) -> int:
     if args.sort == "recent":
         cards.reverse()
 
-    columns = ("card_name", "player", "team", "year", "brand", "set_name",
+    columns = ("card_name", "player", "sport", "team", "year", "brand", "set_name",
                "subset", "parallel", "card_number", "print_run",
                "is_rookie", "is_auto", "is_relic", "sales", "median_cents",
                "low_cents", "high_cents", "raw_sales", "raw_median_cents",
@@ -3354,6 +3371,8 @@ def build_parser() -> argparse.ArgumentParser:
                    choices=["clean", "unproven", "suspect", "bucket"],
                    help="which pile to browse (default: clean)")
     p.add_argument("--player", help="one player only")
+    p.add_argument("--sport", choices=["football", "basketball", "baseball"],
+                   help="one sport only")
     p.add_argument("--min-sales", type=int,
                    help="skip cards with fewer sales than this")
     p.add_argument("--min-trend-sales", type=int,
@@ -3390,6 +3409,8 @@ def build_parser() -> argparse.ArgumentParser:
                    choices=["clean", "unproven", "suspect", "bucket", "all"],
                    help="which pile to write (default: clean; 'all' for "
                         "every row)")
+    p.add_argument("--sport", choices=["football", "basketball", "baseball"],
+                   help="one sport only")
     p.add_argument("--min-trend-sales", type=int,
                    help="skip cards whose trend rests on fewer sales than this")
     p.set_defaults(func=cmd_card_list)

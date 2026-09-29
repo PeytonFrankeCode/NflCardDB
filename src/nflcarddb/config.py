@@ -23,6 +23,10 @@ class QuerySpec:
     category: Optional[str] = None
     extra: dict = field(default_factory=dict)
     bands: Optional[list[list[Optional[float]]]] = None
+    # Which sport this search collects. Stamped on every sale it finds, and it
+    # is what keeps three different "2024 Prizm #1" cards apart -- the title
+    # usually cannot, because most sellers never type the sport.
+    sport: Optional[str] = None
 
 
 @dataclass
@@ -68,6 +72,10 @@ class Config:
     # collected sale is not something to do quietly -- but a lot's price
     # belongs to no single card, so collecting them buys nothing.
     skip_lots: bool = True
+    # What a sale is filed under when neither its search nor its title says.
+    # Everything collected before sports were separated is football, so this
+    # is a statement about the existing data rather than a preference.
+    default_sport: str = "football"
     fetch: FetchConfig = field(default_factory=FetchConfig)
     price_bands: list[list[Optional[float]]] = field(default_factory=lambda: list(DEFAULT_BANDS))
     queries: list[QuerySpec] = field(default_factory=list)
@@ -98,6 +106,7 @@ def load_config(path: str | Path | None = None) -> Config:
             category=str(q["category"]) if q.get("category") else None,
             extra=q.get("extra") or {},
             bands=q.get("price_bands"),
+            sport=(str(q["sport"]).lower() if q.get("sport") else None),
         ))
 
     if not queries:
@@ -110,6 +119,7 @@ def load_config(path: str | Path | None = None) -> Config:
         designations=raw.get("designations"),
         sets=raw.get("sets"),
         skip_lots=bool(raw.get("skip_lots", True)),
+        default_sport=str(raw.get("default_sport", "football")).lower(),
         fetch=fetch,
         price_bands=raw.get("price_bands") or list(DEFAULT_BANDS),
         queries=queries,

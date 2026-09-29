@@ -372,6 +372,10 @@ async function cardHistory(url, env) {
 // caller input here would be an injection. Each maps to an index on `cards`.
 const QUALITY_TIERS = ["clean", "suspect", "unproven", "bucket"];
 
+// The sport left unmarked in card keys and in older rows. Must match
+// DEFAULT_SPORT in card_key.py -- they are two halves of one decision.
+const DEFAULT_SPORT = "football";
+
 const CARD_SORTS = {
   traded:   "sales DESC, median_cents DESC",
   value:    "median_cents DESC, sales DESC",
@@ -433,6 +437,9 @@ function shapeCard(r) {
     // percentile price over its 10th, inside its largest single grade.
     quality: r.quality,
     spread: r.spread,
+    // Null on everything collected before sports were separated, which means
+    // the default sport rather than "unknown".
+    sport: r.sport || DEFAULT_SPORT,
   };
 }
 
@@ -459,6 +466,21 @@ async function listCards(url, env) {
   like("parallel", "parallel");
   eq("team", "team");
   eq("card_number", "card_number");
+
+  // A site showing one sport at a time. NULL means the collection's default
+  // sport -- everything gathered before sports were separated is football,
+  // and the card key says the same by leaving the default unmarked -- so
+  // asking for that sport has to match the unmarked rows too, or the entire
+  // back catalogue vanishes from the page.
+  const sport = url.searchParams.get("sport");
+  if (sport) {
+    if (sport === DEFAULT_SPORT) {
+      where.push("(sport = ? OR sport IS NULL)");
+    } else {
+      where.push("sport = ?");
+    }
+    binds.push(sport);
+  }
 
   const year = url.searchParams.get("year");
   if (year && /^\d{4}$/.test(year)) { where.push("year = ?"); binds.push(Number(year)); }

@@ -196,7 +196,7 @@ def run_scrape(
         seen, new = store.upsert_sales(conn, keep, run_id)
         parsed = []
         for sale in keep:
-            attrs = parse_title(sale.title, roster)
+            attrs = parse_title(sale.title, roster, collected_as=sale.sport)
             # Same grouping a reparse would give it, so a day collected today
             # matches a day collected last month without a full re-read.
             if known_checklist:
@@ -262,6 +262,11 @@ def run_scrape(
                 direction=direction,
                 on_segment=on_segment,
             ):
+                # Stamped from the search rather than read off the title,
+                # because most titles never name a sport and a value that
+                # depended on wording would differ between two sales of one
+                # card -- which would split it in the key.
+                sale.sport = query.sport or config.default_sport
                 buffer.append(sale)
                 if len(buffer) >= BATCH_SIZE:
                     flush()
@@ -450,7 +455,7 @@ def run_backfill(
 
 def reparse_titles(
     db_path: str, roster_path: Optional[str] = None, all_rows: bool = False,
-    use_checklist: bool = True,
+    use_checklist: bool = True, default_sport: str = "football",
 ) -> int:
     """Re-run the title parser, e.g. after improving its vocabularies.
 
@@ -467,17 +472,24 @@ def reparse_titles(
     roster = load_roster(roster_path) if roster_path else None
 
     if all_rows:
-        rows = [(r[0], r[1]) for r in conn.execute("SELECT item_id, title FROM sales")]
+        rows = [(r[0], r[1], r[2]) for r in conn.execute(
+            "SELECT item_id, title, sport FROM sales")]
     else:
-        rows = store.unparsed_items(conn)
+        # `unparsed_items` predates the column and returns pairs; the sport is
+        # read alongside so a reparse cannot silently drop it and re-key every
+        # basketball card as football.
+        known = {r[0]: r[1] for r in conn.execute(
+            "SELECT item_id, sport FROM sales WHERE sport IS NOT NULL")}
+        rows = [(i, title, known.get(i)) for i, title in store.unparsed_items(conn)]
 
-    known = use_checklist and bool(
+    has_checklist = use_checklist and bool(
         conn.execute("SELECT 1 FROM checklist_sets LIMIT 1").fetchone())
 
     parsed = []
-    for item_id, title in rows:
-        attrs = parse_title(title, roster)
-        if known:
+    for item_id, title, collected_as in rows:
+        attrs = parse_title(title, roster,
+                            collected_as=collected_as or default_sport)
+        if has_checklist:
             cl.enrich(conn, attrs)
         parsed.append((item_id, attrs))
 

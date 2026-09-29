@@ -35,7 +35,7 @@ EXPORT_COLUMNS = (
     "currency", "best_offer", "listing_format", "bids", "image_url", "player",
     "team", "year", "brand", "set_name", "subset", "parallel", "card_number",
     "print_run", "grader", "grade", "is_rookie", "is_auto", "is_relic",
-    "confidence", "card_key", "card_name",
+    "sport", "confidence", "card_key", "card_name",
 )
 
 
@@ -96,7 +96,7 @@ def _iter_rows_to_export(
                s.image_url,
                c.player, c.team, c.year, c.brand, c.set_name, c.subset,
                c.parallel, c.card_number, c.print_run, c.grader, c.grade,
-               c.is_rookie, c.is_auto, c.is_relic,
+               c.is_rookie, c.is_auto, c.is_relic, c.sport,
                COALESCE(c.confidence, 0) AS confidence,
                c.card_key, c.card_name
         FROM sales s LEFT JOIN cards c USING (item_id)
@@ -146,7 +146,7 @@ def _daily_rollups(conn: sqlite3.Connection, since: Optional[str]) -> list[dict]
 CARD_COLUMNS = (
     "card_key", "card_name", "player", "team", "year", "brand", "set_name",
     "subset", "parallel", "card_number", "print_run", "is_rookie", "is_auto",
-    "is_relic", "numberless", "image_url", "sales", "median_cents",
+    "is_relic", "sport", "numberless", "image_url", "sales", "median_cents",
     "low_cents", "high_cents", "raw_sales", "raw_median_cents",
     "first_sold", "last_sold", "trend_pct", "trend_sales", "quality", "spread",
 )
@@ -193,7 +193,7 @@ def _card_rollups(
         f"""
         SELECT c.card_key, c.card_name, c.player, c.team, c.year, c.brand,
                c.set_name, c.subset, c.parallel, c.card_number, c.print_run,
-               c.is_rookie, c.is_auto, c.is_relic, c.grader, c.grade,
+               c.is_rookie, c.is_auto, c.is_relic, c.sport, c.grader, c.grade,
                s.sold_date, s.price_cents, s.image_url
         FROM cards c JOIN sales s USING (item_id) {join}
         {where}
@@ -213,7 +213,7 @@ def _card_rollups(
         # the newest sale because the parser improves: an older row was keyed
         # by a version that knew fewer set and colour names.
         for col in ("player", "team", "year", "brand", "set_name", "subset",
-                    "parallel", "card_number", "print_run"):
+                    "parallel", "card_number", "print_run", "sport"):
             if r[col] is not None:
                 card[col] = r[col]
         for flag in ("is_rookie", "is_auto", "is_relic"):
@@ -251,7 +251,7 @@ def _card_rollups(
                              default=key),
             **{col: c.get(col) for col in (
                 "player", "team", "year", "brand", "set_name", "subset",
-                "parallel", "card_number", "print_run", "image_url")},
+                "parallel", "card_number", "print_run", "sport", "image_url")},
             **{f: c.get(f, 0) for f in ("is_rookie", "is_auto", "is_relic")},
             "numberless": c["numberless"],
             "sales": len(prices),

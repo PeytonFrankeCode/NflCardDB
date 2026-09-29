@@ -45,7 +45,8 @@ function card(over = {}) {
     is_auto: 0, is_relic: 0, numberless: 0, image_url: null, sales: 5,
     median_cents: 1000, low_cents: 500, high_cents: 2000, raw_sales: 5,
     raw_median_cents: 1000, first_sold: "2026-01-01", last_sold: "2026-02-01",
-    trend_pct: 0, trend_sales: 5, quality: "clean", spread: 2.0, ...over,
+    trend_pct: 0, trend_sales: 5, quality: "clean", spread: 2.0,
+    sport: "football", ...over,
   };
 }
 
@@ -176,6 +177,39 @@ test("a trend can be filtered by the evidence behind it, not the card's total sa
     assert.equal(byTrend.body.cards[0].card_key, "real");
     assert.equal(byTrend.body.cards[0].trend_sales, 30,
       "and the count is served, so a page can show what the trend rests on");
+  });
+
+test("asking for a sport keeps the other sports out", async () => {
+  // Panini and Topps print the same set names in every sport they licence,
+  // so a site showing one sport filters on it before anything else.
+  const env = makeEnv([
+    card({ card_key: "fb", card_name: "Gridiron Guy", sport: "football", year: 2024 }),
+    card({ card_key: "bb", card_name: "Hoops Guy", sport: "basketball", year: 2023 }),
+    card({ card_key: "mlb", card_name: "Diamond Guy", sport: "baseball", year: 2022 }),
+  ]);
+
+  const hoops = await get(env, "/v1/cards?sport=basketball");
+  assert.equal(hoops.body.total, 1);
+  assert.equal(hoops.body.cards[0].card_key, "bb");
+  assert.equal(hoops.body.cards[0].sport, "basketball");
+});
+
+test("asking for the default sport still finds the rows collected before sports existed",
+  async () => {
+    // Every row gathered before sports were separated has sport NULL, and NULL
+    // means football -- the card key says the same by leaving the default
+    // unmarked. Matching only `sport = 'football'` would make the entire back
+    // catalogue vanish from the site.
+    const env = makeEnv([
+      card({ card_key: "old", card_name: "Legacy Card", sport: null, year: 2021 }),
+      card({ card_key: "new", card_name: "Stamped Card", sport: "football", year: 2024 }),
+      card({ card_key: "bb", card_name: "Hoops Guy", sport: "basketball", year: 2023 }),
+    ]);
+
+    const { body } = await get(env, "/v1/cards?sport=football");
+    assert.equal(body.total, 2);
+    assert.ok(body.cards.every((c) => c.sport === "football"),
+      "an unmarked row reports as the default sport rather than null");
   });
 
 test("a search term is not read as SQL", async () => {

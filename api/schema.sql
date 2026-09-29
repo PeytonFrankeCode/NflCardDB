@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS sales (
     is_rookie      INTEGER NOT NULL DEFAULT 0,
     is_auto        INTEGER NOT NULL DEFAULT 0,
     is_relic       INTEGER NOT NULL DEFAULT 0,
+    -- football | basketball | baseball.
+    sport          TEXT,
     confidence     REAL NOT NULL DEFAULT 0
 );
 
@@ -86,6 +88,10 @@ CREATE TABLE IF NOT EXISTS cards (
     is_rookie      INTEGER NOT NULL DEFAULT 0,
     is_auto        INTEGER NOT NULL DEFAULT 0,
     is_relic       INTEGER NOT NULL DEFAULT 0,
+    -- football | basketball | baseball. Part of the card's identity, because
+    -- Panini and Topps print the same set names in every sport they licence:
+    -- 2024 Prizm #1 exists three times over, three different players.
+    sport          TEXT,
     -- 1 when no sale of this card ever yielded a card number, so the key fell
     -- back to the player's name. Such a row is every card of that player in
     -- that set gathered together -- a bucket, not a card. Served rather than
@@ -160,6 +166,12 @@ CREATE INDEX IF NOT EXISTS idx_cards_set    ON cards (year, set_name, sales DESC
 CREATE INDEX IF NOT EXISTS idx_cards_q_trend  ON cards (quality, trend_pct DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_q_value  ON cards (quality, median_cents DESC);
 CREATE INDEX IF NOT EXISTS idx_cards_q_recent ON cards (quality, last_sold DESC);
+
+-- A site showing one sport at a time filters on it before anything else, so
+-- it leads these the way `quality` leads the ones above.
+CREATE INDEX IF NOT EXISTS idx_cards_sport  ON cards (sport, quality, sales DESC);
+CREATE INDEX IF NOT EXISTS idx_cards_sp_val ON cards (sport, quality, median_cents DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_sport  ON sales (sport, sold_date DESC);
 
 -- Precomputed daily rollups: cheap to serve, and the common dashboard call.
 CREATE TABLE IF NOT EXISTS daily (

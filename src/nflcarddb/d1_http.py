@@ -73,6 +73,15 @@ MIGRATIONS = (
     # count was never what it looked like: it is one grade's worth, and a card
     # with 200 sales can have a trend drawn from four of them.
     "ALTER TABLE cards ADD COLUMN trend_sales INTEGER NOT NULL DEFAULT 0",
+    # Which sport. Added when a football-only database gained two more, so
+    # every row already in it predates the column and reads back NULL --
+    # which is correct: unmarked means the default sport, and the key says
+    # the same thing by leaving it out.
+    "ALTER TABLE sales ADD COLUMN sport TEXT",
+    "ALTER TABLE cards ADD COLUMN sport TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_cards_sport  ON cards (sport, quality, sales DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cards_sp_val ON cards (sport, quality, median_cents DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_sales_sport  ON sales (sport, sold_date DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_sales  ON cards (sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_good   ON cards (quality, sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_value  ON cards (median_cents DESC)",

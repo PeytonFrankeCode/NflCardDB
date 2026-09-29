@@ -24,6 +24,10 @@ class Sale:
     url: Optional[str] = None
     image_url: Optional[str] = None
     query_id: Optional[str] = None
+    # Which sport the search that found this was collecting. Stamped at
+    # collection rather than read off the title, so every sale of one card
+    # agrees even though most titles never name a sport.
+    sport: Optional[str] = None
 
     def as_row(self) -> dict:
         row = asdict(self)
@@ -52,6 +56,10 @@ class CardAttrs:
     is_rookie: bool = False
     is_auto: bool = False
     is_relic: bool = False
+    # football | basketball | baseball. Part of the card's identity, because
+    # Panini and Topps print the same set names in every sport they licence:
+    # 2024 Prizm #1 exists three times over, three different players.
+    sport: Optional[str] = None
     confidence: float = 0.0
     # Words the parser could not account for. Not stored -- it exists so
     # `card_name` knows whether "Base" is a fact or a failure, and so the

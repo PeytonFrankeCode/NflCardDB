@@ -38,8 +38,10 @@ echo               appears in the report, because the collector
 echo               cannot miss what it was never told to look
 echo               for. Fix: add a query.
 echo.
-echo The last one is usually the biggest. You run three searches;
-echo eBay has far more football than three searches reach.
+echo The last one is usually the biggest. Adding a search costs
+echo run time and never duplicates data - a listing found twice
+echo is stored once - so what you collect is capped by how many
+echo different ways you ask, and how long a run may take.
 goto END
 
 :FAILED

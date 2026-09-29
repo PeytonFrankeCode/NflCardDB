@@ -36,6 +36,11 @@ from .models import CardAttrs
 # averages two different cards into one price history.
 MIN_CONFIDENCE = 0.4
 
+# The sport this collection is primarily about, and the one left unmarked in
+# keys. Changing it re-keys the whole database, so it is a decision rather
+# than a setting -- see the note in `card_key`.
+DEFAULT_SPORT = "football"
+
 _PUNCT = re.compile(r"[^a-z0-9]+")
 _SUFFIXES = re.compile(r"\b(jr|sr|ii|iii|iv|v)\b")
 
@@ -82,7 +87,27 @@ def card_key(attrs: CardAttrs) -> Optional[str]:
     if not attrs.year or not attrs.set_name:
         return None
 
-    parts = [str(attrs.year), _slug(attrs.set_name)]
+    parts: list[str] = []
+
+    # The sport, when it is not the collection's own. Panini and Topps print
+    # the same set names across every sport they licence, so without this
+    # 2024 Prizm #1 is one key holding a footballer, a basketballer and a
+    # ballplayer -- averaged into a single price history, with nothing in the
+    # data looking wrong.
+    #
+    # Omitted when it matches DEFAULT_SPORT, for two reasons. The first is
+    # that every key already assigned stays valid rather than the whole
+    # database needing to be re-keyed to say what it already meant. The
+    # second matters more: sport detection reads titles, and titles are
+    # inconsistent -- one seller writes "Chiefs", the next writes nothing.
+    # Stamping the detected value into every key would split a working card
+    # the moment one of its sales failed to mention a team. Leaving the
+    # default unmarked means a football card keys identically whether or not
+    # anyone could tell from the words.
+    if attrs.sport and attrs.sport != DEFAULT_SPORT:
+        parts.append(_slug(attrs.sport))
+
+    parts += [str(attrs.year), _slug(attrs.set_name)]
 
     # The insert set, when there is one. An insert restarts its numbering at
     # one, so the number alone does not separate it from the base set or from a

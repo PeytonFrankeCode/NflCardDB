@@ -121,7 +121,7 @@ def connect(path: str | Path) -> sqlite3.Connection:
 _SALE_COLS = (
     "item_id", "title", "price_cents", "currency", "shipping_cents", "sold_date",
     "listing_format", "bids", "best_offer", "condition", "seller", "url",
-    "image_url", "query_id",
+    "image_url", "query_id", "sport",
 )
 
 
@@ -157,7 +157,7 @@ def upsert_sales(conn: sqlite3.Connection, sales: Iterable[Sale], run_id: str) -
     updates = ", ".join(
         f"{c} = excluded.{c}"
         for c in _SALE_COLS
-        if c not in ("item_id", "query_id")
+        if c not in ("item_id", "query_id", "sport")
     )
 
     rows = []
@@ -182,7 +182,7 @@ _CARD_COLS = (
     "parallel",
     "card_number",
     "serial_number", "print_run", "grader", "grade", "is_graded", "is_rookie",
-    "is_auto", "is_relic", "confidence", "card_key", "card_name",
+    "is_auto", "is_relic", "sport", "confidence", "card_key", "card_name",
 )
 
 

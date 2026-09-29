@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .models import CardAttrs
+from .sport import resolve_sport
 
 # Bumped whenever parsing changes materially. It is stamped on every row, and
 # the audit reports it -- which is how "did my update actually land" becomes a
@@ -835,10 +836,18 @@ def _extract_player(remaining: str, roster: Optional[set[str]] = None) -> tuple[
     return (name.title() if name.isupper() else name, False)
 
 
-def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
-    """Parse one listing title into CardAttrs."""
+def parse_title(title: str, roster: Optional[set[str]] = None,
+                collected_as: Optional[str] = None) -> CardAttrs:
+    """Parse one listing title into CardAttrs.
+
+    `collected_as` is the sport the search that found this listing was
+    collecting. It is used only when the title itself says nothing about
+    which sport the card is -- which is the usual case, since most titles
+    name a year, a set and a player and leave the rest to the category.
+    """
     attrs = CardAttrs()
     if not title:
+        attrs.sport = collected_as
         return attrs
 
     work = _Working(title)
@@ -1076,6 +1085,12 @@ def parse_title(title: str, roster: Optional[set[str]] = None) -> CardAttrs:
         (attrs.is_graded, 0.05),
     ]
     attrs.confidence = round(min(1.0, sum(w for ok, w in weights if ok)), 3)
+
+    # Which sport, so the key can keep three different 2024 Prizm #1s
+    # apart. The title decides when it says anything; otherwise the search
+    # that found the sale does, which is the answer that stays the same
+    # across sales of one card however each seller worded theirs.
+    attrs.sport = resolve_sport(title, collected_as, football_teams=TEAMS)
 
     # Whatever survived every matcher and the name scan. Noise words and stray
     # fragments are dropped, so what is left is genuinely unrecognised -- the
