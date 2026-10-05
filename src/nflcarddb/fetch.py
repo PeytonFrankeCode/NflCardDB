@@ -103,6 +103,18 @@ class FetchStats:
     # because it is the one cost that is eBay's doing rather than a setting,
     # and it is invisible in a plain "seconds per page" figure.
     challenge_seconds: float = 0.0
+    # Pages given up on with no successful page in between. One is a hiccup --
+    # eBay stalled, a connection reset -- and costs that band. Several in a
+    # row is the connection being down, and every further band would burn a
+    # minute of retries to learn the same thing. The walker reads this to tell
+    # the two apart; any page that succeeds puts it back to zero.
+    failures_in_a_row: int = 0
+    # Every page given up on this run, for the report.
+    pages_given_up: int = 0
+    # Pages that came back. With `pages_given_up` this separates a flaky page
+    # from a dead connection: failures among successes are eBay stalling,
+    # failures with no success at all are the network.
+    pages_ok: int = 0
 
 
 class Fetcher:

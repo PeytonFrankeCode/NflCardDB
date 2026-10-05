@@ -268,7 +268,15 @@ def record_segment(
         "INSERT INTO scrape_segments (run_id, segment_id, query_id, price_lo, price_hi, "
         "status, pages, items, note, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(run_id, segment_id) DO UPDATE SET status = excluded.status, "
-        "pages = excluded.pages, items = excluded.items, note = excluded.note, "
+        # A band retried after a failed page reports twice under one id. Both
+        # walks were paid for, so the pages and items add up rather than the
+        # second replacing the first -- otherwise the speed report undercounts
+        # exactly the bands that cost the most.
+        "pages = CASE WHEN scrape_segments.status = 'retrying' "
+        "  THEN scrape_segments.pages + excluded.pages ELSE excluded.pages END, "
+        "items = CASE WHEN scrape_segments.status = 'retrying' "
+        "  THEN scrape_segments.items + excluded.items ELSE excluded.items END, "
+        "note = excluded.note, "
         "updated_at = excluded.updated_at",
         (run_id, segment_id, query_id, price_lo, price_hi, status, pages, items, note, utcnow()),
     )

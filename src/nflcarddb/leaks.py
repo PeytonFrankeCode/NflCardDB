@@ -27,7 +27,7 @@ from typing import Optional
 # unknowable from the outside.
 EBAY_RESULT_CEILING = 10_000
 
-LOSS_STATUSES = ("capped", "unreached", "incomplete")
+LOSS_STATUSES = ("capped", "unreached", "incomplete", "failed")
 
 # What to do about each, in the words the fix is actually described in.
 REMEDIES = {
@@ -42,6 +42,12 @@ REMEDIES = {
     "incomplete": (
         "The walk never reached the day being collected. The day is only "
         "partly here; `recheck` re-collects days like this."
+    ),
+    "failed": (
+        "eBay did not answer a page, twice -- once in the band and again on "
+        "the retry at the end of the search. Only that band's remainder is "
+        "missing; catchup.bat re-collects it. Many of these on one night is "
+        "the connection, not eBay."
     ),
 }
 

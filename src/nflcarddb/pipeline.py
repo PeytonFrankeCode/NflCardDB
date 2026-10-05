@@ -65,6 +65,16 @@ class ScrapeReport:
         # Multi-card lots refused at the door rather than stored and then
         # refused a card_key later.
         self.skipped_lots = 0
+        # Pages eBay never answered, after the fetcher's own retries. Each one
+        # used to end the whole day; now each costs its band, which is retried
+        # once at the end of its search. Reported so "it gave up a lot" is a
+        # number, and so a night of them points at the network.
+        self.pages_given_up = 0
+        # Bands that failed and then came back on the retry -- collected in
+        # full, nothing missing. Counted separately because it is good news
+        # that would otherwise read exactly like the bad kind in the log.
+        self.bands_recovered = 0
+        self.bands_failed = 0
 
     def as_dict(self) -> dict:
         return {
@@ -82,6 +92,9 @@ class ScrapeReport:
             "empty_queries": self.empty_queries,
             "bot_checks": self.blocked,
             "seconds_lost_to_bot_checks": self.challenge_seconds,
+            "pages_given_up": self.pages_given_up,
+            "bands_recovered_on_retry": self.bands_recovered,
+            "bands_failed_twice": self.bands_failed,
             "status": self.status,
             "reason": self.reason,
             "error": self.error,
@@ -210,9 +223,22 @@ def run_scrape(
     incomplete: list[str] = []
     per_query: dict[str, int] = {}
 
+    retried: set[str] = set()
+
     def on_segment(query_id, band: PriceBand, status, result, note) -> None:
-        if getattr(result, "ran_out", False):
+        # A band waiting for its retry is not a gap yet -- the retry usually
+        # finishes it. Counting it would mark a day partial that ends up
+        # complete, and send recheck after a day it does not need to touch.
+        # If the retry fails too, it reports again as "failed" and counts then.
+        if getattr(result, "ran_out", False) and status != "retrying":
             incomplete.append(f"{query_id}:{band.label}")
+        segment = f"{query_id}:{band.label}"
+        if status == "retrying":
+            retried.add(segment)
+        elif status == "failed":
+            report.bands_failed += 1
+        elif segment in retried:
+            report.bands_recovered += 1
         if not dry_run:
             store.record_segment(
                 conn, run_id, f"{query_id}:{band.label}", query_id,
@@ -323,7 +349,22 @@ def run_scrape(
         # Nothing threw, but a walk that never reached the target date collected
         # only part of the day. Recording that as 'ok' is what makes the gap
         # permanent: completed_days would skip it and the backfill never returns.
-        if incomplete:
+        stats = fetcher.stats
+        if (getattr(stats, "pages_given_up", 0)
+                and not getattr(stats, "pages_ok", 0)):
+            # Not one page came back. That is not a day cut short, it is no
+            # connection -- and calling it "incomplete" sends someone to
+            # recheck a day that will fail identically, instead of to the
+            # network. The walker's own breaker catches this mid-run once
+            # several bands fail; this catches the run too small to reach it.
+            report.status = "partial"
+            report.reason = "network"
+            report.error = (
+                f"{stats.pages_given_up} page(s) failed and none succeeded -- "
+                "the connection to eBay was down for this whole run."
+            )
+            log.error("stopping: %s", report.error)
+        elif incomplete:
             report.status = "partial"
             report.reason = "incomplete"
             report.error = (
@@ -341,6 +382,18 @@ def run_scrape(
         report.empty_queries = [q for q, n in per_query.items() if n == 0]
         report.blocked = fetcher.stats.blocked
         report.challenge_seconds = round(fetcher.stats.challenge_seconds, 1)
+        report.pages_given_up = getattr(fetcher.stats, "pages_given_up", 0)
+        if report.pages_given_up:
+            if report.bands_failed:
+                log.warning(
+                    "%d page(s) stalled; %d band(s) recovered on retry, %d "
+                    "failed twice and are left for recheck",
+                    report.pages_given_up, report.bands_recovered,
+                    report.bands_failed)
+            else:
+                log.info(
+                    "%d page(s) stalled and every one was recovered on retry "
+                    "-- nothing is missing", report.pages_given_up)
         if getattr(fetcher, "switched", False):
             report.engine = "browser"
         # Chromium is a real process; it has to be shut down or it outlives the run.

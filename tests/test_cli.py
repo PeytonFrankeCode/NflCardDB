@@ -401,3 +401,84 @@ def test_the_export_sorts_the_way_the_website_does(tmp_path):
     for name in D1_CARD_SORTS:
         code, rows = _card_list(tmp_path, ["--sort", name])
         assert code == 0, f"{name} failed"
+
+
+# --- a stalled page, seen the way the nightly run sees it --------------------
+
+
+def _sold_page(item_ids, day="Jul 30, 2025"):
+    tiles = "".join(
+        f'<li class="s-item"><a class="s-item__link" href="https://www.ebay.com/itm/{i}">'
+        f'<div class="s-item__title"><span role="heading">2023 Prizm CJ Stroud RC #{i % 400}</span></div></a>'
+        f'<span class="s-item__price">$10.00</span>'
+        f'<div class="s-item__caption"><span>Sold  {day}</span></div></li>'
+        for i in item_ids
+    )
+    return (f'<h1 class="srp-controls__count-heading">5 results</h1>'
+            f'<ul class="srp-results">{tiles}</ul>')
+
+
+@pytest.fixture
+def two_band_cfg(tmp_path):
+    path = tmp_path / "queries.yml"
+    path.write_text(yaml.safe_dump({
+        "database": str(tmp_path / "t.db"),
+        "fetch": {"delay": 0, "jitter": 0, "max_retries": 0, "engine": "requests",
+                  "items_per_page": 60},
+        "price_bands": [[None, 10], [10, None]],
+        "queries": [{"id": "football_singles", "keywords": "football",
+                     "category": "261328"}],
+    }))
+    return str(path)
+
+
+def _serve(fails):
+    """Band below $10 has one short page; band above has one short page.
+    `fails` counts down how many times the low band's page fails first."""
+    from urllib.parse import parse_qs, urlparse
+
+    remaining = {"low": fails}
+
+    def get(self, url, label=None):
+        params = parse_qs(urlparse(url).query)
+        self.stats.requests += 1
+        if "_udlo" not in params:                       # the band below $10
+            if remaining["low"] > 0:
+                remaining["low"] -= 1
+                raise fetch_mod.FetchError(f"giving up on {url}: read timed out")
+            return _sold_page(range(990000000100, 990000000105))
+        return _sold_page(range(990000000200, 990000000205))
+    return get
+
+
+def test_a_page_that_stalls_once_still_finishes_the_day(two_band_cfg, monkeypatch, capsys):
+    """What "giving up... stopping" used to cost: the whole day. Now the stall
+    is retried at the end of the search, the day completes, and the report
+    says plainly that nothing is missing."""
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", _serve(fails=1))
+
+    code = main(["scrape", "--config", two_band_cfg, "--date", "2025-07-30"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert report["status"] == "ok"
+    assert report["items_new"] == 10, "both bands collected in full"
+    assert report["pages_given_up"] == 1
+    assert report["bands_recovered_on_retry"] == 1
+    assert report["bands_failed_twice"] == 0
+
+
+def test_a_page_that_fails_twice_costs_its_band_and_nothing_else(
+        two_band_cfg, monkeypatch, capsys):
+    """The other band is still collected. The day is marked incomplete so
+    recheck returns for the one band -- not the network reason, because the
+    network was plainly fine for everything else."""
+    monkeypatch.setattr(fetch_mod.Fetcher, "get", _serve(fails=2))
+
+    main(["scrape", "--config", two_band_cfg, "--date", "2025-07-30"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["status"] == "partial"
+    assert report["reason"] == "incomplete"
+    assert report["items_new"] == 5, "the healthy band was kept"
+    assert report["bands_failed_twice"] == 1

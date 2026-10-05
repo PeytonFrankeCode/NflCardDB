@@ -2494,6 +2494,9 @@ def cmd_leaks(args) -> int:
             print("      nothing; the runs are finishing what they start.")
         if "incomplete" in clean:
             print("    - Every walk reached the day it was collecting.")
+        if "failed" in clean:
+            print("    - No page failed twice. Any that stalled once were")
+            print("      picked up on the retry.")
         print()
 
     if report["incomplete_days"]:

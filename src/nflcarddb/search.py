@@ -33,9 +33,23 @@ from dataclasses import dataclass
 from typing import Iterator, Optional
 from urllib.parse import urlencode
 
-from .fetch import Fetcher
+from .fetch import Fetcher, FetchError
 from .models import Sale
 from .parse_listing import parse_search_page
+
+# Pages given up on in a row, with nothing succeeding between them, before the
+# connection is treated as down. One failure is a hiccup and costs a band; this
+# many with no success between is not a hiccup, and carrying on would spend a
+# minute of retries on every remaining band to learn the same thing.
+CONNECTION_DOWN_AFTER = 3
+
+
+class ConnectionDown(FetchError):
+    """Several pages in a row failed: the connection, not one page, is the problem.
+
+    A FetchError, so a run stops on it exactly as it always did on any network
+    failure. What changed is that a SINGLE failed page no longer does.
+    """
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +134,12 @@ class SegmentResult:
     # but there are more that were never reached -- so the day is incomplete,
     # and saying so is what stops it being recorded as finished.
     ran_out: bool = False
+    # Why the walk stopped, when it was a page eBay never answered rather than
+    # the band ending. The sales before it are real and are kept.
+    failed: Optional[str] = None
+    # The page that failed, so a retry can pick up there rather than paying
+    # again for every page that already worked.
+    failed_page: Optional[int] = None
 
     @property
     def reached_target(self) -> bool:
@@ -137,6 +157,7 @@ def walk_segment(
     items_per_page: int = ITEMS_PER_PAGE,
     extra: Optional[dict] = None,
     direction: str = NEWEST_FIRST,
+    start_page: int = 1,
 ) -> SegmentResult:
     """Page through one (query, price band) until the target date is passed.
 
@@ -152,8 +173,10 @@ def walk_segment(
     stopped_on_date = False
     exhausted = False
     budget_out = False
+    failed: Optional[str] = None
+    failed_page: Optional[int] = None
 
-    for page in range(1, max_pages + 1):
+    for page in range(start_page, max_pages + 1):
         if fetcher.budget_exhausted():
             log.warning("page budget exhausted mid-segment %s %s", query_id, band.label)
             budget_out = True
@@ -161,7 +184,25 @@ def walk_segment(
 
         url = build_url(keywords, category, page, band, items_per_page, extra,
                         direction=direction)
-        html = fetcher.get(url, label=f"{query_id}_{band.label}_p{page}")
+        try:
+            html = fetcher.get(url, label=f"{query_id}_{band.label}_p{page}")
+        except FetchError as exc:
+            # One page eBay never answered, after the fetcher's own retries.
+            # This used to propagate all the way up and end the DAY -- every
+            # remaining band of every remaining search abandoned, two hours of
+            # run thrown away over one URL. It now costs this band, the sales
+            # already collected in it are kept, and the walker decides whether
+            # to come back for the rest.
+            #
+            # Block and sign-out are separate exception types, deliberately
+            # not caught here: those mean every later request fails too.
+            _note_failure(fetcher)
+            failed, failed_page = _why(exc), page
+            log.warning("%s %s: page %d did not load (%s). Kept the %d sale(s) "
+                        "already collected in this band; carrying on.",
+                        query_id, band.label, page, failed, len(collected))
+            break
+        _note_success(fetcher)
         result = parse_search_page(html, query_id=query_id)
         pages += 1
 
@@ -198,7 +239,7 @@ def walk_segment(
     # Having seen everything eBay offered is as good as stopping on the date.
     # Anything else means the walk was cut off with the target still ahead.
     ran_out = bool(target_date) and not (stopped_on_date or exhausted)
-    if ran_out:
+    if ran_out and not failed:
         log.warning(
             "%s band %s: %s before reaching %s -- day is incomplete",
             query_id, band.label,
@@ -206,7 +247,40 @@ def walk_segment(
             target_date,
         )
 
-    return SegmentResult(collected, pages, capped, total, stopped_on_date, ran_out)
+    return SegmentResult(collected, pages, capped, total, stopped_on_date,
+                         ran_out or bool(failed), failed, failed_page)
+
+
+def _why(exc: Exception) -> str:
+    """The cause, without the fetcher's "giving up on <long url>:" preamble.
+
+    That preamble is what made a single stalled page read as the collector
+    giving up altogether. The band and page are already named in the line
+    this goes into, so only the reason itself is worth repeating.
+    """
+    text = str(exc)
+    if text.startswith("giving up on ") and ": " in text:
+        text = text.split(": ", 1)[1]
+    return text or exc.__class__.__name__
+
+
+def _failures_in_a_row(fetcher: Fetcher) -> int:
+    """Read the counter tolerantly: a fetcher is duck-typed, and one written
+    before the counter existed should behave as though nothing has failed
+    rather than crash the walk."""
+    return getattr(fetcher.stats, "failures_in_a_row", 0)
+
+
+def _note_failure(fetcher: Fetcher) -> None:
+    stats = fetcher.stats
+    stats.failures_in_a_row = getattr(stats, "failures_in_a_row", 0) + 1
+    stats.pages_given_up = getattr(stats, "pages_given_up", 0) + 1
+
+
+def _note_success(fetcher: Fetcher) -> None:
+    stats = fetcher.stats
+    stats.failures_in_a_row = 0
+    stats.pages_ok = getattr(stats, "pages_ok", 0) + 1
 
 
 def plan_bands(bands: list[tuple[Optional[float], Optional[float]]]) -> list[PriceBand]:
@@ -266,25 +340,39 @@ def walk_query(
     direction: str = NEWEST_FIRST,
     on_segment=None,
 ) -> Iterator[Sale]:
-    """Walk every band of a query, subdividing any band that hits the cap."""
-    queue: list[tuple[PriceBand, int]] = [(b, 0) for b in bands]
+    """Walk every band of a query, subdividing any band that hits the cap.
+
+    A band whose page fails is put back at the END of this query's queue and
+    tried once more, starting near the page that failed. By the time the walk
+    gets back to it the rest of the query has run, which is usually long
+    enough for whatever stalled eBay to have passed -- so most failures end as
+    a fully collected band rather than a hole for recheck to fill tomorrow.
+    """
+    # (band, subdivision depth, page to resume from -- None if never failed)
+    queue: list[tuple[PriceBand, int, Optional[int]]] = [(b, 0, None) for b in bands]
 
     while queue:
-        band, depth = queue.pop(0)
+        band, depth, resume = queue.pop(0)
         if fetcher.budget_exhausted():
             log.warning("page budget exhausted; %d band(s) left unscraped", len(queue) + 1)
             # Bands never walked are missing sales just as surely as a band cut
             # off mid-walk, and the caller has to hear about it.
             if on_segment:
-                for pending, _ in queue:
+                for pending, _, _ in queue:
                     on_segment(query_id, pending, "unreached",
                                SegmentResult([], 0, False, None, False, ran_out=True),
                                "page budget ran out before this band was walked")
             return
 
+        # Resume a page early rather than on the failed page itself: new sales
+        # arrive while the rest of the query runs and push listings down the
+        # results, and one page of overlap covers that. Duplicates cost
+        # nothing, since item_id is the key.
+        start = max(1, resume - 1) if resume else 1
         result = walk_segment(
             fetcher, query_id, keywords, category, band, target_date,
             max_pages, items_per_page, extra, direction=direction,
+            start_page=start,
         )
         log.info(
             "%s band %s -> %d sales across %d page(s)%s",
@@ -292,13 +380,51 @@ def walk_query(
             " [capped]" if result.capped else "",
         )
 
+        # Several failed pages in a row, with nothing succeeding between them,
+        # is the connection rather than a page. Checked at the moment of the
+        # failure, not before the next band: when the last bands of a run are
+        # the ones failing there IS no next band, and a dead connection would
+        # end the night reported as an ordinary incomplete day -- the wrong
+        # diagnosis, sending someone to recheck instead of to their router.
+        #
+        # Stopping here is what the run always did on ANY failure. The
+        # difference is that it now takes more than one.
+        if result.failed and _failures_in_a_row(fetcher) >= CONNECTION_DOWN_AFTER:
+            if on_segment:
+                on_segment(query_id, band, "failed", result,
+                           f"connection lost: {result.failed}")
+            yield from result.sales
+            raise ConnectionDown(
+                f"{_failures_in_a_row(fetcher)} pages in a row failed with "
+                "none succeeding between them -- the connection to eBay looks "
+                "down rather than one page being slow. Stopping so the "
+                "remaining bands do not each spend a minute retrying."
+            )
+
         status = "done"
         note = None
         if result.capped and depth < max_depth:
+            # Checked before the failure, deliberately: a capped band is about
+            # to be replaced by its two halves, which between them collect
+            # everything it held. Retrying the parent as well would pay for
+            # the same listings twice.
             lower, upper = band.split()
-            queue.extend([(lower, depth + 1), (upper, depth + 1)])
+            queue.extend([(lower, depth + 1, None), (upper, depth + 1, None)])
             status = "capped"
             note = f"subdivided into {lower.label} and {upper.label}"
+        elif result.failed and resume is None:
+            queue.append((band, depth, result.failed_page))
+            status = "retrying"
+            note = (f"page {result.failed_page} failed ({result.failed}); "
+                    f"trying again once this search's other bands are done")
+            log.info("%s %s: will try page %d again once the rest of %s "
+                     "is done", query_id, band.label, result.failed_page,
+                     query_id)
+        elif result.failed:
+            status = "failed"
+            note = (f"page {result.failed_page} failed twice ({result.failed}); "
+                    f"the rest of this band is left for recheck")
+            log.warning("%s band %s %s", query_id, band.label, note)
         elif result.capped:
             status = "capped"
             note = f"still capped at max depth {max_depth}; some sales may be missed"
