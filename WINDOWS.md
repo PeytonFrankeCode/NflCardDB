@@ -121,12 +121,18 @@ every sport they licence, so "2024 Prizm #1" is three different cards with
 three different players. Without the sport they would share one price history
 and nothing in the data would look wrong.
 
-**Nine searches instead of three, so a run takes about three times as long.**
-If the nightly window stops being enough, `leaks.bat` says so — it reports
-bands the run never reached — and the fix is to drop a search rather than to
-keep raising the page budget. `basketball_graded` and `baseball_graded` are
-the cheapest to lose; the broad `basketball` and `baseball` searches are where
-nearly all of it comes from.
+**Six searches instead of three, so a run takes about twice as long.**
+It started at nine. The three alternate-wording searches — `nfl card`,
+`nba card`, `mlb card` — are off, because `nfl card` was measured spending a
+seventh of every run to add 1.4% of the sales. eBay matches the category and
+the item specifics, not only the words, so a second phrasing of a search
+re-finds the first one's results at full price.
+
+**`speed.bat`** is what measured that, and what to run if a run feels long: it
+reports pages and sales per search, and the one number that decides whether a
+search earns its place — its share of the data against its share of the pages.
+`leaks.bat` is the companion for the opposite question, what a run failed to
+reach.
 
 Everything collected before this change is football, and stays football
 without being re-read. Your website asks for one sport with
@@ -235,7 +241,8 @@ Still works, any time, whether or not it's scheduled.
    sending the changes has left Cloudflare out of date. Details in
    `CLOUDFLARE.md`.
 
-6. `leaks.bat` says where the collector missed sales — a search eBay walled
+6. `speed.bat` says where a run's time goes and what to cut to shorten it.
+   `leaks.bat` says where the collector missed sales — a search eBay walled
    off, a band the page budget never reached — and writes out narrower price
    bands to paste into `config/queries.yml`. `unsorted.bat` says which
    collected cards could not be identified, and what would fix them.

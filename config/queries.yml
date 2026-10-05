@@ -47,6 +47,17 @@ fetch:
   chrome_profile: false
   # Seconds between the START of one request and the next (jitter is added).
   # Page load time counts toward it, so this is the request rate eBay sees.
+  #
+  # This is the second-biggest lever on run length, and the only one with a
+  # downside you cannot see coming: a bot check costs far more time than the
+  # delay saves, and a session signed out by one costs the whole night. So it
+  # is left where it has been proven to work.
+  #
+  # To try it: set delay 1.5 / jitter 0.5 for ONE night, then compare
+  # `bot_checks` and `seconds_lost_to_bot_checks` in the run log against a
+  # normal night. Keep it only if both are still zero. `nflcarddb speed`
+  # prints what each setting would cost in hours, measured rather than
+  # assumed -- part of each page is eBay's load time and no delay reclaims it.
   delay: 2.5
   jitter: 1.0
   max_retries: 4
@@ -118,11 +129,19 @@ queries:
       - [50, 250]
       - [250, null]
 
-  # Broader wording, for listings titled "NFL" rather than "football".
-  - id: nfl_singles
-    keywords: nfl card
-    category: "261328"
-    sport: football
+  # TURNED OFF after being measured. "nfl card" walked all seven price bands
+  # every run -- about a seventh of the whole run -- to contribute 1.4% of the
+  # sales, and those 1.4% are mostly ones `football_singles` would have found
+  # on a day it was not cut short. eBay matches the category and the item
+  # specifics, not only the words, so a second phrasing of the same search
+  # re-finds the first's results and pays full price for them.
+  #
+  # `nflcarddb speed` is what measured it and will measure it again. Uncomment
+  # if that report ever shows it earning its pages.
+  # - id: nfl_singles
+  #   keywords: nfl card
+  #   category: "261328"
+  #   sport: football
 
   # ---------------------------------------------------------------------------
   # BASKETBALL. Same category -- 261328 is Sports Trading Card Singles, every
@@ -143,10 +162,14 @@ queries:
     category: "261328"
     sport: basketball
 
-  - id: nba_singles
-    keywords: nba card
-    category: "261328"
-    sport: basketball
+  # Off for the same reason, and before it had a chance to cost a fortnight:
+  # "nba card" against "basketball" is the exact structure that made
+  # nfl_singles 1.4% of the data for a seventh of the run. Measure with
+  # `nflcarddb speed` before turning it back on.
+  # - id: nba_singles
+  #   keywords: nba card
+  #   category: "261328"
+  #   sport: basketball
 
   # Graded basketball on its own, for the same reason football has one: same
   # card, known condition, comparable prices.
@@ -166,10 +189,11 @@ queries:
     category: "261328"
     sport: baseball
 
-  - id: mlb_singles
-    keywords: mlb card
-    category: "261328"
-    sport: baseball
+  # Off, as above.
+  # - id: mlb_singles
+  #   keywords: mlb card
+  #   category: "261328"
+  #   sport: baseball
 
   - id: baseball_graded
     keywords: baseball psa

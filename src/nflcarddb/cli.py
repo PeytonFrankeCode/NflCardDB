@@ -2289,6 +2289,155 @@ def cmd_d1_cards(args) -> int:
     return 0
 
 
+def cmd_speed(args) -> int:
+    """Where a run's time goes, and what each search costs for what it adds.
+
+    A run's time is pages: one request each, with the configured delay between
+    them. Both halves are recorded, so "why does this take three hours" is
+    arithmetic rather than a guess -- and so is what any change would save.
+    """
+    from .pace import (POOR_VALUE_SHARE, band_efficiency, cost_by_query,
+                       measured_pace, projected_minutes, savings)
+
+    conn = store.connect(args.db)
+    try:
+        pace = measured_pace(conn, runs=args.runs)
+        cost = cost_by_query(conn, runs=args.runs)
+        idle = band_efficiency(conn, runs=args.runs)
+    finally:
+        conn.close()
+
+    if not pace["runs"] or not cost:
+        print("No finished runs recorded yet.", file=sys.stderr)
+        return 1
+
+    config = load_config(args.config) if Path(args.config or "").exists() else None
+    spp = pace["seconds_per_page"] or 3.0
+    total_pages = sum(q["pages"] for q in cost)
+    per_run = total_pages / max(1, pace["runs"])
+
+    print("=" * 68)
+    print("  WHERE THE TIME GOES")
+    print("=" * 68)
+    print()
+    print(f"  Measured over {pace['runs']} run(s): {pace['pages']:,} pages, "
+          f"{pace['seconds'] / 3600:.1f} hours of clock.")
+    print(f"  That is {spp:.1f} seconds a page, start of one request to the next.")
+    print()
+    if config:
+        asked = config.fetch.delay + config.fetch.jitter / 2.0
+        print(f"  The delay setting asks for {asked:.1f}s; you are seeing {spp:.1f}s.")
+        if spp - asked > 0.4:
+            print(f"  The extra {spp - asked:.1f}s is page load -- eBay's time, not a")
+            print("  setting, so lowering the delay cannot reclaim that part.")
+        print()
+    print(f"  A run is about {per_run:,.0f} pages, so "
+          f"{projected_minutes(per_run, spp) / 60:.1f} hours.")
+    print()
+    print("  Price bands are NOT the cost. Bands split the price range, so")
+    print("  seven of them page through the same listings one would -- each")
+    print("  holds only its own slice. QUERIES are the cost: each one is a")
+    print("  separate walk back through the calendar to reach the day being")
+    print("  collected, so nine queries page past the same recent days nine")
+    print("  times over. Three sports costing three times one sport is that,")
+    print("  and nothing is wrong.")
+    print()
+
+    print("-" * 68)
+    print("  WHAT EACH SEARCH COSTS FOR WHAT IT ADDS")
+    print("-" * 68)
+    print()
+    print("  VALUE is its share of the sales over its share of the pages.")
+    print("  Above 1.0 it pulls its weight; well below, it is spending the")
+    print("  other searches' time.")
+    print()
+    print(f"  {'SEARCH':<22}{'PAGES':>8}{'OF RUN':>8}{'SALES':>11}"
+          f"{'OF DATA':>9}{'VALUE':>7}")
+    print("  " + "-" * 65)
+    for q in sorted(cost, key=lambda q: -q["pages"]):
+        print(f"  {q['query_id']:<22}{q['pages']:>8,}{q['page_share']:>7.0%}"
+              f"{q['sales']:>11,}{q['sale_share']:>9.1%}{q['value']:>7.2f}")
+    print()
+
+    weak = [q for q in cost if q["value"] < POOR_VALUE_SHARE and q["pages"]]
+    if weak:
+        effect = savings(cost, {q["query_id"] for q in weak}, pace)
+        print("-" * 68)
+        print("  THE CHEAPEST TIME TO BUY BACK")
+        print("-" * 68)
+        print()
+        print("  These spend much more of the run than they contribute, and")
+        print("  they are mostly alternate wordings of a search that already")
+        print("  ran. eBay matches the category and the item specifics, not")
+        print("  only the words, so a second phrasing re-finds the first's")
+        print("  results and pays full price for them.")
+        print()
+        for q in weak:
+            per = (f"{q['pages_per_sale']:.2f} pages per sale"
+                   if q["pages_per_sale"] else "no sales at all")
+            print(f"    {q['query_id']:<22} {q['page_share']:>4.0%} of the run, "
+                  f"{q['sale_share']:>5.1%} of the data   ({per})")
+        print()
+        print(f"  Dropping all of them saves about "
+              f"{effect['minutes_saved'] / 60:.1f} hours a run "
+              f"({effect['share_of_run']:.0%} of it)")
+        print(f"  and costs {effect['share_of_data']:.1%} of the sales "
+              f"({effect['sales_lost']:,} rows).")
+        print()
+        print("  Comment them out in config\\queries.yml, then run this again")
+        print("  in a fortnight: the numbers move, because what a dropped")
+        print("  query used to find is now found by whichever remains.")
+        print()
+
+    if config:
+        print("-" * 68)
+        print("  THE OTHER LEVER: THE DELAY")
+        print("-" * 68)
+        print()
+        asked = config.fetch.delay + config.fetch.jitter / 2.0
+        floor = max(0.0, spp - asked)
+        shown = False
+        for cand_d, cand_j in ((1.5, 0.5), (1.0, 0.5)):
+            if cand_d >= config.fetch.delay:
+                continue
+            cand = cand_d + cand_j / 2.0 + floor
+            print(f"    delay {cand_d}, jitter {cand_j}  ->  about {cand:.1f}s a "
+                  f"page, {projected_minutes(per_run, cand) / 60:.1f} hours")
+            shown = True
+        if shown:
+            print()
+            print("  Worth trying ONLY while bot checks are at zero, and worth")
+            print("  undoing the moment they are not: one bot check costs more")
+            print("  than the delay saves, and a signed-out session costs the")
+            print("  whole night. Change it for one night and compare.")
+        else:
+            print("  Already at or below the delays worth suggesting.")
+        print()
+
+    if idle:
+        print("-" * 68)
+        print("  BANDS RETURNING ALMOST NOTHING")
+        print("-" * 68)
+        print()
+        print("  A request every run for a handful of sales. Worth merging")
+        print("  into a neighbour, but the saving is small -- bands are not")
+        print("  where the time is.")
+        print()
+        for b in idle[:10]:
+            lo = "any" if b["price_lo"] is None else f"${b['price_lo']:g}"
+            hi = "up" if b["price_hi"] is None else f"${b['price_hi']:g}"
+            print(f"    {b['query_id']:<22} {lo:>7} - {hi:<7} "
+                  f"{b['pages']:>5} pages, {b['items'] or 0:>6} items")
+        print()
+
+    print("=" * 68)
+    print("What cannot be tuned away: an OLDER day costs more than yesterday.")
+    print("eBay has no way to ask for one date, so the walk pages back through")
+    print("everything sold since. A run doing catch-up is long for that reason")
+    print("and not because of a setting.")
+    return 0
+
+
 def cmd_leaks(args) -> int:
     """Where the collector already knows it missed sales.
 
@@ -3381,6 +3530,14 @@ def build_parser() -> argparse.ArgumentParser:
                         "falling sorts: --min-sales counts every grade.")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_d1_cards)
+
+    p = sub.add_parser("speed",
+                       help="where a run's time goes, and what to cut")
+    p.add_argument("--db", default="data/nflcarddb.sqlite")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--runs", type=int, default=14,
+                   help="how many recent runs to measure (default: 14)")
+    p.set_defaults(func=cmd_speed)
 
     p = sub.add_parser("leaks",
                        help="where the collector already knows it missed sales")
