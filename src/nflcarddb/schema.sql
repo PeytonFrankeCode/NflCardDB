@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS sales (
     sold_date      TEXT,                       -- ISO YYYY-MM-DD
     listing_format TEXT NOT NULL DEFAULT 'unknown',  -- auction | fixed | unknown
     bids           INTEGER,
-    best_offer     INTEGER NOT NULL DEFAULT 0, -- 1 = price is the ASK, not the accepted offer
+    -- 1 = sold through Best Offer. Until the accepted amount has been read
+    -- off the item page, price_cents holds the seller's ASK, not what was
+    -- paid; offer_status = 'found' is what says the price is the real one.
+    best_offer     INTEGER NOT NULL DEFAULT 0,
     condition      TEXT,
     seller         TEXT,
     url            TEXT,
@@ -23,6 +26,20 @@ CREATE TABLE IF NOT EXISTS sales (
     -- sport, and a value that depends on wording would differ between two
     -- sales of one card.
     sport          TEXT,
+    -- The seller's asking price on a best-offer sale, kept once the accepted
+    -- amount has replaced it in price_cents. Every chart, median and upload
+    -- reads price_cents, so writing the real price there corrects all of them
+    -- at once; this is what keeps the ask from being lost in the process.
+    ask_cents      INTEGER,
+    -- What the item-page lookup found for a best-offer sale:
+    --   found      price_cents is now the accepted amount
+    --   not_shown  the page loaded but showed no accepted amount
+    --   ambiguous  more than one candidate amount; nothing was written
+    --   gone       eBay no longer has the listing
+    --   error      the page would not load; tried again on a later run
+    -- NULL means not looked up yet.
+    offer_status   TEXT,
+    offer_checked_at TEXT,
     run_id         TEXT,
     first_seen_at  TEXT NOT NULL,
     updated_at     TEXT NOT NULL

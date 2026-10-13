@@ -23,6 +23,20 @@ database: data/nflcarddb.sqlite
 # this re-keys the whole database, so it is a decision rather than a dial.
 default_sport: football
 
+# ACCEPTED BEST OFFER PRICES. eBay's search results show a best-offer sale at
+# the seller's ASK; the buyer paid less, and the real amount is only printed on
+# the listing's own page. Each lookup opens one such page -- about 4 seconds --
+# so this cannot cover every best offer, and does the most valuable first.
+#
+# Minutes a night to spend on it. 0 = off, which it stays until offer-check.bat
+# has read the right price off one sold best-offer page you saved: the lookup
+# only writes a price eBay explicitly labels as the accepted offer, and that
+# label is checked against eBay's real page before anything is trusted to it.
+offer_lookup_minutes: 0
+# Best offers asking less than this many dollars are skipped. The discount on
+# a $5 card is pennies; on a $500 card it is often $60 or more.
+offer_min_ask: 10
+
 # Optional: newline- or CSV-delimited player names. When present, the title
 # parser matches against it and reports higher confidence on exact hits.
 roster: config/nfl_players.txt

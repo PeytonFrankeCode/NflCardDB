@@ -106,15 +106,18 @@ function shapeSale(r) {
     id: r.item_id,
     sold_date: r.sold_date,
     title: r.title,
-    // The price eBay published. On a best-offer row that is the seller's ask,
-    // and the buyer paid less -- `best_offer` below marks those.
+    // What was paid, where that is known. On a best offer it is the accepted
+    // amount once that has been read off the listing's own page, and the
+    // seller's ask until then -- `price_is_ask` says which.
     price: r.price_cents == null ? null : r.price_cents / 100,
-    // Set only on best-offer rows, repeating the same number. Kept so callers
-    // can find the asks without also carrying the best_offer flag around.
+    // The seller's asking price, on every best-offer row.
     ask: r.ask_cents == null ? null : r.ask_cents / 100,
     shipping: r.shipping_cents == null ? null : r.shipping_cents / 100,
     currency: r.currency,
     best_offer: !!r.best_offer,
+    // True when `price` above is only the ask: a best offer whose accepted
+    // amount has not been confirmed. The one flag a chart needs.
+    price_is_ask: !!r.best_offer && !r.offer_known,
     format: r.listing_format,
     bids: r.bids,
     // eBay's CDN, straight into an <img>. Null when the tile had no photo, and
@@ -193,13 +196,13 @@ async function listSales(url, env) {
   if (url.searchParams.get("rookie") === "true") where.push("is_rookie = 1");
   if (url.searchParams.get("auto") === "true") where.push("is_auto = 1");
 
-  // Every listing with a published price, best offers included. On those the
-  // price is the seller's ask rather than what was paid -- `best_offer` says
-  // which, and exclude_offers=true drops them for callers who want only
-  // confirmed amounts.
+  // Every listing with a published price, best offers included. On a best
+  // offer not yet looked up the price is still the seller's ask, and
+  // exclude_offers=true drops exactly those -- a confirmed accepted offer is a
+  // real price and stays in.
   where.push("price_cents IS NOT NULL");
   if (url.searchParams.get("exclude_offers") === "true") {
-    where.push("best_offer = 0");
+    where.push("(best_offer = 0 OR offer_known = 1)");
   }
 
   const minConf = url.searchParams.get("min_confidence");
@@ -305,8 +308,8 @@ async function cardHistory(url, env) {
   if (!key) return fail(400, "missing_key", "Pass ?key=<card_key>");
 
   const rows = await env.DB.prepare(
-    `SELECT sold_date, price_cents, best_offer, item_id, title, image_url,
-            card_name, grader, grade
+    `SELECT sold_date, price_cents, best_offer, offer_known, item_id, title,
+            image_url, card_name, grader, grade
      FROM sales WHERE card_key = ? AND price_cents IS NOT NULL
        AND sold_date IS NOT NULL
      ORDER BY sold_date LIMIT 2000`
@@ -328,7 +331,7 @@ async function cardHistory(url, env) {
     series.get(label).push({
       date: r.sold_date,
       price: r.price_cents / 100,
-      is_ask: !!r.best_offer,
+      is_ask: !!r.best_offer && !r.offer_known,
       id: r.item_id,
     });
   }

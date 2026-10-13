@@ -101,32 +101,21 @@ class ScrapeReport:
         }
 
 
-def run_scrape(
+def build_fetcher(
     config: Config,
-    target_date: Optional[str] = None,
-    only_query: Optional[str] = None,
-    db_path: Optional[str] = None,
-    save_html_dir: Optional[str] = None,
     delay_override: Optional[float] = None,
     page_budget_override: Optional[int] = None,
     engine_override: Optional[str] = None,
     chrome_profile: Optional[bool] = None,
-    items_per_page_override: Optional[int] = None,
-    dry_run: bool = False,
-) -> ScrapeReport:
-    target_date = target_date or yesterday()
-    conn = store.connect(db_path or config.database)
+    save_html_dir: Optional[str] = None,
+):
+    """The fetcher a run uses: engine, signed-in profile, delay and budget.
 
-    queries = config.queries
-    if only_query:
-        queries = [q for q in config.queries if q.id == only_query]
-        if not queries:
-            raise ValueError(f"no query with id {only_query!r} in config")
-
-    run_id = store.start_run(conn, target_date)
-    report = ScrapeReport(run_id, target_date)
-    started = time.monotonic()
-
+    Shared by every job that talks to eBay, so a lookup of item pages sees
+    eBay exactly as the collector does -- same session, same pace, same
+    handling of sign-outs and bot checks. Two copies of this would drift, and
+    the drift would show up as one job signed in and the other not.
+    """
     use_chrome = (
         config.fetch.chrome_profile if chrome_profile is None else chrome_profile
     )
@@ -161,7 +150,7 @@ def run_scrape(
         engine = "browser"
         log.info("using the browser engine, so the signed-in session applies")
 
-    fetcher = make_fetcher(
+    return make_fetcher(
         engine=engine,
         profile_dir=profile_dir,
         profile_directory=profile_directory,
@@ -177,6 +166,42 @@ def run_scrape(
         save_dir=save_html_dir,
         block_media=config.fetch.block_media,
         challenge_retries=config.fetch.challenge_retries,
+    )
+
+
+def run_scrape(
+    config: Config,
+    target_date: Optional[str] = None,
+    only_query: Optional[str] = None,
+    db_path: Optional[str] = None,
+    save_html_dir: Optional[str] = None,
+    delay_override: Optional[float] = None,
+    page_budget_override: Optional[int] = None,
+    engine_override: Optional[str] = None,
+    chrome_profile: Optional[bool] = None,
+    items_per_page_override: Optional[int] = None,
+    dry_run: bool = False,
+) -> ScrapeReport:
+    target_date = target_date or yesterday()
+    conn = store.connect(db_path or config.database)
+
+    queries = config.queries
+    if only_query:
+        queries = [q for q in config.queries if q.id == only_query]
+        if not queries:
+            raise ValueError(f"no query with id {only_query!r} in config")
+
+    run_id = store.start_run(conn, target_date)
+    report = ScrapeReport(run_id, target_date)
+    started = time.monotonic()
+
+    fetcher = build_fetcher(
+        config,
+        delay_override=delay_override,
+        page_budget_override=page_budget_override,
+        engine_override=engine_override,
+        chrome_profile=chrome_profile,
+        save_html_dir=save_html_dir,
     )
 
     roster = load_roster(config.roster) if config.roster else None
@@ -565,13 +590,14 @@ def card_history(
     where = ["c.card_key = ?", "s.sold_date IS NOT NULL", "s.price_cents IS NOT NULL"]
     params: list = [key]
     if not include_offers:
-        where.append("s.best_offer = 0")
+        where.append(f"NOT {store.ASK_ONLY}")
 
     conn = store.connect(db_path)
     try:
         rows = conn.execute(
             f"""
-            SELECT s.sold_date, s.price_cents, s.best_offer, s.item_id, s.title,
+            SELECT s.sold_date, s.price_cents, {store.ASK_ONLY} AS best_offer,
+                   s.item_id, s.title,
                    s.image_url, c.card_name, c.grader, c.grade
             FROM sales s JOIN cards c USING (item_id)
             WHERE {' AND '.join(where)}
@@ -674,7 +700,7 @@ def top_sales(
     where = ["s.sold_date IS NOT NULL", "s.price_cents IS NOT NULL"]
     params: list = []
     if not include_offers:
-        where.append("s.best_offer = 0")
+        where.append(f"NOT {store.ASK_ONLY}")
     if days:
         where.append("s.sold_date >= ?")
         params.append((date.today() - timedelta(days=days)).isoformat())
@@ -684,7 +710,8 @@ def top_sales(
         rows = conn.execute(
             f"""
             SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.currency,
-                   s.best_offer, s.image_url, c.player, c.year, c.set_name,
+                   {store.ASK_ONLY} AS best_offer, s.image_url, c.player, c.year,
+                   c.set_name,
                    c.grader, c.grade
             FROM sales s LEFT JOIN cards c USING (item_id)
             WHERE {' AND '.join(where)}

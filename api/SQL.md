@@ -280,17 +280,34 @@ FROM daily ORDER BY sold_date DESC LIMIT 90;
 
 ## Two things to know about the prices
 
-**Best offers carry the seller's ask, not what the buyer paid.** eBay does not
-publish the accepted amount. Those rows are marked `best_offer = 1`, and
-`ask_cents` holds the same number, so you can tell them apart — but they are
-counted in every median in `cards` and `card_grades`. Those medians therefore
-sit slightly high. If you want a page free of that, filter it yourself:
+**A best offer's price is either confirmed or still the ask.** The search
+results show a best-offer sale at the seller's asking price; the buyer paid
+less. The collector reads the real amount off each listing's own page — most
+valuable first, as time allows — and when it does, `price_cents` becomes the
+amount actually paid. Three columns tell you which you are looking at:
+
+| `best_offer` | `offer_known` | `price_cents` is |
+|---|---|---|
+| 0 | 0 | what was paid (auction or Buy It Now) |
+| 1 | 1 | what was paid — the accepted offer, read off the listing |
+| 1 | 0 | **the ask** — the buyer paid less, by an amount not yet known |
+
+`ask_cents` holds the asking price on every best-offer row, confirmed or not.
+
+The medians in `cards` and `card_grades` include the unconfirmed asks, so they
+sit a little high — less so every night the lookups run. For a chart of only
+known prices:
 
 ```sql
 SELECT sold_date, price_cents FROM sales
-WHERE card_key = ? AND best_offer = 0 AND price_cents IS NOT NULL
+WHERE card_key = ? AND price_cents IS NOT NULL
+  AND (best_offer = 0 OR offer_known = 1)
 ORDER BY sold_date;
 ```
+
+Drawing the unconfirmed asks too, but differently — a hollow dot, say — is
+honest and keeps the history fuller: select `best_offer = 1 AND offer_known = 0`
+as the flag.
 
 **Prices are cents.** `median_cents = 1250` is $12.50. Divide by 100 for
 display; never store the divided number.

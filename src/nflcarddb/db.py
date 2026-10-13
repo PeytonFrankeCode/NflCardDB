@@ -21,6 +21,14 @@ SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 log = logging.getLogger(__name__)
 
 
+# A sale whose price_cents is still only the seller's ask: a best offer whose
+# accepted amount has not been read off its item page. One definition, used
+# everywhere "is this an ask?" is asked, because the answer changed from "is it
+# a best offer" to "is it a best offer we have not confirmed" -- and six copies
+# of the old answer would each need finding when it changes again.
+ASK_ONLY = "(s.best_offer = 1 AND COALESCE(s.offer_status, '') != 'found')"
+
+
 def utcnow() -> str:
     """Timestamps for the incremental-upload watermark.
 
@@ -154,8 +162,21 @@ def upsert_sales(conn: sqlite3.Connection, sales: Iterable[Sale], run_id: str) -
     cols = ", ".join(_SALE_COLS) + ", run_id, first_seen_at, updated_at"
     binds = ", ".join(f":{c}" for c in _SALE_COLS) + ", :run_id, :first_seen_at, :updated_at"
     # On conflict, refresh the volatile fields only.
+    #
+    # Except the price of a best offer whose accepted amount has been read off
+    # its item page. The search results only ever show the ASK, so a routine
+    # re-scrape would quietly put it back over the real price -- the one
+    # fact a lookup took a whole page request to learn. Same for the flag:
+    # once an accepted offer is confirmed, the sale was a best offer whatever
+    # a later results page says.
+    protected = {
+        "price_cents": "CASE WHEN sales.offer_status = 'found' "
+                       "THEN sales.price_cents ELSE excluded.price_cents END",
+        "best_offer": "CASE WHEN sales.offer_status = 'found' "
+                      "THEN 1 ELSE excluded.best_offer END",
+    }
     updates = ", ".join(
-        f"{c} = excluded.{c}"
+        f"{c} = {protected.get(c, f'excluded.{c}')}"
         for c in _SALE_COLS
         if c not in ("item_id", "query_id", "sport")
     )

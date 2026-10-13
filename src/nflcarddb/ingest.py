@@ -27,9 +27,35 @@ from .parse_title import load_roster, parse_title
 
 log = logging.getLogger(__name__)
 
-HTML_SUFFIXES = {".html", ".htm", ".mhtml", ".xhtml"}
+HTML_SUFFIXES = {".html", ".htm", ".mhtml", ".mht", ".xhtml"}
 JSON_SUFFIXES = {".json"}
 READABLE_SUFFIXES = HTML_SUFFIXES | JSON_SUFFIXES
+
+
+def read_saved_html(path: Path) -> str:
+    """The HTML inside a saved page, whichever way the browser saved it.
+
+    "Webpage, Complete" writes plain HTML. "Webpage, Single File" writes MHTML:
+    a MIME message whose HTML part is quoted-printable, so every `=` in the
+    markup arrives as `=3D` and long lines are broken with a trailing `=`.
+    Read as plain text, attributes stop parsing -- a fixture page lost a third
+    of its listings that way, silently, with the import still reporting
+    success. So MHTML is unpacked with the standard mail parser first.
+    """
+    data = path.read_bytes()
+    head = data[:2000].lower()
+    if path.suffix.lower() in (".mhtml", ".mht") or (
+            b"mime-version" in head and b"multipart/related" in head):
+        import email
+        from email import policy
+
+        message = email.message_from_bytes(data, policy=policy.default)
+        for part in message.walk():
+            if part.get_content_type() == "text/html":
+                payload = part.get_payload(decode=True) or b""
+                charset = part.get_content_charset() or "utf-8"
+                return payload.decode(charset, errors="replace")
+    return data.decode("utf-8", errors="replace")
 
 
 def _sale_from_bookmarklet(row: dict, query_id: str) -> Optional[Sale]:
@@ -165,7 +191,7 @@ def import_files(
                     continue
             else:
                 try:
-                    html = path.read_text(encoding="utf-8", errors="replace")
+                    html = read_saved_html(path)
                 except OSError as exc:
                     report.skipped.append((path.name, f"could not read: {exc}"))
                     continue

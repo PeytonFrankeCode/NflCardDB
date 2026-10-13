@@ -32,7 +32,8 @@ ROWS_PER_INSERT = 200
 
 EXPORT_COLUMNS = (
     "item_id", "sold_date", "title", "price_cents", "ask_cents", "shipping_cents",
-    "currency", "best_offer", "listing_format", "bids", "image_url", "player",
+    "currency", "best_offer", "offer_known", "listing_format", "bids", "image_url",
+    "player",
     "team", "year", "brand", "set_name", "subset", "parallel", "card_number",
     "print_run", "grader", "grade", "is_rookie", "is_auto", "is_relic",
     "sport", "confidence", "card_key", "card_name",
@@ -84,14 +85,18 @@ def _iter_rows_to_export(
     return conn.execute(
         f"""
         SELECT s.item_id, s.sold_date, s.title,
-               -- Every row carries the price eBay published. On a best offer
-               -- that is the seller's ask and the buyer paid less, so this
-               -- column mixes two things by deliberate choice; `best_offer`
-               -- marks which is which.
+               -- What was paid, wherever that is known. On a best offer whose
+               -- accepted amount has been read off its item page this IS the
+               -- accepted amount; on one not yet looked up it is still the
+               -- seller's ask, and `offer_known` = 0 says so.
                s.price_cents,
-               -- Unchanged: set only on best-offer rows, so a caller who wants
-               -- accepted-offer prices out can still filter on it alone.
-               CASE WHEN s.best_offer = 1 THEN s.price_cents ELSE NULL END AS ask_cents,
+               -- The ask, on every best-offer row: from its own column once a
+               -- lookup has moved it there, from price_cents until then.
+               CASE WHEN s.best_offer = 1
+                    THEN COALESCE(s.ask_cents, s.price_cents) ELSE NULL END AS ask_cents,
+               -- 1 when price_cents is a confirmed accepted offer. A site can
+               -- trust price_cents on any row where best_offer = 0 OR this = 1.
+               CASE WHEN s.offer_status = 'found' THEN 1 ELSE 0 END AS offer_known,
                s.shipping_cents, s.currency, s.best_offer, s.listing_format, s.bids,
                s.image_url,
                c.player, c.team, c.year, c.brand, c.set_name, c.subset,

@@ -139,6 +139,39 @@ without being re-read. Your website asks for one sport with
 `WHERE (sport = 'football' OR sport IS NULL)` — the `OR sport IS NULL` is not
 optional, and `api/SQL.md` explains why.
 
+## Best offers: the price actually paid
+
+eBay's search results show a best-offer sale at the price the seller *asked*.
+The buyer paid less, and until recently nothing said how much — close to half
+of all sales carried a price that was too high. eBay now prints the accepted
+amount on the sold listing's own page, and the collector can read it.
+
+Each lookup opens one listing page (about four seconds), and there are
+thousands of best offers a day, so it cannot do all of them. It does the most
+expensive first — a best offer usually closes 10–20% under the ask, which is
+$60 on a $400 card and pennies on a $4 one — and continues from where it
+stopped the next night.
+
+**It is off until you check one page.** It only ever writes an amount eBay
+labels as the accepted offer, and that label has to be confirmed against a
+real page first:
+
+1. On eBay, open a sold listing that shows "Best offer accepted" and the price.
+2. **Ctrl+S** to save it ("Webpage, Complete" or "Single File" both work).
+3. **Drag the saved file onto `offer-check.bat`.**
+
+If it shows the right price, open `config\queries.yml`, change
+`offer_lookup_minutes: 0` to the minutes a night you want to spend (45 is
+about 650 sales), and the nightly run takes it from there. `offers.bat` does a
+45-minute batch on demand. If it shows the wrong price or none, send the saved
+file over and the lookup can be taught the page.
+
+Three things it will never do: write a price higher than the ask (an offer
+can't be accepted above it), write a figure that isn't labelled as the accepted
+offer (shipping, the "similar items" strips), or guess when two figures
+compete. And if its first 25 pages find nothing at all, it stops and says so
+instead of spending the night.
+
 ## Set it and forget it
 
 Two double-clicks, once, and it collects and uploads every day by itself.

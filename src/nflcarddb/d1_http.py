@@ -78,6 +78,9 @@ MIGRATIONS = (
     # which is correct: unmarked means the default sport, and the key says
     # the same thing by leaving it out.
     "ALTER TABLE sales ADD COLUMN sport TEXT",
+    # Whether a best offer's price is the confirmed accepted amount. Every row
+    # uploaded before item pages were read is 0, which is true of them.
+    "ALTER TABLE sales ADD COLUMN offer_known INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE cards ADD COLUMN sport TEXT",
     "CREATE INDEX IF NOT EXISTS idx_cards_sport  ON cards (sport, quality, sales DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cards_sp_val ON cards (sport, quality, median_cents DESC)",

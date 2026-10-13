@@ -212,6 +212,33 @@ test("asking for the default sport still finds the rows collected before sports 
       "an unmarked row reports as the default sport rather than null");
   });
 
+test("a confirmed best offer is a real price; an unconfirmed one is still an ask",
+  async () => {
+    // exclude_offers used to drop every best offer. Once an item page has
+    // given up the accepted amount, that row is a real sale price and has to
+    // stay in -- and say so, so a chart does not draw it as an ask.
+    const env = makeEnv();
+    const ins = env.db.prepare(
+      `INSERT INTO sales (item_id, sold_date, title, price_cents, ask_cents,
+                          best_offer, offer_known, currency, card_key)
+       VALUES (?, '2026-10-10', ?, ?, ?, ?, ?, 'USD', 'k')`);
+    ins.run("plain", "Fixed price sale", 2000, null, 0, 0);
+    ins.run("known", "Best offer, accepted amount read", 3800, 4500, 1, 1);
+    ins.run("ask", "Best offer, not looked up yet", 4500, 4500, 1, 0);
+
+    const all = await get(env, "/v1/sales");
+    const byId = Object.fromEntries(all.body.sales.map((s) => [s.id, s]));
+    assert.equal(byId.known.price, 38);
+    assert.equal(byId.known.ask, 45);
+    assert.equal(byId.known.price_is_ask, false);
+    assert.equal(byId.ask.price_is_ask, true);
+    assert.equal(byId.plain.price_is_ask, false);
+
+    const trusted = await get(env, "/v1/sales?exclude_offers=true");
+    const ids = trusted.body.sales.map((s) => s.id).sort();
+    assert.deepEqual(ids, ["known", "plain"]);
+  });
+
 test("a search term is not read as SQL", async () => {
   const env = makeEnv(CATALOGUE);
   const { body } = await get(env, "/v1/cards?q=" + encodeURIComponent("'; DROP TABLE cards--"));

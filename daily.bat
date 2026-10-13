@@ -68,6 +68,17 @@ call :log "catch-up disabled (NFLCARDDB_CATCHUP_MINUTES=0)"
 :CATCHUPDONE
 python -m nflcarddb coverage >> "!LOG!" 2>&1
 
+REM ---- accepted Best Offer prices -------------------------------------------
+REM Reads the price actually paid off each best-offer listing's own page, most
+REM valuable first, for offer_lookup_minutes (config\queries.yml). Off at 0,
+REM which is the default until offer-check.bat has passed on a saved page.
+REM Before publish and upload, so the corrected prices go out tonight.
+python -m nflcarddb -v offers >> "!LOG!" 2>&1
+set OCODE=!errorlevel!
+if "!OCODE!"=="10" call :log "offer lookups stopped: pages did not show an accepted price -- run offer-check.bat"
+if "!OCODE!"=="8" call :log "offer lookups stopped: session expired -- run login.bat"
+if "!OCODE!"=="4" call :log "offer lookups stopped: eBay human check"
+
 REM ---- photos + dashboard files -------------------------------------------
 call :log "sizing photos and refreshing the dashboard..."
 python -m nflcarddb images --upgrade >> "!LOG!" 2>&1

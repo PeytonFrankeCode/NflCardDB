@@ -154,7 +154,7 @@ def _recent(conn: sqlite3.Connection) -> list[dict]:
     rows = []
     for r in conn.execute(
         "SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.currency, "
-        "       s.best_offer, s.bids, s.image_url, c.player, c.team, c.year, "
+        f"       {store.ASK_ONLY} AS best_offer, s.bids, s.image_url, c.player, c.team, c.year, "
         "       c.set_name, c.parallel, c.grader, c.grade, c.confidence "
         "FROM sales s LEFT JOIN cards c USING (item_id) "
         "WHERE s.sold_date IS NOT NULL "
@@ -415,7 +415,8 @@ def _top(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     """
     rows = []
     for r in conn.execute(
-        f"SELECT s.item_id, s.sold_date, s.title, s.price_cents, s.best_offer, "
+        f"SELECT s.item_id, s.sold_date, s.title, s.price_cents, "
+        f"       {store.ASK_ONLY} AS best_offer, "
         f"       s.image_url, c.player, c.year, c.set_name, c.grader, c.grade "
         f"FROM sales s LEFT JOIN cards c USING (item_id) "
         f"WHERE s.sold_date IS NOT NULL AND {PRICE_FILTER} "

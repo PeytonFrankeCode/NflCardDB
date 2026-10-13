@@ -76,6 +76,13 @@ class Config:
     # Everything collected before sports were separated is football, so this
     # is a statement about the existing data rather than a preference.
     default_sport: str = "football"
+    # Minutes a night spent reading accepted Best Offer prices off item pages.
+    # 0 is off -- the default until `offer-check.bat` has confirmed, against a
+    # real saved page, that eBay's markup reads the way the lookup expects.
+    offer_lookup_minutes: int = 0
+    # Best offers asking less than this are not looked up. The discount on a
+    # $3 ask is pennies, and every lookup costs a full page request.
+    offer_min_ask: float = 10.0
     fetch: FetchConfig = field(default_factory=FetchConfig)
     price_bands: list[list[Optional[float]]] = field(default_factory=lambda: list(DEFAULT_BANDS))
     queries: list[QuerySpec] = field(default_factory=list)
@@ -120,6 +127,8 @@ def load_config(path: str | Path | None = None) -> Config:
         sets=raw.get("sets"),
         skip_lots=bool(raw.get("skip_lots", True)),
         default_sport=str(raw.get("default_sport", "football")).lower(),
+        offer_lookup_minutes=int(raw.get("offer_lookup_minutes", 0) or 0),
+        offer_min_ask=float(raw.get("offer_min_ask", 10.0) or 0),
         fetch=fetch,
         price_bands=raw.get("price_bands") or list(DEFAULT_BANDS),
         queries=queries,

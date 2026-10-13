@@ -2289,6 +2289,144 @@ def cmd_d1_cards(args) -> int:
     return 0
 
 
+def cmd_offers(args) -> int:
+    """Read accepted Best Offer prices off item pages, highest asks first.
+
+    With --file it reads pages you saved yourself and writes nothing -- the
+    way to check the parser against eBay's real markup before letting it
+    loose on the database.
+    """
+    if args.file:
+        return _offers_check_files(args.file, args.ask)
+
+    from .offers import backlog, labelling_by_week, run_offer_lookup
+    from .pipeline import build_fetcher
+
+    config = load_config(args.config)
+    db_path = args.db or config.database
+    minutes = args.minutes if args.minutes is not None else config.offer_lookup_minutes
+    min_ask = args.min_ask if args.min_ask is not None else config.offer_min_ask
+    min_ask_cents = int(round(min_ask * 100))
+
+    if not minutes and not args.limit:
+        print("Best-offer lookups are off (offer_lookup_minutes: 0 in "
+              "config/queries.yml).")
+        print("Check one saved page with offer-check.bat first, then turn them on.")
+        return 0
+
+    conn = store.connect(db_path)
+    try:
+        before = backlog(conn, min_ask_cents)
+        weeks = labelling_by_week(conn)
+    finally:
+        conn.close()
+
+    print(f"{before['pending']:,} best-offer sale(s) asking ${min_ask:g} or more "
+          f"still carry their ask; {before['found']:,} already confirmed.")
+    if minutes:
+        print(f"Looking up the most valuable first, for up to {minutes} minute(s).\n")
+
+    fetcher = build_fetcher(config, save_html_dir=args.save_html)
+
+    def announce(item, reading):
+        if reading.status == "found":
+            ask = (item["price_cents"] or 0) / 100
+            paid = reading.accepted_cents / 100
+            print(f"  ${ask:>9,.2f} ask -> ${paid:>9,.2f} accepted   {item['item_id']}")
+        elif args.verbose_offers:
+            print(f"  {reading.status:<10} {item['item_id']}  {reading.reason}")
+
+    try:
+        report = run_offer_lookup(
+            fetcher, db_path, minutes=minutes or 0, min_ask_cents=min_ask_cents,
+            limit=args.limit, retry=tuple(args.retry or ()), on_item=announce,
+        )
+    finally:
+        closer = getattr(fetcher, "close", None)
+        if closer:
+            closer()
+
+    print()
+    print(json.dumps(report.as_dict(), indent=2))
+    print()
+    print(f"Looked up {report.looked_up} page(s) in {report.seconds / 60:.0f} "
+          f"minute(s): {report.found} accepted price(s) confirmed, "
+          f"{report.not_shown} showed none, {report.ambiguous} unclear, "
+          f"{report.gone} gone.")
+    if report.discount is not None:
+        print(f"The confirmed offers closed {report.discount:.0%} under the ask "
+              f"on average.")
+    left = max(0, before["pending"] - report.looked_up - report.errors)
+    if report.looked_up and report.found and left:
+        per = report.seconds / max(1, report.looked_up + report.errors)
+        print(f"About {left:,} left at this ask or above: roughly "
+              f"{left * per / 3600:.1f} hour(s) at this pace. Raise "
+              f"offer_min_ask to spend the nights on the expensive ones only.")
+
+    if weeks and len(weeks) >= 3:
+        recent = weeks[0]["pct"] or 0
+        earlier = [w["pct"] or 0 for w in weeks[2:]]
+        usual = sum(earlier) / len(earlier) if earlier else 0
+        if usual >= 10 and recent < usual / 3:
+            print()
+            print(f"NOTE: only {recent:.0f}% of this week's sales are marked best "
+                  f"offer, against {usual:.0f}% before.")
+            print("eBay may have stopped labelling them in search results. Sales "
+                  "it does not label are never looked up -- they keep their ask "
+                  "and look like ordinary sales.")
+
+    if report.stopped == "markup":
+        print(f"\nSTOPPED: {report.error}", file=sys.stderr)
+        return 10
+    if report.stopped in ("blocked", "signed_out", "network"):
+        print(f"\nSTOPPED: {report.error}", file=sys.stderr)
+        return {"blocked": 4, "network": 5, "signed_out": 8}[report.stopped]
+    return 0
+
+
+def _offers_check_files(paths, ask: Optional[float]) -> int:
+    """Read saved item pages and show exactly what the parser makes of them."""
+    from .ingest import read_saved_html
+    from .item_page import read_offer
+
+    ask_cents = int(round(ask * 100)) if ask else None
+    worked = 0
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            files = sorted(p for p in path.iterdir()
+                           if p.suffix.lower() in (".html", ".htm", ".mhtml", ".mht"))
+        else:
+            files = [path]
+        for f in files:
+            html = read_saved_html(f)
+            reading = read_offer(html, ask_cents=ask_cents)
+            # Without a known ask, the page's own struck-through price stands
+            # in for it -- that is the ask, as the page itself states it.
+            if ask_cents is None:
+                struck = [c.cents for c in reading.candidates if c.kind == "struck"]
+                if struck:
+                    reading = read_offer(html, ask_cents=max(struck))
+
+            print("=" * 66)
+            print(f"  {f.name}")
+            print("=" * 66)
+            if reading.status == "found":
+                worked += 1
+                print(f"  ACCEPTED OFFER: ${reading.accepted_cents / 100:,.2f}")
+            else:
+                print(f"  NOTHING WRITTEN -- {reading.status}: {reading.reason}")
+            print()
+            print("  Every dollar amount on the item's part of the page:")
+            for c in reading.candidates[:25]:
+                print(f"    {c.kind:<9} ${c.cents / 100:>9,.2f}   {c.context[:60]}")
+            if reading.hint_cents:
+                vals = ", ".join(f"${h / 100:,.2f}" for h in reading.hint_cents[:5])
+                print(f"  Embedded-data hint (not trusted on its own): {vals}")
+            print()
+    return 0 if worked else 1
+
+
 def cmd_speed(args) -> int:
     """Where a run's time goes, and what each search costs for what it adds.
 
@@ -3533,6 +3671,28 @@ def build_parser() -> argparse.ArgumentParser:
                         "falling sorts: --min-sales counts every grade.")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_d1_cards)
+
+    p = sub.add_parser("offers",
+                       help="read accepted Best Offer prices off item pages")
+    p.add_argument("--config", default="config/queries.yml")
+    p.add_argument("--db")
+    p.add_argument("--minutes", type=float,
+                   help="time limit (default: offer_lookup_minutes in the config)")
+    p.add_argument("--limit", type=int, help="look up at most this many")
+    p.add_argument("--min-ask", type=float,
+                   help="skip best offers asking less than this many dollars")
+    p.add_argument("--retry", action="append",
+                   choices=["not_shown", "ambiguous", "gone"],
+                   help="look up these again, e.g. after the parser is improved")
+    p.add_argument("--file", action="append", metavar="PATH",
+                   help="read a saved item page (or a folder of them) and write "
+                        "nothing -- for checking the parser against real markup")
+    p.add_argument("--ask", type=float,
+                   help="with --file: the listing's asking price, if known")
+    p.add_argument("--save-html", help="keep every item page fetched, in this folder")
+    p.add_argument("--verbose-offers", action="store_true",
+                   help="print every lookup, not only the confirmed ones")
+    p.set_defaults(func=cmd_offers)
 
     p = sub.add_parser("speed",
                        help="where a run's time goes, and what to cut")

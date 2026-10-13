@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS sales (
     shipping_cents INTEGER,
     currency       TEXT NOT NULL DEFAULT 'USD',
     best_offer     INTEGER NOT NULL DEFAULT 0,
+    -- 1 when price_cents on a best-offer row is the confirmed accepted amount,
+    -- read off the listing's own page. 0 on a best offer means price_cents is
+    -- still the ask. Trust price_cents where best_offer = 0 OR offer_known = 1.
+    offer_known    INTEGER NOT NULL DEFAULT 0,
     listing_format TEXT,
     bids           INTEGER,
     -- eBay's own CDN URL for the front photo. Only the link is stored; the
