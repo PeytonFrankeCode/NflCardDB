@@ -775,3 +775,21 @@ def test_set_inside_a_real_card_name_is_left_alone():
                   "2025 Prizm Caleb Williams Mindset #M-3",
                   "2025 Donruss Offset Press Proof Drake Maye"):
         assert not MULTI_CARD_RE.search(title), title
+
+
+@pytest.mark.parametrize("title, player", [
+    # Hines-Allen's 2019-20 cards say "Josh Allen"; the team word moves them.
+    ("2019 Panini Prizm Josh Allen RC #234 Jaguars PSA 10", "Josh Hines-Allen"),
+    ("2019 Select Josh Allen Jacksonville Jaguars Rookie", "Josh Hines-Allen"),
+    ("2019 Donruss Josh Allen Kentucky RC", "Josh Hines-Allen"),
+    # The QB keeps his own, and every sale that names no team.
+    ("2018 Prizm Josh Allen Rookie Bills", "Josh Allen"),
+    ("2018 Prizm Josh Allen Wyoming Cowboys", "Josh Allen"),
+    ("2021 Mosaic Josh Allen", "Josh Allen"),
+    # Naming both sides says nothing about which one it is.
+    ("2019 Prizm Josh Allen Jaguars Buffalo Bills", "Josh Allen"),
+])
+def test_namesakes_are_told_apart_by_team(title, player):
+    from nflcarddb.parse_title import load_roster
+    roster = load_roster("config/nfl_players.txt")
+    assert parse_title(title, roster=roster).player == player

@@ -326,6 +326,33 @@ TEAMS = (
     "Oakland Raiders", "San Diego Chargers", "St. Louis Rams",
 )
 
+# Two players printed under one name, told apart by the team on the card.
+# Josh Hines-Allen played 2019-20 as "Josh Allen", so his early cards say just
+# that, and a seller copies it. A team or college word moves the sale to him;
+# without one it stays with the Bills QB, whose sales outnumber his many times
+# over (owner, Oct 2026). A title naming both sides is left alone.
+NAMESAKES = {
+    "joshallen": (
+        "Josh Hines-Allen",
+        re.compile(r"\b(jaguars|jacksonville|jags|kentucky)\b", re.I),
+        re.compile(r"\b(bills|buffalo|wyoming)\b", re.I),
+    ),
+}
+
+
+def _resolve_namesake(player: str, title: str) -> str:
+    """The namesake a title's team words point to, else the name as parsed."""
+    from .card_key import normalize_player as _fold
+
+    entry = NAMESAKES.get(_fold(player))
+    if not entry:
+        return player
+    other, theirs, ours = entry
+    if theirs.search(title) and not ours.search(title):
+        return other
+    return player
+
+
 # --- regexes ----------------------------------------------------------------
 
 GRADE_RE = re.compile(
@@ -1073,6 +1100,7 @@ def parse_title(title: str, roster: Optional[set[str]] = None,
                 attrs.player = " / ".join(sorted(chosen.values()))
                 roster_hit = True
     if attrs.player:
+        attrs.player = _resolve_namesake(attrs.player, title)
         hits += 2 if roster_hit else 1
 
     # Confidence: weighted toward the fields that make a sale comparable.
