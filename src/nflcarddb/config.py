@@ -91,6 +91,18 @@ class Config:
         return query.bands or self.price_bands
 
 
+def _aspect_values(extra: dict) -> dict:
+    """eBay filter values as eBay spells them.
+
+    YAML reads an unquoted `Graded: Yes` as the boolean True, which would go
+    into the URL as `Graded=True` -- a value eBay does not have, so the filter
+    is silently ignored and the search comes back unfiltered. eBay's yes/no
+    aspects are spelled Yes and No, so booleans are turned back into those.
+    """
+    return {str(k): ("Yes" if v is True else "No" if v is False else str(v))
+            for k, v in extra.items()}
+
+
 def load_config(path: str | Path | None = None) -> Config:
     path = Path(path) if path else DEFAULT_CONFIG_PATH
     if not path.exists():
@@ -111,7 +123,7 @@ def load_config(path: str | Path | None = None) -> Config:
             id=str(q["id"]),
             keywords=q.get("keywords", "") or "",
             category=str(q["category"]) if q.get("category") else None,
-            extra=q.get("extra") or {},
+            extra=_aspect_values(q.get("extra") or {}),
             bands=q.get("price_bands"),
             sport=(str(q["sport"]).lower() if q.get("sport") else None),
         ))
