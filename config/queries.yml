@@ -132,16 +132,44 @@ queries:
   # nothing could use. Add it back only if lots become interesting in
   # themselves rather than as comparables.
 
-  # Graded cards: same card, known condition, comparable prices. Runs alone
-  # (`--query football_graded`) as a fast daily pass when time is short.
-  - id: football_graded
-    keywords: football psa
+  # Graded cards: same card, known condition, comparable prices -- the cards
+  # the website's Market follows (slabs only since Oct 2026).
+  #
+  # By eBay's own "Graded: Yes" item specific rather than the word "psa". The
+  # keyword pass found only PSA slabs whose title said PSA; BGS, SGC, CGC, CSG
+  # and TAG slabs reached the database only when football_singles got to them,
+  # and that is the search that hits eBay's result wall. The aspect name and
+  # value are eBay's, read off a live page (data/ebay-facets.json: Graded
+  # Yes/No). `_dcat` must ride along or eBay ignores the filter silently.
+  # Quoted, because YAML reads a bare Yes as true.
+  #
+  # Check it is honoured: survey.bat. football_slabs must come back far
+  # SMALLER than football_singles; the same size means the filter was ignored.
+  - id: football_slabs
+    keywords: football
     category: "261328"
     sport: football
+    extra:
+      Graded: "Yes"
+      _dcat: "261328"
     price_bands:
-      - [null, 50]
-      - [50, 250]
-      - [250, null]
+      - [null, 25]
+      - [25, 50]
+      - [50, 100]
+      - [100, 250]
+      - [250, 1000]
+      - [1000, null]
+
+  # The old keyword pass, kept as a fallback: if survey.bat shows the filter
+  # above being ignored, comment football_slabs out and uncomment this.
+  # - id: football_graded
+  #   keywords: football psa
+  #   category: "261328"
+  #   sport: football
+  #   price_bands:
+  #     - [null, 50]
+  #     - [50, 250]
+  #     - [250, null]
 
   # TURNED OFF after being measured. "nfl card" walked all seven price bands
   # every run -- about a seventh of the whole run -- to contribute 1.4% of the

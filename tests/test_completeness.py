@@ -190,6 +190,38 @@ def test_marking_a_day_makes_the_backfill_collect_it_again(tmp_path):
     conn.close()
 
 
+def _recent(days_ago: int) -> str:
+    from datetime import date, timedelta
+    return (date.today() - timedelta(days=days_ago)).isoformat()
+
+
+def test_once_marks_a_thin_day_only_the_first_time(tmp_path):
+    """The daily run re-checks every night. A day that came back thin twice was
+    really quiet (or is gone from eBay), and must not be queued forever."""
+    path = tmp_path / "once.db"
+    thin = _recent(5)
+    _seed(path, {_recent(2): 200, _recent(3): 190, _recent(4): 210, thin: 12})
+
+    first = [r["day"] for r in find_thin_days(str(path), once=True, within_days=90)]
+    assert first == [thin]
+    mark_for_recollection(str(path), first)
+
+    # The catch-up re-collects it and it is still thin.
+    _seed(path, {thin: 0})
+    assert find_thin_days(str(path), once=True, within_days=90) == []
+    # The manual recheck still reports it, for a person to look at.
+    assert [r["day"] for r in find_thin_days(str(path))] == [thin]
+
+
+def test_once_leaves_out_days_ebay_no_longer_serves(tmp_path):
+    path = tmp_path / "window.db"
+    old = _recent(120)
+    _seed(path, {_recent(2): 200, _recent(3): 190, _recent(4): 210, old: 12})
+
+    assert find_thin_days(str(path), once=True, within_days=90) == []
+    assert [r["day"] for r in find_thin_days(str(path))] == [old]
+
+
 def test_marking_nothing_is_harmless(tmp_path):
     path = tmp_path / "none.db"
     _seed(path, {"2026-08-03": 10})

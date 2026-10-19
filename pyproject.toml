@@ -43,4 +43,6 @@ nflcarddb = ["schema.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# "." so tests can import shared fixtures from each other (from tests.test_search
+# import ...): plain `pytest`, as CI runs it, does not put the repo root on the path.
+pythonpath = ["src", "."]

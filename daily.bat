@@ -28,22 +28,32 @@ call :log "collecting..."
 python -m nflcarddb -v scrape --save-html data\html >> "!LOG!" 2>&1
 set CODE=!errorlevel!
 
+REM A failed collection skips the catch-up (it would fail the same way) but
+REM still uploads. These used to exit on the spot, so whatever the run HAD
+REM saved stayed on this PC until the next clean run, and the website showed
+REM those days as empty. The exit code is still returned at the end, so Task
+REM Scheduler keeps reporting the failure.
 if "!CODE!"=="8" (
   call :log "STOPPED: eBay session expired -- double-click login.bat once"
-  exit /b 8
+  goto PUBLISH
 )
 if "!CODE!"=="4" (
   call :log "STOPPED: eBay asked for a human check. Partial data was saved; tomorrow's run continues."
-  exit /b 4
+  goto PUBLISH
 )
 if "!CODE!"=="5" (
   call :log "STOPPED: could not reach eBay -- offline?"
-  exit /b 5
+  goto PUBLISH
 )
 if not "!CODE!"=="0" (
   call :log "STOPPED: scrape exited !CODE!"
-  exit /b !CODE!
+  goto PUBLISH
 )
+
+REM ---- re-collect days that came back cut short -----------------------------
+REM Marks thin days so the catch-up below collects them again. --once leaves a
+REM day alone after one second try, so a really quiet day can't eat the budget.
+python -m nflcarddb recheck --fix --once >> "!LOG!" 2>&1
 
 REM ---- catch up on missing days -------------------------------------------
 REM One task, not two: the collector holds a lock on its Chrome profile, so a
@@ -79,6 +89,7 @@ if "!OCODE!"=="10" call :log "offer lookups stopped: pages did not show an accep
 if "!OCODE!"=="8" call :log "offer lookups stopped: session expired -- run login.bat"
 if "!OCODE!"=="4" call :log "offer lookups stopped: eBay human check"
 
+:PUBLISH
 REM ---- photos + dashboard files -------------------------------------------
 call :log "sizing photos and refreshing the dashboard..."
 python -m nflcarddb images --upgrade >> "!LOG!" 2>&1
@@ -107,7 +118,7 @@ call :log "skipped Cloudflare upload -- no credentials stored (run connect-cloud
 :DONE
 python -m nflcarddb stats >> "!LOG!" 2>&1
 call :log "=== run finished ==="
-exit /b 0
+exit /b !CODE!
 
 :log
 echo %~1
