@@ -1324,7 +1324,8 @@ def cmd_recheck(args) -> int:
     config = load_config(args.config) if Path(args.config or "").exists() else None
     db_path = args.db or (config.database if config else "data/nflcarddb.sqlite")
 
-    thin = find_thin_days(db_path, ratio=args.ratio)
+    thin = find_thin_days(db_path, ratio=args.ratio, once=args.once,
+                          within_days=90 if args.once else None)
     if not thin:
         print("Every collected day looks complete.")
         return 0
@@ -3521,6 +3522,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ratio", type=float, default=0.5,
                    help="flag days below this fraction of a typical day (default 0.5)")
     p.add_argument("--fix", action="store_true", help="queue the flagged days for re-collection")
+    p.add_argument("--once", action="store_true",
+                   help="skip days already re-collected once, and days older than "
+                        "eBay's 90-day window (for the unattended daily run)")
     p.set_defaults(func=cmd_recheck)
 
     p = sub.add_parser("images", help="report photo coverage, resize stored URLs")
