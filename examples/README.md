@@ -8,6 +8,14 @@ Three ways in, depending on what your site is.
 | Node / Next.js / Express | `server-node.js` | Key stays on the server |
 | PHP / WordPress / shared hosting | `server.php` | Key stays on the server |
 
+**PHP hosts must run 8.5.12, 8.4.27, 8.3.36, 8.2.35 or newer.** Earlier
+versions are open to remote code execution (php2shell, CVE-2026-109618 /
+CVE-2026-109619, Oct 2026). Someone who can run code on the host can read the
+key, so keeping it on the server only protects it if PHP is patched. If an
+unpatched host ever ran `server.php`, revoke that key and mint a new one.
+Updating WordPress does not update PHP; your host's control panel sets the PHP
+version.
+
 ## The one rule
 
 **A key in browser JavaScript is readable by anyone who views the page source.**
