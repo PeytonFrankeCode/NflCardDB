@@ -141,7 +141,7 @@ def test_the_credentials_file_is_gitignored():
     """It is a credential. This is the test that keeps it out of the repo."""
     from pathlib import Path
 
-    ignored = Path("/home/user/NflCardDB/.gitignore").read_text(encoding="utf-8")
+    ignored = (Path(__file__).resolve().parent.parent / ".gitignore").read_text(encoding="utf-8")
     assert "data/ebay-api.txt" in ignored
 
 

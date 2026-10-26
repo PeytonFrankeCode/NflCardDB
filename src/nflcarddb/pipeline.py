@@ -743,7 +743,8 @@ def top_sales(
     ]
 
 
-def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
+def find_thin_days(db_path: str, ratio: float = 0.5, once: bool = False,
+                   within_days: Optional[int] = None) -> list[dict]:
     """Days whose sale count is far below the busiest days: probably truncated.
 
     A day cut short by the page budget still recorded status 'ok' before this
@@ -756,6 +757,12 @@ def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
     clean up -- because then the median IS a truncated day and nothing gets
     flagged. It leans on eBay's daily volume being steady, which it is: real
     complete days here sit within about 15% of each other.
+
+    `once` is for the unattended daily run. It leaves out a day that was
+    already marked once: if the second pass still came back thin, that day
+    really was quiet or eBay no longer has it, and marking it every night would
+    spend the whole catch-up budget on the same day forever. `within_days`
+    keeps to the days eBay still serves, since older ones can't be re-collected.
     """
     conn = store.connect(db_path)
     try:
@@ -765,6 +772,14 @@ def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
                 "GROUP BY sold_date ORDER BY sold_date"
             )
         ]
+        marked_before = set()
+        if once:
+            marked_before = {
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT target_date FROM scrape_runs "
+                    "WHERE error LIKE 'marked incomplete%'"
+                )
+            }
     finally:
         conn.close()
 
@@ -775,10 +790,15 @@ def find_thin_days(db_path: str, ratio: float = 0.5) -> list[dict]:
     reference = counts[min(len(counts) - 1, int(round((len(counts) - 1) * 0.9)))]
     floor = reference * ratio
 
+    oldest = ((date.today() - timedelta(days=within_days)).isoformat()
+              if within_days else None)
+
     return [
         {"day": day, "sales": n, "expected": reference,
          "fraction": round(n / reference, 2)}
-        for day, n in rows if n < floor
+        for day, n in rows
+        if n < floor and day not in marked_before
+        and (oldest is None or day >= oldest)
     ]
 
 

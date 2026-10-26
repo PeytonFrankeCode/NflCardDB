@@ -153,6 +153,11 @@ CARD = "2024 Panini Prizm Caleb Williams #301 RC"
 
 def test_a_confirmed_price_replaces_the_ask_and_keeps_it(tmp_path):
     conn = _db(tmp_path, [("a", 4500, True, RECENT, CARD)])
+    # Collected a while ago, as a real sale is by the time its offer is read.
+    # Seeded and corrected in the same millisecond, a fast runner saw the two
+    # timestamps tie and failed the check below for a reason no real run has.
+    conn.execute("UPDATE sales SET updated_at = '2026-01-01T00:00:00.000+00:00'")
+    conn.commit()
     before = conn.execute("SELECT updated_at FROM sales").fetchone()[0]
 
     record(conn, "a", read_offer(ACCEPTED_PAGE, ask_cents=4500))
