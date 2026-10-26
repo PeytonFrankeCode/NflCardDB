@@ -6,6 +6,11 @@
  * end up in version control or in a backup someone can read.
  *
  *   /api/price.php?player=CJ+Stroud&grader=PSA&grade=10
+ *
+ * Run it on a patched PHP: 8.5.12, 8.4.27, 8.3.36, 8.2.35 or newer (php2shell,
+ * CVE-2026-109618 / CVE-2026-109619, Oct 2026). Older and end-of-life versions
+ * allow remote code execution, and code running on the host can read the key
+ * from the environment no matter where it is stored.
  */
 declare(strict_types=1);
 
